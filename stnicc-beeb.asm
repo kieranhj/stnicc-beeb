@@ -2,6 +2,9 @@
 \ *	STNICC BEEB
 \ ******************************************************************
 
+_POLY_PLOT_END_POINTS = TRUE
+_DOUBLE_BUFFER = TRUE
+
 \ ******************************************************************
 \ *	OS defines
 \ ******************************************************************
@@ -41,10 +44,13 @@ ENDMACRO
 
 MAX_VERTS_PER_POLY = 7
 
-screen_addr = &5800
 SCREEN_ROW_BYTES = 256
 SCREEN_WIDTH_PIXELS = 128
 SCREEN_HEIGHT_PIXELS = 200
+SCREEN_SIZE_BYTES = (SCREEN_WIDTH_PIXELS * SCREEN_HEIGHT_PIXELS) / 4
+
+screen1_addr = &8000 - SCREEN_SIZE_BYTES
+screen2_addr = screen1_addr - SCREEN_SIZE_BYTES
 
 FLAG_CLEAR_SCREEN = 1
 FLAG_CONTAINS_PALETTE = 2
@@ -58,7 +64,7 @@ POLY_DESC_END_OF_DATA = &FF
 \ *	ZERO PAGE
 \ ******************************************************************
 
-ORG &70
+ORG &00
 GUARD &9F
 
 ; vars for plot_span
@@ -95,6 +101,7 @@ GUARD &9F
 .temp_y             skip 1
 
 ; frame parser
+.frame_no           skip 2
 .frame_flags        skip 1
 .frame_bitmask      skip 2
 .indexed_num_verts  skip 1
@@ -102,13 +109,16 @@ GUARD &9F
 
 ; system vars
 .rom_bank           skip 1
+.vsyncs             skip 2
+.draw_buffer_HI     skip 1
+.disp_buffer        skip 2
 
 \ ******************************************************************
 \ *	CODE START
 \ ******************************************************************
 
-ORG &E00
-GUARD &4000 			; ensure code size doesn't hit start of screen memory
+ORG &1100
+GUARD &4000   			; ensure code size doesn't hit start of screen memory
 
 .start
 
@@ -130,6 +140,15 @@ GUARD &4000 			; ensure code size doesn't hit start of screen memory
 	STA &FE4E					; R14=Interrupt Enable (enable main_vsync and timer interrupt)
 	CLI							; enable interupts
 
+    \\ Init ZP
+    lda #0
+    ldx #0
+    .zp_loop
+    sta &00, x
+    inx
+    cpx #&A0
+    bne zp_loop
+
     \\ Set MODE 5
 
     lda #22
@@ -140,7 +159,7 @@ GUARD &4000 			; ensure code size doesn't hit start of screen memory
     \\ Resolution 256x200 => 128x200
     lda #1:sta &fe00:lda #32:sta &fe01
     lda #6:sta &fe00:lda #24:sta &fe01
-;    lda #8:sta &fe00:lda #32:sta &fe01  ; cursor off
+    lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
 
     \\ Load SWRAM data
     SWRAM_SELECT 4
@@ -173,6 +192,10 @@ GUARD &4000 			; ensure code size doesn't hit start of screen memory
     SWRAM_SELECT 4
     sta rom_bank
 
+    \\ Init system
+    lda #HI(screen1_addr)
+    sta draw_buffer_HI
+
     \\ Clear screen
     jsr screen_cls
 
@@ -181,7 +204,37 @@ GUARD &4000 			; ensure code size doesn't hit start of screen memory
 ;    jsr test_plot_poly
 
     .loop
+    \\ Wait vsync
+    lda #19
+    jsr osbyte
+
+    \\ Set display buffer
+    lda #0:sta disp_buffer
+    lda draw_buffer_HI
+    IF _DOUBLE_BUFFER
+    eor #HI(screen1_addr EOR screen2_addr)
+    ENDIF
+    sta disp_buffer+1
+
+    clc
+    lsr disp_buffer+1:ror disp_buffer
+    lsr disp_buffer+1:ror disp_buffer
+    lsr disp_buffer+1:ror disp_buffer
+
+    lda #12:sta &fe00
+    lda disp_buffer+1:sta &fe01
+    lda #13:sta &fe00
+    lda disp_buffer:sta &fe01
+
     jsr parse_frame
+
+    \\ Toggle draw buffer
+    lda draw_buffer_HI
+    IF _DOUBLE_BUFFER
+    eor #HI(screen1_addr EOR screen2_addr)
+    sta draw_buffer_HI
+    ENDIF
+
     jmp loop
 
 	\\ Re-enable useful interupts
@@ -227,6 +280,8 @@ GUARD &4000 			; ensure code size doesn't hit start of screen memory
     sta writeptr
     lda screen_row_HI, Y
     adc screen_col_HI, X
+    clc
+    adc draw_buffer_HI
     sta writeptr+1
 
     \\ Column index
@@ -353,6 +408,8 @@ GUARD &4000 			; ensure code size doesn't hit start of screen memory
     sta writeptr
     lda screen_row_HI, Y
     adc screen_col_HI, X
+    clc
+    adc draw_buffer_HI
     sta writeptr+1
 
     txa:and #3:tax
@@ -393,7 +450,7 @@ GUARD &4000 			; ensure code size doesn't hit start of screen memory
 	LSR A
 	LSR A
 	CLC
-	ADC #HI(screen_addr)
+	ADC draw_buffer_HI
 	STA scrn+1
 	
 	; calc screen row of starty
@@ -934,7 +991,9 @@ ENDIF
 	STA count
 	LSR A
 
+IF _POLY_PLOT_END_POINTS
     INC count
+ENDIF
 
 .steeplineloop
 
@@ -1002,7 +1061,11 @@ ENDIF
 	LDA dx
 	STA count
 	LSR A
-	STA accum	
+	STA accum
+
+IF _POLY_PLOT_END_POINTS
+    INC count
+ENDIF
 
 .shallowlineloop
 
@@ -1069,13 +1132,13 @@ ENDIF
 
 .screen_cls
 {
-    lda #HI(screen_addr)
+    lda draw_buffer_HI
     sta loop+2
-    ldx #HI(SCREEN_WIDTH_PIXELS * SCREEN_HEIGHT_PIXELS / 4)
+    ldx #HI(SCREEN_SIZE_BYTES)
     lda #0
     ldy #0
     .loop
-    sta screen_addr, y
+    sta &FF00, y
     iny
     bne loop
     inc loop+2
@@ -1219,7 +1282,12 @@ ENDIF
     jmp read_poly_data
 
     .end_of_frame
-    rts    
+    inc frame_no
+    bne no_carry
+    inc frame_no+1
+    .no_carry
+
+    rts
 }
 
 .fx_end
@@ -1347,14 +1415,14 @@ ALIGN &100
 .screen_row_LO
 FOR n,0,255,1
 row=n DIV 8:sl=n MOD 8
-addr=screen_addr + row * SCREEN_ROW_BYTES + sl
+addr=row * SCREEN_ROW_BYTES + sl
 EQUB LO(addr)
 NEXT
 
 .screen_row_HI
 FOR n,0,255,1
 row=n DIV 8:sl=n MOD 8
-addr=screen_addr + row * SCREEN_ROW_BYTES + sl
+addr=row * SCREEN_ROW_BYTES + sl
 EQUB HI(addr)
 NEXT
 
@@ -1418,7 +1486,7 @@ PRINT "DATA size =",~data_end-data_start
 PRINT "BSS size =",~bss_end-bss_start
 PRINT "------"
 PRINT "HIGH WATERMARK =", ~P%
-PRINT "FREE =", ~screen_addr-P%
+PRINT "FREE =", ~screen2_addr-P%
 PRINT "------"
 
 \ ******************************************************************
