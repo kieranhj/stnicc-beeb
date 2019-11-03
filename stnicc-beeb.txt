@@ -1,0 +1,106 @@
+STNICCC2000 for the Atari STe
+https://www.pouet.net/prod.php?which=1251
+
+File description: http://arsantica-online.com/st-niccc-competition/
+
+The stream contains flags, palette-data and vertex-/polygon-data for 1800 frames.
+The stream is segmented in 64KB blocks.
+A frame never crosses such a 64KB boundary.
+Polygons can have 3-15 vertices.
+Polygons can cover each other, so a non-convex polygon filler is needed.
+Polygons are rendered to a 256×200 pixel screen in 4 bit color depth.
+The palette (16 out of 512 colors) can change from frame to frame.
+Words are 2 bytes in big endian order.
+Colors are stored as words in Atari-ST format 00000RRR0GGG0BBB (512 possible colors).
+
+Every frame stores the following data:
+
+1 byte Flags Bit 0: Frame needs to clear the screen.
+Bit 1: Frame contains palette data.
+Bit 2: Frame is stored in indexed mode.
+
+If frame contains palette data
+{
+    1 word Bitmask
+
+    For every set bit in the Bitmask (0-15)
+    {
+        1 word Color The color has to be copied into the palette at the reverse index of the actual bit,
+        because the bitmask is stored in reverse order.
+        In other words: If bit 15 of mask is set -> update color 0 of palette,
+        …
+        if bit 0 of mask is set -> update color 15 of palette.
+    }
+}
+
+If frame is stored in indexed mode
+{
+    1 byte Number of vertices (0-255)
+
+    For every Vertex
+    {
+        1 byte X-position
+        1 byte Y-position
+    }
+
+    While (…)
+    {
+        1 byte Poly-descriptor Contains: hi-nibble – 4 bits color-index
+        lo-nibble – 4 bits number of polygon vertices
+
+        Some special cases are encoded in the descriptor byte:
+        $ff = End of frame
+        $fe = End of frame and the stream skips to the next 64KB block
+        $fd = End of stream (we are done \o/)
+
+        For every vertex of the polygon
+        {
+            1 byte Vertex-id (0-255)
+        }
+    }
+}
+Else if frame is stored in non-indexed mode
+{
+    while (…)
+    {
+        1 byte Poly-descriptor (See indexed mode)
+
+        For every vertex of the polygon
+        {
+            1 byte X-position
+            1 byte Y-position
+        }
+    }
+}
+
+Stats from Python parser
+~~~
+Total frames =  1800
+Max polys =  164  on frame  0
+Max verts =  220  on frame  3
+Max poly size =  7  on frame  65
+Total polys =  75340  average  41  polys/frame
+
+Total byte = 639976 ~= 625K
+Average bytes / frame ~= 356
+Fast Amiga version runs it at about 17fps average
+Presume original Atari version is about half that then!
+Newer Atari versions run about 15fps
+So 10fps would be extremely optimistic for Beeb!
+Max data rate then 10*356 ~= 3.5k/s
+
+Platform?
+~~~
+Should (just about) fit on a single ADFS L disc (640K)
+Can read sector by sector from an ADFS disc.
+Could also do this from a DFS disc but would require all 4x drives (total 800K)
+Question now becomes whether to do this or not?
+Depends if it is possible to get the streaming working and run the demo at the
+same time.
+Guess this is the same as the Bad Apple problem but without the music sync problem.
+If want to make it available to as many people as possible, what's the best solution?
+
+Master only would be the easiest - then just put it on an ADFS disc.
+What would be needed to run on a Model B? Assuming everyone has tons of SWRAM.
+I guess the streaming buffer size becomes the main question.
+Probably going to be closer to 5fps than 10fps?

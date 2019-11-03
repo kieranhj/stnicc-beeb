@@ -4,6 +4,9 @@
 
 _POLY_PLOT_END_POINTS = TRUE
 _DOUBLE_BUFFER = TRUE
+_CHECK_LOAD_BUFFER = FALSE
+_LOAD_TO_SWRAM = FALSE
+_PLOT_WIREFRAME = FALSE
 
 \ ******************************************************************
 \ *	OS defines
@@ -27,6 +30,11 @@ PAL_green	= (2 EOR 7)
 PAL_cyan	= (6 EOR 7)
 PAL_yellow	= (3 EOR 7)
 PAL_white	= (7 EOR 7)
+
+DFS_sector_size = 256
+DFS_sectors_per_track = 10
+DFS_sectors_to_load = 10
+DFS_track_size = (DFS_sectors_per_track * DFS_sector_size)
 
 \ ******************************************************************
 \ *	MACROS
@@ -52,13 +60,23 @@ SCREEN_SIZE_BYTES = (SCREEN_WIDTH_PIXELS * SCREEN_HEIGHT_PIXELS) / 4
 screen1_addr = &8000 - SCREEN_SIZE_BYTES
 screen2_addr = screen1_addr - SCREEN_SIZE_BYTES
 
+DISK1_drive_no = 0			; for loop!
+DISK1_first_track = 2		; the track at which the video file is located on side 0; all tracks prior to this are reserved for code
+DISK1_last_track = 80		; could potentially deduce these from DFS catalog
+
+DISK2_drive_no = 2			; should be 2
+DISK2_first_track = 1
+DISK2_last_track = 80		; doesn't actually matter as data stream should indicate end of buffer
+
+STREAM_buffer_size = (3 * DFS_track_size)
+
 FLAG_CLEAR_SCREEN = 1
 FLAG_CONTAINS_PALETTE = 2
 FLAG_INDEXED_DATA = 4
 
-POLY_DESC_END_OF_FRAME = &FD
+POLY_DESC_END_OF_STREAM = &FD
 POLY_DESC_SKIP_TO_64K = &FE
-POLY_DESC_END_OF_DATA = &FF
+POLY_DESC_END_OF_FRAME = &FF
 
 \ ******************************************************************
 \ *	ZERO PAGE
@@ -112,6 +130,25 @@ GUARD &9F
 .vsyncs             skip 2
 .draw_buffer_HI     skip 1
 .disp_buffer        skip 2
+.sector_no          skip 1
+.track_no			skip 1
+.load_to_HI			skip 1
+.error_flag			skip 1
+
+\ ******************************************************************
+\ *	BSS DATA IN LOWER RAM
+\ ******************************************************************
+
+ORG &300
+GUARD &800
+.vertices_x
+skip &100
+.vertices_y
+skip &100
+.span_buffer_start
+skip &100
+.span_buffer_end
+skip &100
 
 \ ******************************************************************
 \ *	CODE START
@@ -161,6 +198,7 @@ GUARD &4000   			; ensure code size doesn't hit start of screen memory
     lda #6:sta &fe00:lda #24:sta &fe01
     lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
 
+IF _LOAD_TO_SWRAM
     \\ Load SWRAM data
     SWRAM_SELECT 4
     lda #HI(&8000)
@@ -191,6 +229,32 @@ GUARD &4000   			; ensure code size doesn't hit start of screen memory
 
     SWRAM_SELECT 4
     sta rom_bank
+
+ELSE
+
+	\\ Load our entire stream buffer from first track
+
+	LDA #DISK1_first_track
+	STA track_no
+
+	LDA #HI(STREAM_buffer_start)
+	STA load_to_HI
+
+	\\ Fill entire buffer
+	{
+		.loop
+		JSR load_next_track
+		
+		LDA error_flag
+		BNE read_error
+	
+		LDA load_to_HI
+		CMP #HI(STREAM_buffer_start)			; wrapped means buffer filled
+		BNE loop
+
+        .read_error
+	}
+ENDIF
 
     \\ Init system
     lda #HI(screen1_addr)
@@ -228,6 +292,14 @@ GUARD &4000   			; ensure code size doesn't hit start of screen memory
 
     jsr parse_frame
 
+    cmp #POLY_DESC_SKIP_TO_64K
+    bne stream_ok
+    
+    \\ Align to next page
+    lda #&ff:sta STREAM_ptr_LO
+
+    .stream_ok
+
     \\ Toggle draw buffer
     lda draw_buffer_HI
     IF _DOUBLE_BUFFER
@@ -235,10 +307,28 @@ GUARD &4000   			; ensure code size doesn't hit start of screen memory
     sta draw_buffer_HI
     ENDIF
 
+	\\ Which page are we reading crunched data from?
+	sec
+	lda STREAM_ptr_HI
+
+	\\ Is it more than a "track" away?
+	SBC load_to_HI
+	.sectors_to_load_1
+	CMP #DFS_sectors_to_load
+	BCC not_ready_to_load
+
+	\\ If so, load a track's worth of data into our buffer
+	JSR load_next_track
+
+	.not_ready_to_load
+	\\ Check for errors
+	LDA error_flag
+	BNE track_load_error
+
     jmp loop
+    .track_load_error
 
 	\\ Re-enable useful interupts
-
 	LDA #&D3					; A=11010011
 	STA &FE4E					; R14=Interrupt Enable
     CLI
@@ -269,6 +359,10 @@ GUARD &4000   			; ensure code size doesn't hit start of screen memory
     eor #&ff
     adc #1
     .posdx
+IF _POLY_PLOT_END_POINTS
+    clc
+    adc #1
+ENDIF
 	sta span_width
     beq return
 
@@ -287,7 +381,7 @@ GUARD &4000   			; ensure code size doesn't hit start of screen memory
     \\ Column index
     ldy #0
 
-    \\ Check if the span is 
+    \\ Check if the span is short (<4 pixels)
     lda span_width
     cmp #4
     bcs long_span
@@ -524,7 +618,7 @@ GUARD &4000   			; ensure code size doesn't hit start of screen memory
 	
 	; plot pixel
 	LDA (scrn),Y
-	EOR pixels_mode5,X      ; MODE4
+	ORA pixels_mode5,X      ; MODE4 EOR
 	STA (scrn),Y
 	
 	; check if done
@@ -616,7 +710,7 @@ GUARD &4000   			; ensure code size doesn't hit start of screen memory
 .shallowlineloop2
 
 	; plot pixel in cached byte
-	EOR pixels_mode5,X      ; MODE4
+	ORA pixels_mode5,X      ; MODE4 EOR
 	
 	; check if done
 	DEC count
@@ -830,17 +924,6 @@ GUARD &4000   			; ensure code size doesn't hit start of screen memory
     lda span_buffer_start, Y
     sta span_start
 
-    \\ Check whether we only have a single pixel (plot anyway?)
-    lda span_buffer_HI, Y
-    cmp #HI(span_buffer_end)
-    bne do_span
-
-    \\ Plot pixel
-    ldx span_start
-    jsr plot_pixel
-    jmp skip_span
-
-    .do_span
     lda span_buffer_end, Y
     sta span_end
 
@@ -865,14 +948,7 @@ GUARD &4000   			; ensure code size doesn't hit start of screen memory
     sta span_buffer_min_y
     lda #0
     sta span_buffer_max_y
-IF 0
-    ldy #0
-    .loop
-    lda #HI(span_buffer_start)
-    sta span_buffer_HI, Y
-    iny
-    bne loop        ; actullay only needs to be 200
-ELSE
+
     ldy #0
     .loop
     lda #255
@@ -881,25 +957,12 @@ ELSE
     sta span_buffer_end, Y
     iny
     bne loop
-ENDIF
 
     rts
 }
 
 .plot_pixel_into_span_buffer
 {
-IF 0
-    ; in this context means plotting the X value into our current span buffer for this Y
-    lda span_buffer_HI, Y
-    sta writeptr+1
-    txa
-    sta (writeptr), Y
-    \\ SUPER ANNOYING!
-    sty temp_y:stx temp_x:ldx temp_y
-    inc span_buffer_HI, X
-    ldx temp_x
-    rts
-ELSE
     txa
     cmp span_buffer_start, Y
     bcs not_smaller
@@ -912,7 +975,6 @@ ELSE
 
     .not_larger
     rts
-ENDIF
 }
 
 .drawline_into_span_buffer
@@ -1147,14 +1209,50 @@ ENDIF
     rts
 }
 
+\\ Move me to ZP!
 .get_byte
-    lda &8000
-    inc get_byte+1
-    bne get_byte_return
-    inc get_byte+2
+    php
+    inc STREAM_ptr_LO
+    bne get_byte_from_stream
+    inc STREAM_ptr_HI
 
-    \\ Optimise me!
-    pha
+IF _CHECK_LOAD_BUFFER
+	\\ Are we reading from the same page we intend to load at next?
+    lda STREAM_ptr_HI
+	cmp load_to_HI
+	bne not_caught_up
+
+	\\ If so then we have caught up with the disk load and run out of data
+	\\ So bomb out with an error:
+	inc error_flag
+	lda #0
+	plp
+	rts
+
+	.not_caught_up
+ENDIF
+
+	\\ Have we gone over the end of our stream buffer?
+    lda STREAM_ptr_HI
+	cmp #HI(STREAM_buffer_end)
+	bcc get_byte_from_stream
+
+	\\ If so then wrap around to the beginning
+	lda #HI(STREAM_buffer_start)
+    sta STREAM_ptr_HI
+
+    .get_byte_from_stream
+    lda STREAM_buffer_start-1
+
+STREAM_ptr_LO = get_byte_from_stream+1
+STREAM_ptr_HI = get_byte_from_stream+2
+
+    .get_byte_return
+    plp
+    rts
+
+IF 0
+    \\ SWRAM reader
     lda get_byte+2
     cmp #&C0
     bcc same_bank
@@ -1165,12 +1263,8 @@ ENDIF
 
     lda #&80
     sta get_byte+2
-
     .same_bank
-    pla
-
-    .get_byte_return
-    rts
+ENDIF
 
 .parse_frame
 {
@@ -1178,7 +1272,9 @@ ENDIF
     sta frame_flags
 
     and #FLAG_CLEAR_SCREEN
+IF _PLOT_WIREFRAME = FALSE
     beq no_clear_screen
+ENDIF
 
     jsr screen_cls
     .no_clear_screen
@@ -1234,7 +1330,7 @@ ENDIF
 
     jsr get_byte
     sta poly_descriptor
-    cmp #POLY_DESC_END_OF_FRAME
+    cmp #POLY_DESC_END_OF_STREAM
     bcs end_of_frame
 
     and #&f
@@ -1278,10 +1374,15 @@ ENDIF
     bcc read_poly_ni_loop
 
     .do_plot
+IF _PLOT_WIREFRAME
+    jsr plot_poly_line
+ELSE
     jsr plot_poly_span
+ENDIF
     jmp read_poly_data
 
     .end_of_frame
+
     inc frame_no
     bne no_carry
     inc frame_no+1
@@ -1297,6 +1398,99 @@ ENDIF
 \ ******************************************************************
 
 include "lib/disksys.asm"
+
+\ ******************************************************************
+\ *	File loading routines
+\ ******************************************************************
+
+.load_next_track
+\\{
+	\\ Track &FF indicates no more reading
+	LDA track_no
+	BMI TRACK_LOAD_return
+
+	\\ Store track no in params block
+	STA osword_params_track
+
+	LDA sector_no
+	STA osword_params_sector
+
+	\\ Update load address in params block
+	LDA load_to_HI
+	STA osword_params_address+1
+	
+	\\ Make DFS read multi-sector call
+	LDX #LO(osword_params)
+	LDY #HI(osword_params)
+	LDA #&7F
+	JSR osword
+
+	\\ Error value returned at end of params block
+	LDA osword_params_return
+	STA error_flag
+
+	\\ Next track
+	CLC
+	LDA sector_no
+	.sectors_to_load_2
+	ADC #DFS_sectors_to_load
+	CMP #DFS_sectors_per_track
+	BCC same_track
+	SBC #DFS_sectors_per_track
+	INC track_no
+	.same_track
+	STA sector_no
+
+	\\ Which disk?
+	LDA osword_params_drive
+	BEQ TRACK_LOAD_disk_1							; assumes we start on drive 0
+
+	\\ Disk 2
+	LDA track_no
+	CMP #DISK2_last_track
+	BNE TRACK_LOAD_no_swap_disk
+
+	\\ Reached end of disk 2
+	LDA #&FF
+	STA track_no
+	BNE TRACK_LOAD_no_wrap				; and store &FF in load_to_HI
+
+	\\ Disk 1
+	.TRACK_LOAD_disk_1
+	LDA track_no
+	CMP #DISK1_last_track
+	BNE TRACK_LOAD_no_swap_disk
+
+	\\ Reached end of disk 1 so swap drives
+	.TRACK_LOAD_disk_2
+	LDA #DISK2_drive_no
+	STA osword_params_drive
+
+	\\ Reset track to start of disk 2
+	LDA #DISK2_first_track
+	STA track_no
+
+	.TRACK_LOAD_no_swap_disk
+
+	\\ Increment our load ptr
+	CLC
+	LDA load_to_HI
+	.sectors_to_load_3
+	ADC #DFS_sectors_to_load
+
+	\\ Have we fallen off the end of the buffer?
+	CMP #HI(STREAM_buffer_end)
+	BNE TRACK_LOAD_no_wrap
+
+	\\ If so then reset to start
+	LDA #HI(STREAM_buffer_start)
+
+	.TRACK_LOAD_no_wrap
+	STA load_to_HI
+
+	.TRACK_LOAD_return
+	RTS
+\\}
 
 \ ******************************************************************
 \ *	DATA
@@ -1411,6 +1605,22 @@ EQUS "02", 13
 .filename3
 EQUS "03", 13
 
+.osword_params
+.osword_params_drive
+EQUB 0				; drive
+.osword_params_address
+EQUD 0				; address
+EQUB &03			; number params
+EQUB &53			; command = read data multi-sector
+.osword_params_track
+EQUB 0				; logical track
+.osword_params_sector
+EQUB 0				; logical sector
+.osword_params_size_sectors
+EQUB &20 + DFS_sectors_to_load		; sector size / number sectors = 256 / 10
+.osword_params_return
+EQUB 0				; returned error value
+
 ALIGN &100
 .screen_row_LO
 FOR n,0,255,1
@@ -1458,18 +1668,10 @@ SAVE "STNICC", start, end
 
 .bss_start
 
-.vertices_x
-skip &100
-.vertices_y
-skip &100
-
 ALIGN &100
-.span_buffer_HI
-skip &100
-.span_buffer_start
-skip &100
-.span_buffer_end
-skip &100
+.STREAM_buffer_start
+SKIP STREAM_buffer_size
+.STREAM_buffer_end
 
 .bss_end
 
@@ -1478,7 +1680,7 @@ skip &100
 \ ******************************************************************
 
 PRINT "------"
-PRINT "RASTER FX"
+PRINT "STNICC-BEEB"
 PRINT "------"
 PRINT "MAIN size =", ~main_end-main_start
 PRINT "FX size = ", ~fx_end-fx_start
@@ -1489,10 +1691,23 @@ PRINT "HIGH WATERMARK =", ~P%
 PRINT "FREE =", ~screen2_addr-P%
 PRINT "------"
 
+exe_size=(end-start+&ff)AND&FF00
+PRINT "EXE size = ",~exe_size
+; We know that Catalog + !Boot = &300
+; Need to make a dummy file so 00 is at sector 20=track 2
+dummy_size=2*DFS_track_size-exe_size-&300
+
+CLEAR &0000,&FFFF
+ORG &0000
+.dummy
+skip dummy_size
+SAVE "dummy", dummy, P%
+
 \ ******************************************************************
 \ *	Any other files for the disc
 \ ******************************************************************
 
+IF _LOAD_TO_SWRAM
 PUTFILE "data/scene1_beeb.00.bin", "00", &8000
 PUTFILE "data/scene1_beeb.01.bin", "01", &8000
 PUTFILE "data/scene1_beeb.02.bin", "02", &8000
@@ -1501,3 +1716,10 @@ PUTFILE "data/scene1_beeb.04.bin", "04", &8000
 PUTFILE "data/scene1_beeb.05.bin", "05", &8000
 PUTFILE "data/scene1_beeb.06.bin", "06", &8000
 PUTFILE "data/scene1_beeb.07.bin", "07", &8000
+PUTFILE "data/scene1_beeb.07.bin", "08", &8000
+PUTFILE "data/scene1_beeb.07.bin", "09", &8000
+PUTFILE "data/scene1_beeb.07.bin", "10", &8000
+PUTFILE "data/scene1_beeb.07.bin", "11", &8000
+ELSE
+PUTFILE "data/scene1_disk.00.bin", "00", 0
+ENDIF
