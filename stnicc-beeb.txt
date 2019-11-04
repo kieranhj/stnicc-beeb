@@ -104,3 +104,15 @@ Master only would be the easiest - then just put it on an ADFS disc.
 What would be needed to run on a Model B? Assuming everyone has tons of SWRAM.
 I guess the streaming buffer size becomes the main question.
 Probably going to be closer to 5fps than 10fps?
+
+Debug ideas
+~~~
+Info pane:
+- Frame #
+- Vsync count
+- Real time
+- Any sort of poly stats
+
+Debug pane could be in MODE 4, single buffered, after the main window using vrup.
+Single frame step on keypress.
+Run to frame X (then single step).

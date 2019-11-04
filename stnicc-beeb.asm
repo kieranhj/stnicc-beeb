@@ -2,6 +2,7 @@
 \ *	STNICC BEEB
 \ ******************************************************************
 
+_DEBUG = TRUE
 _POLY_PLOT_END_POINTS = TRUE
 _DOUBLE_BUFFER = TRUE
 _CHECK_LOAD_BUFFER = FALSE
@@ -20,6 +21,8 @@ osword = &FFF1
 osfind = &FFCE
 osgbpb = &FFD1
 osargs = &FFDA
+
+IRQ1V = &204
 
 \\ Palette values for ULA
 PAL_black	= (0 EOR 7)
@@ -127,7 +130,8 @@ GUARD &9F
 
 ; system vars
 .rom_bank           skip 1
-.vsyncs             skip 2
+.vsync_counter      skip 2
+.last_vsync         skip 1
 .draw_buffer_HI     skip 1
 .disp_buffer        skip 2
 .sector_no          skip 1
@@ -175,6 +179,12 @@ GUARD &4000   			; ensure code size doesn't hit start of screen memory
 	STA &FE43					; R3=Data Direction Register "A" (set keyboard data direction)
 	LDA #&C2					; A=11000010
 	STA &FE4E					; R14=Interrupt Enable (enable main_vsync and timer interrupt)
+
+    LDA IRQ1V:STA old_irqv
+    LDA IRQ1V+1:STA old_irqv+1
+
+    LDA #LO(irq_handler):STA IRQ1V
+    LDA #HI(irq_handler):STA IRQ1V+1		; set interrupt handler
 	CLI							; enable interupts
 
     \\ Init ZP
@@ -319,6 +329,17 @@ ENDIF
     lda #&ff:sta STREAM_ptr_LO
 
     .stream_ok
+
+IF _DEBUG
+;    lda frame_no
+    sec
+    lda vsync_counter
+    sbc last_vsync
+    jsr debug_write_A
+
+    lda vsync_counter
+    sta last_vsync
+ENDIF
 
     \\ Toggle draw buffer
     lda draw_buffer_HI
@@ -1541,6 +1562,81 @@ include "lib/disksys.asm"
 	RTS
 \\}
 
+IF _DEBUG
+.debug_plot_glyph
+{
+    asl a:asl a:asl a
+    clc
+    adc #LO(debug_font)
+    sta read_glyph_data+1
+    lda #HI(debug_font)
+    adc #0
+    sta read_glyph_data+2
+
+    ldy #7
+    .loop
+
+    .read_glyph_data
+    lda &ffff,y
+    .write_glyph_data
+    sta (writeptr),y
+
+    dey
+    bpl loop
+
+    rts
+}
+
+.debug_write_A
+{
+    pha:pha
+    lda draw_buffer_HI
+    sta writeptr+1
+    lda #0
+    sta writeptr
+
+    pla
+    lsr a:lsr a:lsr a:lsr a
+    jsr debug_plot_glyph
+
+    lda writeptr
+    clc
+    adc #8
+    sta writeptr
+
+    pla
+    and #&f
+    jmp debug_plot_glyph
+}
+ENDIF
+
+.irq_handler
+{
+	LDA &FC
+	PHA
+
+	\\ Which interrupt?
+;	LDA &FE4D
+;	AND #&40			; timer 1
+;	BNE is_timer1
+
+	LDA &FE4D
+	AND #2
+	BEQ return_to_os
+
+    INC vsync_counter
+    BNE no_carry
+    INC vsync_counter+1
+    .no_carry
+
+	\\ Pass on to OS IRQ handler
+	.return_to_os
+	PLA
+	STA &FC
+	JMP &FFFF
+}
+old_irqv = P%-2
+
 \ ******************************************************************
 \ *	DATA
 \ ******************************************************************
@@ -1670,6 +1766,157 @@ EQUB 0				; logical sector
 EQUB &20 + DFS_sectors_to_load		; sector size / number sectors = 256 / 10
 .osword_params_return
 EQUB 0				; returned error value
+ENDIF
+
+MACRO MODE5_PIXELS a,b,c,d
+    EQUB (a AND 2) * &40 OR (a AND 1) * &08 OR (b AND 2) * &20 OR (b AND 1) * &04 OR (c AND 2) * &10 OR (c AND 1) * &02 OR (d AND 2) * &08 OR (d AND 1) * &01
+ENDMACRO
+
+IF _DEBUG
+.debug_font
+MODE5_PIXELS 0,3,0,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 0,3,0,0
+MODE5_PIXELS 0,0,0,0
+
+MODE5_PIXELS 0,3,0,0
+MODE5_PIXELS 3,3,0,0
+MODE5_PIXELS 0,3,0,0
+MODE5_PIXELS 0,3,0,0
+MODE5_PIXELS 0,3,0,0
+MODE5_PIXELS 0,3,0,0
+MODE5_PIXELS 3,3,3,0
+MODE5_PIXELS 0,0,0,0
+
+MODE5_PIXELS 0,3,0,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 0,0,3,0
+MODE5_PIXELS 0,3,0,0
+MODE5_PIXELS 3,0,0,0
+MODE5_PIXELS 3,0,0,0
+MODE5_PIXELS 3,3,3,0
+MODE5_PIXELS 0,0,0,0
+
+MODE5_PIXELS 0,3,0,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 0,0,3,0
+MODE5_PIXELS 0,3,0,0
+MODE5_PIXELS 0,0,3,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 0,3,0,0
+MODE5_PIXELS 0,0,0,0
+
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,3,3,0
+MODE5_PIXELS 0,0,3,0
+MODE5_PIXELS 0,0,3,0
+MODE5_PIXELS 0,0,3,0
+MODE5_PIXELS 0,0,0,0
+
+MODE5_PIXELS 3,3,3,0
+MODE5_PIXELS 3,0,0,0
+MODE5_PIXELS 3,0,0,0
+MODE5_PIXELS 3,3,3,0
+MODE5_PIXELS 0,0,3,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 0,3,0,0
+MODE5_PIXELS 0,0,0,0
+
+MODE5_PIXELS 0,3,3,0
+MODE5_PIXELS 3,0,0,0
+MODE5_PIXELS 3,0,0,0
+MODE5_PIXELS 3,3,0,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 0,3,0,0
+MODE5_PIXELS 0,0,0,0
+
+MODE5_PIXELS 3,3,3,0
+MODE5_PIXELS 0,0,3,0
+MODE5_PIXELS 0,0,3,0
+MODE5_PIXELS 0,0,3,0
+MODE5_PIXELS 0,0,3,0
+MODE5_PIXELS 0,0,3,0
+MODE5_PIXELS 0,0,3,0
+MODE5_PIXELS 0,0,0,0
+
+MODE5_PIXELS 0,3,0,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 0,3,0,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 0,3,0,0
+MODE5_PIXELS 0,0,0,0
+
+MODE5_PIXELS 0,3,0,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 0,3,3,0
+MODE5_PIXELS 0,0,3,0
+MODE5_PIXELS 0,0,3,0
+MODE5_PIXELS 0,0,3,0
+MODE5_PIXELS 0,0,0,0
+
+MODE5_PIXELS 0,3,0,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,3,3,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 0,0,0,0
+
+MODE5_PIXELS 3,3,0,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,3,0,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,3,0,0
+MODE5_PIXELS 0,0,0,0
+
+MODE5_PIXELS 0,3,0,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,0,0,0
+MODE5_PIXELS 3,0,0,0
+MODE5_PIXELS 3,0,0,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 0,3,0,0
+MODE5_PIXELS 0,0,0,0
+
+MODE5_PIXELS 3,3,0,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,0,3,0
+MODE5_PIXELS 3,3,0,0
+MODE5_PIXELS 0,0,0,0
+
+MODE5_PIXELS 3,3,3,0
+MODE5_PIXELS 3,0,0,0
+MODE5_PIXELS 3,0,0,0
+MODE5_PIXELS 3,3,0,0
+MODE5_PIXELS 3,0,0,0
+MODE5_PIXELS 3,0,0,0
+MODE5_PIXELS 3,3,3,0
+MODE5_PIXELS 0,0,0,0
+
+MODE5_PIXELS 3,3,3,0
+MODE5_PIXELS 3,0,0,0
+MODE5_PIXELS 3,0,0,0
+MODE5_PIXELS 3,3,0,0
+MODE5_PIXELS 3,0,0,0
+MODE5_PIXELS 3,0,0,0
+MODE5_PIXELS 3,0,0,0
+MODE5_PIXELS 0,0,0,0
 ENDIF
 
 ALIGN &100
