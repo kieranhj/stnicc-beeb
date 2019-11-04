@@ -112,7 +112,49 @@ Info pane:
 - Vsync count
 - Real time
 - Any sort of poly stats
+- FPS
 
 Debug pane could be in MODE 4, single buffered, after the main window using vrup.
 Single frame step on keypress.
 Run to frame X (then single step).
+Toggle solid / wireframe draw on paused frame.
+
+Optimisations
+~~~
+First few frames take &34 = 52 vsyncs!!
+Inside the tunnel is about &10 vsyncs..
+Blocking load takes &10-&16 frames.
+
+Unroll cls completely x2.
+Don't copy verts into temp location (low)
+Don't init span buffer every time - get span plot to set it back.
+
+Simplify drawline_into_span_buffer code:
+ - Self-mod INX/DEX and INY/DEY directly rather than branches.
+ - Can we keep accumulator without having to store back to ZP?
+ - Inline plot_pixel_into_span_buffer.
+Possible to completely unroll Bresenham somehow?
+ (Might need to duplicate the routine x4 but could be worth it?)
+
+Put get_byte into ZP.
+
+Plot span:
+ - span_start should always be <= span_end w/ span buffer
+ - Any coherency between calls to reduce start address calc?
+ - Unroll long span plot
+ - Divide width by 4 so can just dex (or remove altogether).
+ - Any savings in plot_short_span? Inline plot_pixel_at?
+
+Vsync on timer at line 200.
+Frame swap on vsync.
+Run ahead and block plot until swapped.
+
+Only plot every other scanline?! What does this look like?
+
+Tidy up code
+~~~
+Move everything into separate modules in src/
+Add disk 2,1 & 3
+Build process for creating DSDs.
+Test end-to-end.
+Remove unnecessary DEFINEs.

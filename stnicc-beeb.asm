@@ -69,7 +69,7 @@ DISK1_last_track = 80		; could potentially deduce these from DFS catalog
 
 DISK2_drive_no = 2			; should be 2
 DISK2_first_track = 1
-DISK2_last_track = 80		; doesn't actually matter as data stream should indicate end of buffer
+DISK2_last_track = 79		; doesn't actually matter as data stream should indicate end of buffer
 
 STREAM_buffer_size = (3 * DFS_track_size)
 
@@ -118,8 +118,6 @@ GUARD &9F
 ; vars for span_buffer
 .span_buffer_min_y  skip 1
 .span_buffer_max_y  skip 1
-.temp_x             skip 1
-.temp_y             skip 1
 
 ; frame parser
 .frame_no           skip 2
@@ -329,9 +327,10 @@ ENDIF
     lda #&ff:sta STREAM_ptr_LO
 
     .stream_ok
+    cmp #POLY_DESC_END_OF_STREAM
+    beq track_load_error
 
 IF _DEBUG
-;    lda frame_no
     sec
     lda vsync_counter
     sbc last_vsync
@@ -1281,7 +1280,6 @@ ENDIF
 
 \\ Move me to ZP!
 .get_byte
-    php
     inc STREAM_ptr_LO
     bne get_byte_from_stream
     inc STREAM_ptr_HI
@@ -1296,7 +1294,6 @@ IF _CHECK_LOAD_BUFFER
 	\\ So bomb out with an error:
 	inc error_flag
 	lda #0
-	plp
 	rts
 
 	.not_caught_up
@@ -1318,7 +1315,6 @@ STREAM_ptr_LO = get_byte_from_stream+1
 STREAM_ptr_HI = get_byte_from_stream+2
 
     .get_byte_return
-    plp
     rts
 
 IF 0
@@ -1515,15 +1511,16 @@ include "lib/disksys.asm"
 	LDA osword_params_drive
 	BEQ TRACK_LOAD_disk_1							; assumes we start on drive 0
 
-	\\ Disk 2
+	\\ Disk N
 	LDA track_no
 	CMP #DISK2_last_track
 	BNE TRACK_LOAD_no_swap_disk
 
-	\\ Reached end of disk 2
-	LDA #&FF
-	STA track_no
-	BNE TRACK_LOAD_no_wrap				; and store &FF in load_to_HI
+	\\ Reached end of disk N
+;	LDA #&FF
+;	STA track_no
+;	BNE TRACK_LOAD_no_wrap				; and store &FF in load_to_HI
+    JMP TRACK_LOAD_disk_N
 
 	\\ Disk 1
 	.TRACK_LOAD_disk_1
@@ -1532,8 +1529,9 @@ include "lib/disksys.asm"
 	BNE TRACK_LOAD_no_swap_disk
 
 	\\ Reached end of disk 1 so swap drives
-	.TRACK_LOAD_disk_2
-	LDA #DISK2_drive_no
+	.TRACK_LOAD_disk_N
+    LDX osword_params_drive
+	LDA drive_order, X
 	STA osword_params_drive
 
 	\\ Reset track to start of disk 2
@@ -1766,6 +1764,9 @@ EQUB 0				; logical sector
 EQUB &20 + DFS_sectors_to_load		; sector size / number sectors = 256 / 10
 .osword_params_return
 EQUB 0				; returned error value
+
+.drive_order
+EQUB 2,3,1,0
 ENDIF
 
 MACRO MODE5_PIXELS a,b,c,d
