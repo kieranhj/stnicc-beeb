@@ -263,9 +263,29 @@ ENDIF
     \\ Clear screen
     jsr screen_cls
 
-;    jsr test_plot_span
-;    jsr test_drawline
-;    jsr test_plot_poly
+    IF 0
+    {
+        \\ Set test screen
+        lda #0:sta disp_buffer
+        lda draw_buffer_HI
+        sta disp_buffer+1
+
+        clc
+        lsr disp_buffer+1:ror disp_buffer
+        lsr disp_buffer+1:ror disp_buffer
+        lsr disp_buffer+1:ror disp_buffer
+
+        lda #12:sta &fe00
+        lda disp_buffer+1:sta &fe01
+        lda #13:sta &fe00
+        lda disp_buffer:sta &fe01
+
+    ;    jsr test_drawline
+        jsr test_plot_poly
+    ;    jsr test_plot_span
+        rts
+    }
+    ENDIF
 
     .loop
     \\ Wait vsync
@@ -428,11 +448,14 @@ ENDIF
     sta (writeptr), Y
 
     tya:clc:adc #8:tay
-    dex:dex:dex:dex
+    txa:sec
+    sbc #4
+    tax
     jmp loop
     .end_loop
 
     \\ Last byte
+    cpx #0
     beq skip_last_byte
 
     lda span_colour
@@ -513,10 +536,10 @@ ENDIF
 
 .test_plot_span
 {
-    lda #7: sta span_start
+    lda #123: sta span_start
     lda #64: sta span_end
     lda #0: sta span_y
-    lda #&ff: sta span_colour
+    lda #&0f: sta span_colour
 
     .loop
     jsr plot_span
@@ -857,7 +880,7 @@ ENDIF
     bne loop
 
 ;    jsr plot_poly_line
-    lda #15
+    lda #1
     sta poly_colour
     jsr plot_poly_span
 
@@ -866,10 +889,10 @@ ENDIF
     .num_verts
     EQUB 4
     .vertex_data
-    EQUB 128,7
-    EQUB 255,64
-    EQUB 128,188
-    EQUB 0,128
+    EQUB 31,189
+    EQUB 120,190
+    EQUB 127,64
+    EQUB 32,7
 }
 
 .plot_poly_span
@@ -912,6 +935,7 @@ ENDIF
 
     \\ Plot the spans
     inc span_buffer_max_y
+
     ldy span_buffer_min_y
     .span_loop
     sty span_y
@@ -1018,6 +1042,20 @@ ENDIF
 	BEQ exit_early
 
     \\ Track min/max y values as polys often quite small
+    IF 0    ; get get away with not doing this as the polys are convex
+    {
+        ldy endy
+        cpy span_buffer_min_y
+        bcs not_smallest_y
+        sty span_buffer_min_y
+        .not_smallest_y
+        cpy span_buffer_max_y
+        bcc not_largest_y
+        sty span_buffer_max_y
+        .not_largest_y
+    }
+    ENDIF
+
     ldy starty
     cpy span_buffer_min_y
     bcs not_smallest_y
@@ -1027,7 +1065,7 @@ ENDIF
     bcc not_largest_y
     sty span_buffer_max_y
     .not_largest_y
-	
+
 	; determine which type of line it is
 	LDA dy
 	CMP dx
@@ -1129,6 +1167,9 @@ IF _POLY_PLOT_END_POINTS
     INC count
 ENDIF
 
+    \\ Plot first 'pixel' into span buffer
+    jsr plot_pixel_into_span_buffer
+
 .shallowlineloop
 
 	; cache byte from destination screen address
@@ -1144,7 +1185,7 @@ ENDIF
 	.branchleftright2
 	BNE P%					; self-modified to goingleft2 or goingright2
 
-    ; in this context means plotting the X value into our current span buffer for this Y
+    ; Plot last 'pixel' into span buffer
     jsr plot_pixel_into_span_buffer
 
 	.exitline2
@@ -1174,10 +1215,14 @@ ENDIF
 	ADC dx
 	STA accum				; store new accumulator
 
-    ; in this context means plotting the X value into our current span buffer for this Y
+    ; Plot 'pixel' for end of span on current line
     jsr plot_pixel_into_span_buffer
 
 	INY
+
+    ; Plot 'pixel' for start of span on next line
+    jsr plot_pixel_into_span_buffer
+
 	JMP shallowlineloop		; always taken
 	
 	; move up to next line
@@ -1185,10 +1230,14 @@ ENDIF
 	ADC dx
 	STA accum
 
-    ; in this context means plotting the X value into our current span buffer for this Y
+    ; Plot 'pixel' for end of span on current line
     jsr plot_pixel_into_span_buffer
 
 	DEY
+
+    ; Plot 'pixel' for start of span on next line
+    jsr plot_pixel_into_span_buffer
+
 	JMP shallowlineloop		; always taken
 }
 
@@ -1596,6 +1645,7 @@ ALIGN &100  ; lazy
     EQUB 4,3,2,1
 }
 
+IF _LOAD_TO_SWRAM
 .filename0
 EQUS "00", 13
 .filename1
@@ -1604,7 +1654,7 @@ EQUS "01", 13
 EQUS "02", 13
 .filename3
 EQUS "03", 13
-
+ELSE
 .osword_params
 .osword_params_drive
 EQUB 0				; drive
@@ -1620,6 +1670,7 @@ EQUB 0				; logical sector
 EQUB &20 + DFS_sectors_to_load		; sector size / number sectors = 256 / 10
 .osword_params_return
 EQUB 0				; returned error value
+ENDIF
 
 ALIGN &100
 .screen_row_LO
