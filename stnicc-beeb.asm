@@ -270,6 +270,7 @@ ENDIF
 
     \\ Clear screen
     jsr screen_cls
+    jsr init_span_buffer
 
     IF 0
     {
@@ -528,6 +529,7 @@ ENDIF
     .same_column
     dec span_width
     bne short_loop
+
     rts
 }
 
@@ -926,7 +928,11 @@ ENDIF
 
 .plot_poly_span
 {
-    jsr init_span_buffer
+    \\ Reset our min/max tracking
+    lda #255
+    sta span_buffer_min_y
+    lda #0
+    sta span_buffer_max_y
 
     \\ Duplicate first vertex to end
     ldx poly_num_verts
@@ -988,6 +994,13 @@ ENDIF
 
     .skip_span
     ldy span_y
+
+    \\ Reset this line of the span buffer since we're already here
+    lda #255
+    sta span_buffer_start, Y
+    lda #0
+    sta span_buffer_end, Y
+
     iny
     cpy span_buffer_max_y
     bcc span_loop
@@ -997,11 +1010,6 @@ ENDIF
 
 .init_span_buffer
 {
-    lda #255
-    sta span_buffer_min_y
-    lda #0
-    sta span_buffer_max_y
-
     ldy #0
     .loop
     lda #255
@@ -1009,6 +1017,7 @@ ENDIF
     lda #0
     sta span_buffer_end, Y
     iny
+    cpy #SCREEN_HEIGHT_PIXELS
     bne loop
 
     rts

@@ -132,6 +132,7 @@ Blocking load takes &10-&16 frames.
 Unroll cls completely x2.
 Don't copy verts into temp location (low)
 Don't init span buffer every time - get span plot to set it back.
+    - Saves 19 vsyncs!!! Now &21=33!
 
 Simplify drawline_into_span_buffer code:
  - Self-mod INX/DEX and INY/DEY directly rather than branches.
