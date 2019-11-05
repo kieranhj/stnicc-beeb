@@ -1039,6 +1039,10 @@ ENDIF
     rts
 }
 
+.exit_early
+    PLP:PLP
+    RTS
+
 .drawline_into_span_buffer
 {
 	; calc screen row of starty
@@ -1046,9 +1050,6 @@ ENDIF
 	; calc pixel within byte of startx
 	LDX startx
 
-    lda #0
-    sta writeptr
-	
 	; calc dx = ABS(startx - endx)
 	SEC
 	LDA startx
@@ -1113,16 +1114,16 @@ ENDIF
 
 	; self-modify code so that line progresses according to direction remembered earlier
 	PLP
-	LDA #goingdown-branchupdown-2
+	lda #&c8		; INY	\\ going down
 	BCC P%+4
-	LDA #goingup-branchupdown-2
-	STA branchupdown+1
+	lda #&88		; DEY	\\ going up
+	STA branchupdown
 	
 	PLP
-	LDA #goingright-branchleftright-2
+	lda #&e8		; INX	\\ going right
 	BCC P%+4
-	LDA #goingleft-branchleftright-2
-	STA branchleftright+1
+	lda #&ca		; DEX	\\ going left
+	sta branchleftright
 
 	; initialise accumulator for 'steep' line
 	LDA dy
@@ -1142,23 +1143,13 @@ ENDIF
 
 	; check if done
 	DEC count
-	.branchupdown
-	BNE P%			; self-modified to goingdown or goingup
-	.exitline
-	RTS
-	
-    .exit_early
-    PLP:PLP
-    RTS
+    beq exitline
 
+	.branchupdown
 	; move up to next line
-	.goingup
-	DEY
-	JMP movetonextcolumn	; always taken
-	
 	; move down to next line
-	.goingdown
-	INY
+	nop                     ; self-mod to goingup or goingdown
+
 	; check move to next pixel column
 	.movetonextcolumn
 	SEC
@@ -1168,32 +1159,26 @@ ENDIF
 	ADC dy
 	
 	.branchleftright
-	BCS P%					; self-modified to goingright or goingleft
-	
-	; move left to next pixel column
-	.goingleft
-	DEX
-	JMP steeplineloop
-	
-	; move right to next pixel column
-	.goingright
-	INX
+	nop					    ; self-modified to goingright or goingleft
 	JMP steeplineloop		; always taken
 	
+	.exitline
+	RTS
+
 .shallowline
 
 	; self-modify code so that line progresses according to direction remembered earlier
 	PLP
-	LDA #goingdown2-branchupdown2-2
+	lda #&c8		; INY	\\ going down
 	BCC P%+4
-	LDA #goingup2-branchupdown2-2
-	STA branchupdown2+1
+	lda #&88		; DEY	\\ going up
+	sta branchupdown2
 	
 	PLP
-	LDA #goingright2-branchleftright2-2
+	lda #&e8		; INX	\\ going right
 	BCC P%+4
-	LDA #goingleft2-branchleftright2-2
-	STA branchleftright2+1
+	lda #&ca		; DEX	\\ going left
+	sta branchleftright2
 
 	; initialise accumulator for 'steep' line
 	LDA dx
@@ -1220,35 +1205,22 @@ ENDIF
 	
 	; check if done
 	DEC count
+    beq exitline2
+
 	.branchleftright2
-	BNE P%					; self-modified to goingleft2 or goingright2
+	nop 					; self-modified to goingleft2 or goingright2
 
-    ; Plot last 'pixel' into span buffer
-    jsr plot_pixel_into_span_buffer
-
-	.exitline2
-	RTS
-	
-	; move left to next pixel column
-	.goingleft2
-	DEX
-	JMP movetonextline		; always taken
-	
-	; move right to next pixel column
-	.goingright2
-	INX
-	
 	; check whether we move to the next line
-	.movetonextline
 	SEC
 	LDA accum
 	SBC dy
-	.branchupdown2
-	BCC P%					; self-modified to goingdown2 or goingup2
+	BCC movetonextline
+
 	STA accum
 	BCS shallowlineloop2	; always taken
 	
 	; move down to next line
+	.movetonextline
 	.goingdown2
 	ADC dx
 	STA accum				; store new accumulator
@@ -1256,27 +1228,17 @@ ENDIF
     ; Plot 'pixel' for end of span on current line
     jsr plot_pixel_into_span_buffer
 
-	INY
+    .branchupdown2
+	nop		                ; self-modified to goingdown2 or goingup2
 
     ; Plot 'pixel' for start of span on next line
     jsr plot_pixel_into_span_buffer
 
 	JMP shallowlineloop		; always taken
-	
-	; move up to next line
-	.goingup2
-	ADC dx
-	STA accum
 
-    ; Plot 'pixel' for end of span on current line
-    jsr plot_pixel_into_span_buffer
-
-	DEY
-
-    ; Plot 'pixel' for start of span on next line
-    jsr plot_pixel_into_span_buffer
-
-	JMP shallowlineloop		; always taken
+	.exitline2
+    ; Plot last 'pixel' into span buffer
+    jmp plot_pixel_into_span_buffer
 }
 
 .screen_cls
