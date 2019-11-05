@@ -6,7 +6,6 @@ _DEBUG = TRUE
 _POLY_PLOT_END_POINTS = TRUE
 _DOUBLE_BUFFER = TRUE
 _CHECK_LOAD_BUFFER = FALSE
-_LOAD_TO_SWRAM = FALSE
 _PLOT_WIREFRAME = FALSE
 
 \ ******************************************************************
@@ -88,6 +87,8 @@ POLY_DESC_END_OF_FRAME = &FF
 ORG &00
 GUARD &9F
 
+.get_byte           skip &14
+
 ; vars for plot_span
 .writeptr           skip 2
 .span_start         skip 1
@@ -161,6 +162,31 @@ GUARD &4000   			; ensure code size doesn't hit start of screen memory
 
 .start
 
+STREAM_ptr_LO = get_byte + &11
+STREAM_ptr_HI = get_byte + &12
+
+\\ Move me to ZP!
+.get_byte_reloc
+    inc STREAM_ptr_LO
+    bne get_byte_from_stream
+    inc STREAM_ptr_HI
+
+	\\ Have we gone over the end of our stream buffer?
+    lda STREAM_ptr_HI
+	cmp #HI(STREAM_buffer_end)
+	bcc get_byte_from_stream
+
+	\\ If so then wrap around to the beginning
+	lda #HI(STREAM_buffer_start)
+    sta STREAM_ptr_HI
+
+    .get_byte_from_stream
+    lda STREAM_buffer_start-1
+
+    .get_byte_return
+    rts
+.get_byte_reloc_end
+
 .main_start
 
 \ ******************************************************************
@@ -206,39 +232,21 @@ GUARD &4000   			; ensure code size doesn't hit start of screen memory
     lda #6:sta &fe00:lda #24:sta &fe01
     lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
 
-IF _LOAD_TO_SWRAM
-    \\ Load SWRAM data
-    SWRAM_SELECT 4
-    lda #HI(&8000)
-    ldx #LO(filename0)
-    ldy #HI(filename0)
-    jsr disksys_load_file
+    \\ Reloc
+    ldx #0
+    .reloc_loop
+    lda get_byte_reloc, X
+    sta get_byte, X
+    inx
+    cpx #get_byte_reloc_end-get_byte_reloc
+    bcc reloc_loop
 
     \\ Load SWRAM data
-    SWRAM_SELECT 5
-    lda #HI(&8000)
-    ldx #LO(filename1)
-    ldy #HI(filename1)
-    jsr disksys_load_file
-
-    \\ Load SWRAM data
-    SWRAM_SELECT 6
-    lda #HI(&8000)
-    ldx #LO(filename2)
-    ldy #HI(filename2)
-    jsr disksys_load_file
-
-    \\ Load SWRAM data
-    SWRAM_SELECT 7
-    lda #HI(&8000)
-    ldx #LO(filename3)
-    ldy #HI(filename3)
-    jsr disksys_load_file
-
-    SWRAM_SELECT 4
-    sta rom_bank
-
-ELSE
+;    SWRAM_SELECT 4
+;    lda #HI(&8000)
+;    ldx #LO(filename0)
+;    ldy #HI(filename0)
+;    jsr disksys_load_file
 
 	\\ Load our entire stream buffer from first track
 
@@ -262,7 +270,6 @@ ELSE
 
         .read_error
 	}
-ENDIF
 
     \\ Init system
     lda #HI(screen1_addr)
@@ -1254,58 +1261,35 @@ ENDIF
 .screen_cls
 {
     lda draw_buffer_HI
-    sta loop+2
-    ldx #HI(SCREEN_SIZE_BYTES)
+    cmp #HI(screen1_addr)
+    bne screen2_cls
+}
+\\ Drop thru!
+.screen1_cls
+{
     lda #0
-    ldy #0
+    ldx #0
     .loop
-    sta &FF00, y
-    iny
-    bne loop
-    inc loop+2
-    dex
+    FOR page,0,SCREEN_SIZE_BYTES-1,&100
+    sta screen1_addr + page, X
+    NEXT
+    inx
     bne loop
     rts
 }
 
-\\ Move me to ZP!
-.get_byte
-    inc STREAM_ptr_LO
-    bne get_byte_from_stream
-    inc STREAM_ptr_HI
-
-IF _CHECK_LOAD_BUFFER
-	\\ Are we reading from the same page we intend to load at next?
-    lda STREAM_ptr_HI
-	cmp load_to_HI
-	bne not_caught_up
-
-	\\ If so then we have caught up with the disk load and run out of data
-	\\ So bomb out with an error:
-	inc error_flag
-	lda #0
-	rts
-
-	.not_caught_up
-ENDIF
-
-	\\ Have we gone over the end of our stream buffer?
-    lda STREAM_ptr_HI
-	cmp #HI(STREAM_buffer_end)
-	bcc get_byte_from_stream
-
-	\\ If so then wrap around to the beginning
-	lda #HI(STREAM_buffer_start)
-    sta STREAM_ptr_HI
-
-    .get_byte_from_stream
-    lda STREAM_buffer_start-1
-
-STREAM_ptr_LO = get_byte_from_stream+1
-STREAM_ptr_HI = get_byte_from_stream+2
-
-    .get_byte_return
+.screen2_cls
+{
+    lda #0
+    ldx #0
+    .loop
+    FOR page,0,SCREEN_SIZE_BYTES-1,&100
+    sta screen2_addr + page, X
+    NEXT
+    inx
+    bne loop
     rts
+}
 
 IF 0
     \\ SWRAM reader
@@ -1729,16 +1713,9 @@ ALIGN &100  ; lazy
     EQUB 4,3,2,1
 }
 
-IF _LOAD_TO_SWRAM
-.filename0
-EQUS "00", 13
-.filename1
-EQUS "01", 13
-.filename2
-EQUS "02", 13
-.filename3
-EQUS "03", 13
-ELSE
+;.filename0
+;EQUS "00", 13
+
 .osword_params
 .osword_params_drive
 EQUB 0				; drive
@@ -1757,7 +1734,6 @@ EQUB 0				; returned error value
 
 .drive_order
 EQUB 2,3,1,0
-ENDIF
 
 MACRO MODE5_PIXELS a,b,c,d
     EQUB (a AND 2) * &40 OR (a AND 1) * &08 OR (b AND 2) * &20 OR (b AND 1) * &04 OR (c AND 2) * &10 OR (c AND 1) * &02 OR (d AND 2) * &08 OR (d AND 1) * &01
@@ -1949,7 +1925,7 @@ NEXT
 \ *	Save the code
 \ ******************************************************************
 
-SAVE "STNICC", start, end
+SAVE "STNICC", start, end, main_start
 
 \ ******************************************************************
 \ *	Space reserved for runtime buffers not preinitialised
@@ -1980,6 +1956,32 @@ PRINT "HIGH WATERMARK =", ~P%
 PRINT "FREE =", ~screen2_addr-P%
 PRINT "------"
 
+\ ******************************************************************
+\ *	SWRAM
+\ ******************************************************************
+
+CLEAR 0, &FFFF
+ORG &8000
+GUARD &C000
+.bank0_start
+
+.bank0_end
+
+PRINT "------"
+PRINT "BANK 0"
+PRINT "------"
+PRINT "TOTAL size =", ~bank0_end-bank0_start
+PRINT "------"
+PRINT "HIGH WATERMARK =", ~P%
+PRINT "FREE =", ~&C000-P%
+PRINT "------"
+
+;SAVE "BANK0", bank0_start, bank0_end
+
+\ ******************************************************************
+\ *	DISC LAYOUT
+\ ******************************************************************
+
 exe_size=(end-start+&ff)AND&FF00
 PRINT "EXE size = ",~exe_size
 ; We know that Catalog + !Boot = &300
@@ -1996,19 +1998,4 @@ SAVE "dummy", dummy, P%
 \ *	Any other files for the disc
 \ ******************************************************************
 
-IF _LOAD_TO_SWRAM
-PUTFILE "data/scene1_beeb.00.bin", "00", &8000
-PUTFILE "data/scene1_beeb.01.bin", "01", &8000
-PUTFILE "data/scene1_beeb.02.bin", "02", &8000
-PUTFILE "data/scene1_beeb.03.bin", "03", &8000
-PUTFILE "data/scene1_beeb.04.bin", "04", &8000
-PUTFILE "data/scene1_beeb.05.bin", "05", &8000
-PUTFILE "data/scene1_beeb.06.bin", "06", &8000
-PUTFILE "data/scene1_beeb.07.bin", "07", &8000
-PUTFILE "data/scene1_beeb.07.bin", "08", &8000
-PUTFILE "data/scene1_beeb.07.bin", "09", &8000
-PUTFILE "data/scene1_beeb.07.bin", "10", &8000
-PUTFILE "data/scene1_beeb.07.bin", "11", &8000
-ELSE
 PUTFILE "data/scene1_disk.00.bin", "00", 0
-ENDIF

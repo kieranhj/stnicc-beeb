@@ -137,17 +137,17 @@ Don't init span buffer every time - get span plot to set it back.
 Simplify drawline_into_span_buffer code:
  - Self-mod INX/DEX and INY/DEY directly rather than branches. - DONE
  - Can we keep accumulator without having to store back to ZP?
- - Inline plot_pixel_into_span_buffer.
+ - Inline plot_pixel_into_span_buffer. - DONE
 Possible to completely unroll Bresenham somehow?
  (Might need to duplicate the routine x4 but could be worth it?)
 
-Put get_byte into ZP.
+Put get_byte into ZP. - DONE
 
 Plot span:
- - span_start should always be <= span_end w/ span buffer
+ - span_start should always be <= span_end w/ span buffer - DONE
  - Any coherency between calls to reduce start address calc?
  - Unroll long span plot
- - Divide width by 4 so can just dex (or remove altogether).
+ - Divide width by 4 so can just dex - DONE (or remove altogether).
  - Any savings in plot_short_span? Inline plot_pixel_at?
 
 Vsync on timer at line 200.
@@ -155,6 +155,10 @@ Frame swap on vsync.
 Run ahead and block plot until swapped.
 
 Only plot every other scanline?! What does this look like?
+
+Optimisation progress:
+ 5/11 - first frame down to &1E=30 vsyncs
+ 5/11 - unrolled CLS a bit - down to &1D vsyncs
 
 Tidy up code
 ~~~
