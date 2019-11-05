@@ -394,16 +394,18 @@ ENDIF
 	sec
 	lda span_end
     sbc span_start
-    \\ Check span_start < span_end
-    bcs posdx
-    ldx span_end
-    eor #&ff
-    adc #1
-    .posdx
+
+    \\ Check span_start < span_end - should always be true w/ span_buffer
+;    bcs posdx
+;    ldx span_end
+;    eor #&ff
+;    adc #1
+;    .posdx
 IF _POLY_PLOT_END_POINTS
     clc
     adc #1
 ENDIF
+
 	sta span_width
     beq return
 
@@ -1023,7 +1025,7 @@ ENDIF
     rts
 }
 
-.plot_pixel_into_span_buffer
+MACRO UPDATE_SPAN_BUFFER
 {
     txa
     cmp span_buffer_start, Y
@@ -1036,6 +1038,12 @@ ENDIF
     sta span_buffer_end, Y
 
     .not_larger
+}
+ENDMACRO
+
+.plot_pixel_into_span_buffer
+{
+    UPDATE_SPAN_BUFFER
     rts
 }
 
@@ -1139,7 +1147,8 @@ ENDIF
 	STA accum
 	
 	; 'plot' pixel
-    jsr plot_pixel_into_span_buffer
+    ;jsr plot_pixel_into_span_buffer
+    UPDATE_SPAN_BUFFER
 
 	; check if done
 	DEC count
@@ -1191,14 +1200,13 @@ IF _POLY_PLOT_END_POINTS
 ENDIF
 
     \\ Plot first 'pixel' into span buffer
-    jsr plot_pixel_into_span_buffer
+    ;jsr plot_pixel_into_span_buffer
+    UPDATE_SPAN_BUFFER
 
 .shallowlineloop
 
 	; cache byte from destination screen address
 	; doesn't mean anything in our context
-	
-.shallowlineloop2
 
 	; plot pixel in cached byte
 	; doesn't mean anything in our context
@@ -1217,7 +1225,7 @@ ENDIF
 	BCC movetonextline
 
 	STA accum
-	BCS shallowlineloop2	; always taken
+	BCS shallowlineloop 	; always taken
 	
 	; move down to next line
 	.movetonextline
@@ -1226,13 +1234,15 @@ ENDIF
 	STA accum				; store new accumulator
 
     ; Plot 'pixel' for end of span on current line
-    jsr plot_pixel_into_span_buffer
+    ;jsr plot_pixel_into_span_buffer
+    UPDATE_SPAN_BUFFER
 
     .branchupdown2
 	nop		                ; self-modified to goingdown2 or goingup2
 
     ; Plot 'pixel' for start of span on next line
-    jsr plot_pixel_into_span_buffer
+    ;jsr plot_pixel_into_span_buffer
+    UPDATE_SPAN_BUFFER
 
 	JMP shallowlineloop		; always taken
 

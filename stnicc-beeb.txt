@@ -135,7 +135,7 @@ Don't init span buffer every time - get span plot to set it back.
     - Saves 19 vsyncs!!! Now &21=33!
 
 Simplify drawline_into_span_buffer code:
- - Self-mod INX/DEX and INY/DEY directly rather than branches.
+ - Self-mod INX/DEX and INY/DEY directly rather than branches. - DONE
  - Can we keep accumulator without having to store back to ZP?
  - Inline plot_pixel_into_span_buffer.
 Possible to completely unroll Bresenham somehow?
