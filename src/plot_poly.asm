@@ -194,6 +194,8 @@ ENDIF
 \ *	POLYGON PLOT FUNCTIONS
 \ ******************************************************************
 
+IF _DEBUG
+\\ Technically a debug feature!
 .plot_poly_line
 {
     \\ Duplicate first vertex to end
@@ -226,6 +228,7 @@ ENDIF
 
     rts
 }
+ENDIF
 
 .plot_poly_span
 {

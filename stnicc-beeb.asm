@@ -5,7 +5,6 @@
 _DEBUG = TRUE
 _POLY_PLOT_END_POINTS = TRUE
 _DOUBLE_BUFFER = TRUE
-_CHECK_LOAD_BUFFER = FALSE
 _PLOT_WIREFRAME = FALSE
 
 \ ******************************************************************
@@ -72,7 +71,7 @@ DISK2_drive_no = 2			; should be 2
 DISK2_first_track = 1
 DISK2_last_track = 79		; doesn't actually matter as data stream should indicate end of buffer
 
-STREAM_buffer_size = (3 * DFS_track_size)
+STREAM_buffer_size = (2 * DFS_track_size)
 
 FLAG_CLEAR_SCREEN = 1
 FLAG_CONTAINS_PALETTE = 2
@@ -160,7 +159,7 @@ skip &100
 \ ******************************************************************
 
 ORG &1100
-GUARD &4000   			; ensure code size doesn't hit start of screen memory
+GUARD screen2_addr
 
 .start
 
@@ -384,7 +383,7 @@ ENDIF
     CLI
 
 	\\ Exit gracefully (in theory)
-
+    \\ But not back to BASIC as we trashed all its workspace :D
 	RTS
 }
 

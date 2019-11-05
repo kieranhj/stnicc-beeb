@@ -4,7 +4,7 @@
 
 IF _DEBUG
 
-\\ Technically this is a debug fn!
+\\ Technically this is a debug feature!
 .drawline
 {
 	; calc screen address of (startx, starty)
