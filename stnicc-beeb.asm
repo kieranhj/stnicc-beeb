@@ -459,22 +459,31 @@ ENDIF
     .skip_first_byte
 
     \\ Main body of span
-    ldx span_width
-    .loop
-    cpx #4
-    bcc end_loop
-
-    lda span_colour
-    sta (writeptr), Y
-
-    tya:clc:adc #8:tay
-    txa:sec
-    sbc #4
+    lda span_width
+    lsr a:lsr a
     tax
-    jmp loop
+    beq end_loop
+
+    lda span_colour         ; 3c
+    sta load_span_colour+1  ; 4c
+    clc                     ; 2c
+    .loop
+
+    \\ Need to unroll this really
+    .load_span_colour
+    lda #0                  ; 2c
+    sta (writeptr), Y       ; 6c
+
+    tya:adc #8:tay          ; 6c
+    dex                     ; 2c
+    bne loop                ; 3c
     .end_loop
 
-    \\ Last byte
+    lda span_width
+    and #3
+    tax
+
+    \\ Last byte?
     cpx #0
     beq skip_last_byte
 

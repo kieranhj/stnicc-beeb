@@ -122,6 +122,10 @@ Toggle solid / wireframe draw on paused frame.
 Optimisations
 ~~~
 First few frames take &34 = 52 vsyncs!!
+These are 200+ verts and 160+ polys, each 3-4 sides.
+Probably 500+ calls to drawline_into_span_buffer.
+How many span calls?! 1600?!
+
 Inside the tunnel is about &10 vsyncs..
 Blocking load takes &10-&16 frames.
 
