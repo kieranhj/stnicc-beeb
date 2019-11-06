@@ -43,3 +43,13 @@ build:
 .PHONY:clean
 clean:
 	$(SHELLCMD) rm-tree $(BUILD)
+
+##########################################################################
+##########################################################################
+
+.PHONY:b2_test
+b2_test: URL:=http://localhost:48075
+b2_test:
+	curl -G '$(URL)/reset/b2' --data-urlencode "config=Master 128 (MOS 3.20)"
+	curl -H 'Content-Type:application/vnd.acorn.disc-image.dsd' --upload-file '$(BUILD)/stnicc-B.dsd' '$(URL)/mount/b2?drive=1'
+	curl -H 'Content-Type:application/vnd.acorn.disc-image.dsd' --upload-file '$(BUILD)/stnicc-A.dsd' '$(URL)/run/b2'
