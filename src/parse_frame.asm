@@ -56,6 +56,9 @@ ENDIF
     lsr a
     sta vertices_x, X
     jsr get_byte
+    IF _HALF_VERTICAL_RES
+    lsr a
+    ENDIF
     sta vertices_y, X
     inx
     cpx indexed_num_verts
@@ -103,6 +106,9 @@ ENDIF
     lsr a
     sta poly_verts_x, X
     jsr get_byte
+    IF _HALF_VERTICAL_RES
+    lsr a
+    ENDIF
     sta poly_verts_y, X
 
     inx

@@ -277,7 +277,11 @@ ENDIF
 
     ldy span_buffer_min_y
     .span_loop
+    IF _HALF_VERTICAL_RES
+    sty poly_y
+    ELSE
     sty span_y
+    ENDIF
 
     tya:and #3:tax
     .load_palette
@@ -294,10 +298,18 @@ ENDIF
     ;ora span_start
     ;beq skip_span
 
+    IF _HALF_VERTICAL_RES
+    tya:asl a:sta span_y
+    ENDIF
+
     jsr plot_span
 
     .skip_span
+    IF _HALF_VERTICAL_RES
+    ldy poly_y
+    ELSE
     ldy span_y
+    ENDIF
 
     \\ Reset this line of the span buffer since we're already here
     lda #255

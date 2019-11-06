@@ -6,6 +6,7 @@ _DEBUG = TRUE
 _POLY_PLOT_END_POINTS = TRUE
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
+_HALF_VERTICAL_RES = FALSE
 
 \ ******************************************************************
 \ *	OS defines
@@ -114,6 +115,7 @@ GUARD &9F
 .poly_num_verts     skip 1
 .poly_colour        skip 1
 .poly_index         skip 1
+.poly_y             skip 1
 .poly_verts_x       skip MAX_VERTS_PER_POLY+1
 .poly_verts_y       skip MAX_VERTS_PER_POLY+1
 
