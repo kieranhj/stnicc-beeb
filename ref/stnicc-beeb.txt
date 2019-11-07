@@ -159,6 +159,7 @@ Only plot every other scanline?! What does this look like?
 Optimisation progress:
  5/11 - first frame down to &1E=30 vsyncs
  5/11 - unrolled CLS a bit - down to &1D vsyncs
+ 7/11 - align to 7.5K
 
 Tidy up code
 ~~~

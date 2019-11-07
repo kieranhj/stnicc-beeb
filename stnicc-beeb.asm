@@ -91,7 +91,8 @@ POLY_DESC_END_OF_FRAME = &FF
 ORG &00
 GUARD &9F
 
-.get_byte           skip &14
+.STREAM_ptr_LO      skip 1
+.STREAM_ptr_HI      skip 1
 
 ; vars for plot_span
 .writeptr           skip 2
@@ -167,31 +168,6 @@ GUARD screen2_addr
 
 .start
 
-STREAM_ptr_LO = get_byte + &11
-STREAM_ptr_HI = get_byte + &12
-
-\\ Move me to ZP!
-.get_byte_reloc
-    inc STREAM_ptr_LO
-    bne get_byte_from_stream
-    inc STREAM_ptr_HI
-
-	\\ Have we gone over the end of our stream buffer?
-    lda STREAM_ptr_HI
-	cmp #HI(STREAM_buffer_end)
-	bcc get_byte_from_stream
-
-	\\ If so then wrap around to the beginning
-	lda #HI(STREAM_buffer_start)
-    sta STREAM_ptr_HI
-
-    .get_byte_from_stream
-    lda STREAM_buffer_start-1
-
-    .get_byte_return
-    rts
-.get_byte_reloc_end
-
 .main_start
 
 \ ******************************************************************
@@ -237,15 +213,6 @@ STREAM_ptr_HI = get_byte + &12
     lda #6:sta &fe00:lda #24:sta &fe01
     lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
 
-    \\ Reloc
-    ldx #0
-    .reloc_loop
-    lda get_byte_reloc, X
-    sta get_byte, X
-    inx
-    cpx #get_byte_reloc_end-get_byte_reloc
-    bcc reloc_loop
-
     \\ Load SWRAM data
 ;    SWRAM_SELECT 4
 ;    lda #HI(&8000)
@@ -253,8 +220,13 @@ STREAM_ptr_HI = get_byte + &12
 ;    ldy #HI(filename0)
 ;    jsr disksys_load_file
 
-	\\ Load our entire stream buffer from first track
+    \\ Set stream pointer
+    lda #LO(STREAM_buffer_start-1)
+    sta STREAM_ptr_LO
+    lda #HI(STREAM_buffer_start-1)
+    sta STREAM_ptr_HI
 
+	\\ Load our entire stream buffer from first track
 	LDA #DISK1_first_track
 	STA track_no
 
@@ -703,7 +675,7 @@ NEXT
 \ *	Save the code
 \ ******************************************************************
 
-SAVE "STNICC", start, end, main_start
+SAVE "STNICC", start, end, main
 
 \ ******************************************************************
 \ *	Space reserved for runtime buffers not preinitialised

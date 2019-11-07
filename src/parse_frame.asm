@@ -2,9 +2,21 @@
 \ *	PARSE A FRAME OF DATA FROM STNICCC STREAM
 \ ******************************************************************
 
+MACRO GET_BYTE
+;   jsr get_byte
+{
+    inc STREAM_ptr_LO
+    bne no_carry
+    inc STREAM_ptr_HI
+    .no_carry
+    lda (STREAM_ptr_LO), y
+}
+ENDMACRO
+
 .parse_frame
 {
-    jsr get_byte
+    ldy #0
+    GET_BYTE
     sta frame_flags
 
     and #FLAG_CLEAR_SCREEN
@@ -20,9 +32,9 @@ ENDIF
     beq no_palette
 
     \\ Read 16-bit palette mask
-    jsr get_byte
+    GET_BYTE
     sta frame_bitmask+1
-    jsr get_byte
+    GET_BYTE
     sta frame_bitmask
 
     \\ Read palette words
@@ -33,8 +45,8 @@ ENDIF
     bcc not_this_bit
 
     \\ Discard our palette for now
-    jsr get_byte
-    jsr get_byte
+    GET_BYTE
+    GET_BYTE
 
     .not_this_bit
     dex
@@ -47,15 +59,15 @@ ENDIF
     beq read_poly_data
 
     \\ Read indexed data (most common)
-    jsr get_byte
+    GET_BYTE
     sta indexed_num_verts
 
     ldx #0
     .read_verts_loop
-    jsr get_byte
+    GET_BYTE
     lsr a
     sta vertices_x, X
-    jsr get_byte
+    GET_BYTE
     IF _HALF_VERTICAL_RES
     lsr a
     ENDIF
@@ -66,8 +78,8 @@ ENDIF
 
     \\ Read polygon data
     .read_poly_data
-
-    jsr get_byte
+    ldy #0
+    GET_BYTE
     sta poly_descriptor
     cmp #POLY_DESC_END_OF_STREAM
     bcs end_of_frame
@@ -85,7 +97,8 @@ ENDIF
 
     ldx #0
     .read_poly_loop
-    jsr get_byte
+    ldy #0
+    GET_BYTE
     tay
 
     lda vertices_x, Y
@@ -102,10 +115,10 @@ ENDIF
     ldx #0
     .read_poly_ni_loop
 
-    jsr get_byte
+    GET_BYTE
     lsr a
     sta poly_verts_x, X
-    jsr get_byte
+    GET_BYTE
     IF _HALF_VERTICAL_RES
     lsr a
     ENDIF
