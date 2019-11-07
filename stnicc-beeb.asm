@@ -3,6 +3,7 @@
 \ ******************************************************************
 
 _DEBUG = TRUE
+_TESTS = FALSE
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
 _HALF_VERTICAL_RES = FALSE
@@ -255,29 +256,7 @@ GUARD screen2_addr
     jsr screen_cls
     jsr init_span_buffer
 
-    IF 0
-    {
-        \\ Set test screen
-        lda #0:sta disp_buffer
-        lda draw_buffer_HI
-        sta disp_buffer+1
-
-        clc
-        lsr disp_buffer+1:ror disp_buffer
-        lsr disp_buffer+1:ror disp_buffer
-        lsr disp_buffer+1:ror disp_buffer
-
-        lda #12:sta &fe00
-        lda disp_buffer+1:sta &fe01
-        lda #13:sta &fe00
-        lda disp_buffer:sta &fe01
-
-    ;    jsr test_drawline
-        jsr test_plot_poly
-    ;    jsr test_plot_span
-        rts
-    }
-    ENDIF
+    \\ jmp do_tests
 
     .loop
     \\ Wait vsync

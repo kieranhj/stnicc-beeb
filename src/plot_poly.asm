@@ -30,7 +30,7 @@
     clc
     adc #1
 	sta span_width
-    beq return
+    ; beq return
 
     \\ Compute address of first screen byte
     ldy span_y
@@ -43,9 +43,6 @@
     clc
     adc draw_buffer_HI
     sta writeptr+1
-
-    \\ Column index
-    ldy #0
 
     \\ Check if the span is short (<4 pixels)
     lda span_width
@@ -72,6 +69,7 @@
     .ora_left_hand_byte
     ora #0
     \\ Write to screen
+    ldy #0
     sta (writeptr), Y
 
     \\ Subtract pixels from width
@@ -80,17 +78,22 @@
     sbc four_minus, X
     sta span_width
 
-    \\ Increment column
-    tya:clc:adc #8:tay
+    \\ Increment column - can't overflow
+    lda writeptr:clc:and #8:sta writeptr
+;    tya:clc:adc #8:tay
     .skip_first_byte
 
     \\ Main body of span
     lda span_width
     lsr a:lsr a
     tax
-    beq end_loop
+    bne do_loop
+    jmp end_loop
 
+    .do_loop
     lda span_colour         ; 3c
+
+IF 0
     sta load_span_colour+1  ; 4c
     clc                     ; 2c
     .loop
@@ -103,15 +106,28 @@
     tya:adc #8:tay          ; 6c
     dex                     ; 2c
     bne loop                ; 3c
+    \\ 19c
+ELSE
+    FOR n,0,31,1
+    {
+        ldy #(n*8)          ; 2c
+        sta (writeptr), Y   ; 6c
+        dex                 ; 2c
+        bne next            ; 3c
+        jmp end_loop
+        .next
+        \\ 13c
+    }
+    NEXT
+ENDIF
+
     .end_loop
 
+    \\ Last byte?
     lda span_width
     and #3
-    tax
-
-    \\ Last byte?
-    cpx #0
     beq skip_last_byte
+    tax
 
     lda span_colour
     and screen_mask_starting_at_pixel, X

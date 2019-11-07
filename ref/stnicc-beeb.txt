@@ -168,3 +168,11 @@ Add disk 2,1 & 3 - DONE
 Build process for creating DSDs. - DONE
 Test end-to-end. - DONE
 Remove unnecessary DEFINEs.
+
+Optimise plot_span
+~~~
+Not taking advantage of the fact that spans are contiguous in Y for many lines
+Average 40 spans per poly..!
+
+Compute writeptr as the start address on the line inc. scanline
+Compute Y as column index
