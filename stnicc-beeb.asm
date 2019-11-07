@@ -64,15 +64,17 @@ SCREEN_SIZE_BYTES = (SCREEN_WIDTH_PIXELS * SCREEN_HEIGHT_PIXELS) / 4
 screen1_addr = &8000 - SCREEN_SIZE_BYTES
 screen2_addr = screen1_addr - SCREEN_SIZE_BYTES
 
+TRACKS_per_disk = 75
+
 DISK1_drive_no = 0			; for loop!
 DISK1_first_track = 2		; the track at which the video file is located on side 0; all tracks prior to this are reserved for code
-DISK1_last_track = 80		; could potentially deduce these from DFS catalog
+DISK1_last_track = DISK1_first_track + TRACKS_per_disk
 
 DISK2_drive_no = 2			; should be 2
 DISK2_first_track = 1
-DISK2_last_track = 79		; doesn't actually matter as data stream should indicate end of buffer
+DISK2_last_track = DISK2_first_track + TRACKS_per_disk
 
-STREAM_buffer_size = (2 * DFS_track_size)
+STREAM_buffer_size = 3 * DFS_track_size
 
 FLAG_CLEAR_SCREEN = 1
 FLAG_CONTAINS_PALETTE = 2
@@ -335,7 +337,10 @@ STREAM_ptr_HI = get_byte + &12
     bne stream_ok
     
     \\ Align to next page
-    lda #&ff:sta STREAM_ptr_LO
+    lda #LO(STREAM_buffer_start-1)
+    sta STREAM_ptr_LO
+    lda #HI(STREAM_buffer_start-1)
+    sta STREAM_ptr_HI
 
     .stream_ok
     cmp #POLY_DESC_END_OF_STREAM
