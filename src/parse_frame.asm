@@ -3,7 +3,6 @@
 \ ******************************************************************
 
 MACRO GET_BYTE
-;   jsr get_byte
 {
     inc STREAM_ptr_LO
     bne no_carry
@@ -53,7 +52,7 @@ ENDIF
     bne palette_loop
     .no_palette
 
-    \\ CHeck whether we have indexed data
+    \\ Check whether we have indexed data
     lda frame_flags
     and #FLAG_INDEXED_DATA
     beq read_poly_data
@@ -101,6 +100,7 @@ ENDIF
     GET_BYTE
     tay
 
+    \\ This can be changed to read the poly indices directly.
     lda vertices_x, Y
     sta poly_verts_x, X
     lda vertices_y, Y
@@ -115,6 +115,7 @@ ENDIF
     ldx #0
     .read_poly_ni_loop
 
+    \\ This can be changed to read the poly data directly.
     GET_BYTE
     lsr a
     sta poly_verts_x, X

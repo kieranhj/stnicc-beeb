@@ -13,22 +13,22 @@
 .plot_span
 {
     ldx span_start
+
     \\ Calculate span width in pixels
 	sec
 	lda span_end
     sbc span_start
 
     \\ Check span_start < span_end - should always be true w/ span_buffer
-;    bcs posdx
-;    ldx span_end
-;    eor #&ff
-;    adc #1
-;    .posdx
-IF _POLY_PLOT_END_POINTS
+    ; bcs posdx
+    ; ldx span_end
+    ; eor #&ff
+    ; adc #1
+    ; .posdx
+
+    \\ _POLY_PLOT_END_POINTS
     clc
     adc #1
-ENDIF
-
 	sta span_width
     beq return
 
@@ -129,7 +129,8 @@ ENDIF
     .skip_last_byte
 
     .return
-    rts
+    jmp return_here_from_plot_span
+    ;rts
 }
 
 .plot_short_span
@@ -140,7 +141,15 @@ ENDIF
     tax
 
     .short_loop
-    jsr plot_pixel_at
+    lda span_colour
+    and colour_mask_pixel, X
+    sta ora_pixel+1
+
+    lda (writeptr), Y
+    and screen_mask_pixel, X
+    .ora_pixel
+    ora #0
+    sta (writeptr), Y
 
     \\ Could spill into next column
     inx
@@ -155,39 +164,8 @@ ENDIF
     dec span_width
     bne short_loop
 
-    rts
-}
-
-; pixel X at writeptr column Y using colour_byte
-.plot_pixel_at
-{
-    lda span_colour
-    and colour_mask_pixel, X
-    sta ora_pixel+1
-    lda (writeptr), Y
-    and screen_mask_pixel, X
-    .ora_pixel
-    ora #0
-    sta (writeptr), Y
-    rts
-}
-
-.plot_pixel
-{
-    \\ Compute address of first screen byte
-    clc
-    lda screen_row_LO, Y
-    adc screen_col_LO, X
-    sta writeptr
-    lda screen_row_HI, Y
-    adc screen_col_HI, X
-    clc
-    adc draw_buffer_HI
-    sta writeptr+1
-
-    txa:and #3:tax
-    ldy #0
-    jmp plot_pixel_at
+    jmp return_here_from_plot_span
+    ;rts
 }
 
 \ ******************************************************************
@@ -231,7 +209,7 @@ IF _DEBUG
 ENDIF
 
 .plot_poly_span
-{
+\{
     \\ Reset our min/max tracking
     lda #255
     sta span_buffer_min_y
@@ -302,7 +280,9 @@ ENDIF
     tya:asl a:sta span_y
     ENDIF
 
-    jsr plot_span
+    ;jsr plot_span
+    jmp plot_span
+    .return_here_from_plot_span
 
     .skip_span
     IF _HALF_VERTICAL_RES
@@ -322,7 +302,7 @@ ENDIF
     bcc span_loop
 
     rts
-}
+\}
 
 \ ******************************************************************
 \ *	SPAN BUFFER FUNCTIONS
@@ -454,9 +434,8 @@ ENDMACRO
 	STA count
 	LSR A
 
-IF _POLY_PLOT_END_POINTS
+    \\ _POLY_PLOT_END_POINTS
     INC count
-ENDIF
 
 .steeplineloop
 
@@ -514,9 +493,8 @@ ENDIF
 	LSR A
 	STA accum
 
-IF _POLY_PLOT_END_POINTS
+    \\ _POLY_PLOT_END_POINTS
     INC count
-ENDIF
 
     \\ Plot first 'pixel' into span buffer
     ;jsr plot_pixel_into_span_buffer

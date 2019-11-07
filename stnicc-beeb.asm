@@ -3,7 +3,6 @@
 \ ******************************************************************
 
 _DEBUG = TRUE
-_POLY_PLOT_END_POINTS = TRUE
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
 _HALF_VERTICAL_RES = FALSE
