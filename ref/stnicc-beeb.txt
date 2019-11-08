@@ -176,3 +176,5 @@ Average 40 spans per poly..!
 
 Compute writeptr as the start address on the line inc. scanline
 Compute Y as column index
+
+Think need to special case small spans of 2 bytes as seems to be a common case.
