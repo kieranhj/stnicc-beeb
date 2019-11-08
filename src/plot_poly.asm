@@ -8,87 +8,76 @@ _UNROLL_SPAN_LOOP = TRUE
 \ *	SPAN PLOTTING FUNCTIONS
 \ ******************************************************************
 
+\\ Can only be a maximum of 2 bytes plotted for short (<=4 pixel) spans
+\\ X = [0,3] W = [1,3]
+
+\\ p000 0000  pp00 0000  ppp0 0000  pppp 0000
+\\ 0p00 0000  0pp0 0000  0ppp 0000  0ppp p000
+\\ 00p0 0000  00pp 0000  00pp p000  00pp pp00
+\\ 000p 0000  000p p000  000p pp00  000p ppp0
+
+MACRO MASK_START_AT_X p, e
+FOR x,0,3,1
+s=p>>x
+h=(s AND &f0) >> 4
+l=(s AND &0f)
+EQUB (h OR h<<4) EOR e, (l OR l<<4) EOR e
+NEXT
+ENDMACRO
+
+.color_mask_short
+MASK_START_AT_X &80, 0
+MASK_START_AT_X &c0, 0
+MASK_START_AT_X &e0, 0
+MASK_START_AT_X &f0, 0
+
+.screen_mask_short
+MASK_START_AT_X &80, &ff
+MASK_START_AT_X &c0, &ff
+MASK_START_AT_X &e0, &ff
+MASK_START_AT_X &f0, &ff
+
 .plot_short_span
 {
-    \\ X=span start pixel
+    \\ w = [1,4] x = [0,3]
+    \\ X= ((w-1)*4+(xAND3))*2
     txa
     and #3
+
+    ldx span_width
+    adc minus_1_times_4, X
+    asl a
     tax
 
-    .short_loop
-    lda span_colour                 ; 3c
-    and colour_mask_pixel, X        ; 4c
-    sta ora_pixel+1                 ; 4c
+    lda color_mask_short, X
+    and span_colour
+    sta ora_byte1+1
 
     lda (writeptr), Y               ; 5c
-    and screen_mask_pixel, X        ; 4c
-    .ora_pixel
+    and screen_mask_short, X        ; 4c
+    .ora_byte1
     ora #0                          ; 2c
     sta (writeptr), Y               ; 6c
 
-    \\ Could spill into next column
-    inx                             ; 2c
-    cpx #4                          ; 2c
-    bcc same_column                 ; 2c
+    inx
+    lda color_mask_short, X
+    beq done
+    and span_colour
+    sta ora_byte2+1
 
-    \\ Next column along
-    tya:clc:adc #8:tay              ; 8c
-    ldx #0                          ; 2c
-
-    .same_column
-    dec span_width                  ; 5c
-    bne short_loop                  ; 3c
+    ldy #8
+    lda (writeptr), Y               ; 5c
+    and screen_mask_short, X        ; 4c
+    .ora_byte2
+    ora #0                          ; 2c
+    sta (writeptr), Y               ; 6c
+    .done
 
     jmp return_here_from_plot_span
     ;rts
-    
-IF 0
-    \\ Can only be a maximum of 2 bytes
-    \\ Can't be that many combinations?
-    \\ X = [0,3] W = [1,3]
-    \\ Lookup W<<2 + X
-    \\ 0000 0000
 
-    \\ p000 0000
-    \\ 0p00 0000
-    \\ 00p0 0000
-    \\ 000p 0000
-
-    \\ pp00 0000
-    \\ 0pp0 0000
-    \\ 00pp 0000
-    \\ 000p p000
-
-    \\ ppp0 0000
-    \\ 0ppp 0000
-    \\ 00pp p000
-    \\ 000p pp00
-
-    \\ pppp 0000
-    \\ 0ppp p000
-    \\ 00pp pp00
-    \\ 000p ppp0
-
-    MACRO MASK_START_AT_X p
-    FOR x,0,3,1
-    EQUB HI(p>>x), LO(p>>x)
-    ENDMACRO
-
-    MASK_START_AT_X &88
-    MASK_START_AT_X &cc
-    MASK_START_AT_X &ee
-    MASK_START_AT_X &ff
-
-ENDIF
-
-}
-
-.short_span_pixel_mask
-{
-    FOR w,1,4,1
-    FOR x,0,3,1
-    NEXT
-    NEXT
+    .minus_1_times_4
+    EQUB 0, 0, 4, 8, 12
 }
 
 ; Plot pixels from [span_start,span_end] on line span_y using span_colour
@@ -135,7 +124,7 @@ ENDIF
 
     \\ Check if the span is short (<4 pixels)
     lda span_width
-    cmp #4
+    cmp #5
     bcc plot_short_span
 
     .long_span
