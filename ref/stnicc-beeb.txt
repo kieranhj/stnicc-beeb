@@ -159,11 +159,22 @@ Only plot every other scanline?! What does this look like?
 Optimisation progress:
  5/11 - first frame down to &1E=30 vsyncs
  5/11 - unrolled CLS a bit - down to &1D vsyncs
+ 7/11 - align to 7.5K, inline get_byte, inline pixel_plot - down to &1C vsyncs
 
 Tidy up code
 ~~~
-Move everything into separate modules in src/
-Add disk 2,1 & 3
-Build process for creating DSDs.
-Test end-to-end.
+Move everything into separate modules in src/ - DONE
+Add disk 2,1 & 3 - DONE
+Build process for creating DSDs. - DONE
+Test end-to-end. - DONE
 Remove unnecessary DEFINEs.
+
+Optimise plot_span
+~~~
+Not taking advantage of the fact that spans are contiguous in Y for many lines
+Average 40 spans per poly..!
+
+Compute writeptr as the start address on the line inc. scanline
+Compute Y as column index
+
+Think need to special case small spans of 2 bytes as seems to be a common case.

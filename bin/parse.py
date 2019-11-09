@@ -38,6 +38,11 @@ if __name__ == '__main__':
 
     my_data = bytearray()
     my_file = open(argv[1], 'rb')
+
+    new_data = bytearray()
+    chunk_size = 7680   # 7.5K
+    lost_bytes = 0
+
     # my_data.extend(my_file.read())
     # my_file.close()
 
@@ -157,6 +162,7 @@ if __name__ == '__main__':
 
             if poly_descriptor >= 0xfd:
                 end_of_frame = poly_descriptor
+                eof_byte = my_file.tell()
                 break
             
             # Derive poly colour & verts
@@ -263,14 +269,46 @@ if __name__ == '__main__':
 
         if end_of_frame == 0xfe:
             # Skip to 64K boundary
-            print "  Align to 64K."
+            print "  Align to 64K!"
 
             my_file.seek( (my_file.tell() + 0xffff) & ~0xffff)
 
-        bytes = (my_file.tell() - start_pos)
+        end_pos = my_file.tell()
+        bytes = end_pos - start_pos
         total_bytes += bytes
 
         print "  Bytes = {0}".format(bytes)
+
+        source_len_unaligned = eof_byte - start_pos
+        dest_len = len(new_data)
+
+        start_chunk = dest_len / chunk_size
+        end_chunk = (dest_len + source_len_unaligned) / chunk_size
+
+        if start_chunk != end_chunk:
+            new_data[dest_len-1] = POLY_DESC_SKIP_TO_64K
+
+            aligned_len = end_chunk * chunk_size
+            aligned_bytes = aligned_len - dest_len
+
+            for i in xrange(0, aligned_bytes):
+                new_data.append(0x55)
+
+            lost_bytes += aligned_bytes
+
+            print "  Align to {0}".format(chunk_size)
+
+            if verbose:
+                print "  Start pos in chunk {0} but end pos in chunk {1}".format(start_chunk, end_chunk)
+                print "  Aligning to offset {0} by padding with {1} bytes".format(len(new_data), aligned_bytes)
+
+        else:
+            if dest_len > 0:
+                new_data[dest_len-1] = POLY_DESC_END_OF_FRAME
+
+        my_file.seek(start_pos)
+        new_data.extend(my_file.read(eof_byte - start_pos))
+        my_file.seek(end_pos)
         print
 
     print "Total frames = ", frame
@@ -290,4 +328,10 @@ if __name__ == '__main__':
     print "Max spans = ", max_spans," on frame ", max_spans_frame
     print "Mean spans / poly = ", total_spans / total_polys
 
+    print "\nTotal lost bytes for ", chunk_size, " alignment = ", lost_bytes
+
     my_file.close()
+
+    new_file = open(argv[1]+'.new', 'wb')
+    new_file.write(new_data)
+    new_file.close()

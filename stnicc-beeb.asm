@@ -3,7 +3,7 @@
 \ ******************************************************************
 
 _DEBUG = TRUE
-_POLY_PLOT_END_POINTS = TRUE
+_TESTS = FALSE
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
 _HALF_VERTICAL_RES = FALSE
@@ -64,15 +64,17 @@ SCREEN_SIZE_BYTES = (SCREEN_WIDTH_PIXELS * SCREEN_HEIGHT_PIXELS) / 4
 screen1_addr = &8000 - SCREEN_SIZE_BYTES
 screen2_addr = screen1_addr - SCREEN_SIZE_BYTES
 
+TRACKS_per_disk = 75
+
 DISK1_drive_no = 0			; for loop!
-DISK1_first_track = 2		; the track at which the video file is located on side 0; all tracks prior to this are reserved for code
-DISK1_last_track = 80		; could potentially deduce these from DFS catalog
+DISK1_first_track = 3		; the track at which the video file is located on side 0; all tracks prior to this are reserved for code
+DISK1_last_track = DISK1_first_track + TRACKS_per_disk
 
 DISK2_drive_no = 2			; should be 2
 DISK2_first_track = 1
-DISK2_last_track = 79		; doesn't actually matter as data stream should indicate end of buffer
+DISK2_last_track = DISK2_first_track + TRACKS_per_disk
 
-STREAM_buffer_size = (2 * DFS_track_size)
+STREAM_buffer_size = 3 * DFS_track_size
 
 FLAG_CLEAR_SCREEN = 1
 FLAG_CONTAINS_PALETTE = 2
@@ -89,7 +91,8 @@ POLY_DESC_END_OF_FRAME = &FF
 ORG &00
 GUARD &9F
 
-.get_byte           skip &14
+.STREAM_ptr_LO      skip 1
+.STREAM_ptr_HI      skip 1
 
 ; vars for plot_span
 .writeptr           skip 2
@@ -165,31 +168,6 @@ GUARD screen2_addr
 
 .start
 
-STREAM_ptr_LO = get_byte + &11
-STREAM_ptr_HI = get_byte + &12
-
-\\ Move me to ZP!
-.get_byte_reloc
-    inc STREAM_ptr_LO
-    bne get_byte_from_stream
-    inc STREAM_ptr_HI
-
-	\\ Have we gone over the end of our stream buffer?
-    lda STREAM_ptr_HI
-	cmp #HI(STREAM_buffer_end)
-	bcc get_byte_from_stream
-
-	\\ If so then wrap around to the beginning
-	lda #HI(STREAM_buffer_start)
-    sta STREAM_ptr_HI
-
-    .get_byte_from_stream
-    lda STREAM_buffer_start-1
-
-    .get_byte_return
-    rts
-.get_byte_reloc_end
-
 .main_start
 
 \ ******************************************************************
@@ -235,15 +213,6 @@ STREAM_ptr_HI = get_byte + &12
     lda #6:sta &fe00:lda #24:sta &fe01
     lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
 
-    \\ Reloc
-    ldx #0
-    .reloc_loop
-    lda get_byte_reloc, X
-    sta get_byte, X
-    inx
-    cpx #get_byte_reloc_end-get_byte_reloc
-    bcc reloc_loop
-
     \\ Load SWRAM data
 ;    SWRAM_SELECT 4
 ;    lda #HI(&8000)
@@ -251,8 +220,13 @@ STREAM_ptr_HI = get_byte + &12
 ;    ldy #HI(filename0)
 ;    jsr disksys_load_file
 
-	\\ Load our entire stream buffer from first track
+    \\ Set stream pointer
+    lda #LO(STREAM_buffer_start-1)
+    sta STREAM_ptr_LO
+    lda #HI(STREAM_buffer_start-1)
+    sta STREAM_ptr_HI
 
+	\\ Load our entire stream buffer from first track
 	LDA #DISK1_first_track
 	STA track_no
 
@@ -282,29 +256,7 @@ STREAM_ptr_HI = get_byte + &12
     jsr screen_cls
     jsr init_span_buffer
 
-    IF 0
-    {
-        \\ Set test screen
-        lda #0:sta disp_buffer
-        lda draw_buffer_HI
-        sta disp_buffer+1
-
-        clc
-        lsr disp_buffer+1:ror disp_buffer
-        lsr disp_buffer+1:ror disp_buffer
-        lsr disp_buffer+1:ror disp_buffer
-
-        lda #12:sta &fe00
-        lda disp_buffer+1:sta &fe01
-        lda #13:sta &fe00
-        lda disp_buffer:sta &fe01
-
-    ;    jsr test_drawline
-        jsr test_plot_poly
-    ;    jsr test_plot_span
-        rts
-    }
-    ENDIF
+    \\ jmp do_tests
 
     .loop
     \\ Wait vsync
@@ -335,7 +287,10 @@ STREAM_ptr_HI = get_byte + &12
     bne stream_ok
     
     \\ Align to next page
-    lda #&ff:sta STREAM_ptr_LO
+    lda #LO(STREAM_buffer_start-1)
+    sta STREAM_ptr_LO
+    lda #HI(STREAM_buffer_start-1)
+    sta STREAM_ptr_HI
 
     .stream_ok
     cmp #POLY_DESC_END_OF_STREAM
@@ -698,7 +653,7 @@ NEXT
 \ *	Save the code
 \ ******************************************************************
 
-SAVE "STNICC", start, end, main_start
+SAVE "STNICC", start, end, main
 
 \ ******************************************************************
 \ *	Space reserved for runtime buffers not preinitialised
@@ -759,7 +714,7 @@ exe_size=(end-start+&ff)AND&FF00
 PRINT "EXE size = ",~exe_size
 ; We know that Catalog + !Boot = &300
 ; Need to make a dummy file so 00 is at sector 20=track 2
-dummy_size=2*DFS_track_size-exe_size-&300
+dummy_size=3*DFS_track_size-exe_size-&300
 
 CLEAR &0000,&FFFF
 ORG &0000

@@ -2,7 +2,30 @@
 \ *	TEST FUNCTIONS
 \ ******************************************************************
 
-IF _DEBUG
+IF _TESTS
+
+.do_tests
+{
+    \\ Set single buffer screen
+    lda #0:sta disp_buffer
+    lda draw_buffer_HI
+    sta disp_buffer+1
+
+    clc
+    lsr disp_buffer+1:ror disp_buffer
+    lsr disp_buffer+1:ror disp_buffer
+    lsr disp_buffer+1:ror disp_buffer
+
+    lda #12:sta &fe00
+    lda disp_buffer+1:sta &fe01
+    lda #13:sta &fe00
+    lda disp_buffer:sta &fe01
+
+;    jsr test_drawline
+    jsr test_plot_poly      \\ Watch for hard-coded JSR/RTS -> JMP/JMP
+;    jsr test_plot_span
+    rts
+}
 
 .test_plot_span
 {

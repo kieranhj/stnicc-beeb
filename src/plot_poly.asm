@@ -2,35 +2,111 @@
 \ *	SPAN BUFFER POLYGON FILL ROUTINES
 \ ******************************************************************
 
+_UNROLL_SPAN_LOOP = TRUE
+
 \ ******************************************************************
 \ *	SPAN PLOTTING FUNCTIONS
 \ ******************************************************************
+
+\\ Can only be a maximum of 2 bytes plotted for short (<=4 pixel) spans
+\\ X = [0,3] W = [1,3]
+
+\\ p000 0000  pp00 0000  ppp0 0000  pppp 0000
+\\ 0p00 0000  0pp0 0000  0ppp 0000  0ppp p000
+\\ 00p0 0000  00pp 0000  00pp p000  00pp pp00
+\\ 000p 0000  000p p000  000p pp00  000p ppp0
+
+MACRO MASK_START_AT_X p, e
+FOR x,0,3,1
+s=p>>x
+h=(s AND &f0) >> 4
+l=(s AND &0f)
+EQUB (h OR h<<4) EOR e, (l OR l<<4) EOR e
+NEXT
+ENDMACRO
+
+.color_mask_short
+MASK_START_AT_X &80, 0
+MASK_START_AT_X &c0, 0
+MASK_START_AT_X &e0, 0
+MASK_START_AT_X &f0, 0
+
+.screen_mask_short
+MASK_START_AT_X &80, &ff
+MASK_START_AT_X &c0, &ff
+MASK_START_AT_X &e0, &ff
+MASK_START_AT_X &f0, &ff
+
+.plot_short_span
+{
+    \\ w = [1,4] x = [0,3]
+    \\ X= ((w-1)*4+(xAND3))*2
+    txa
+    and #3
+
+    ldx span_width
+    adc minus_1_times_4, X
+    asl a
+    tax
+
+    lda color_mask_short, X
+    and span_colour
+    sta ora_byte1+1
+
+    lda (writeptr), Y               ; 5c
+    and screen_mask_short, X        ; 4c
+    .ora_byte1
+    ora #0                          ; 2c
+    sta (writeptr), Y               ; 6c
+
+    inx
+    lda color_mask_short, X
+    beq done
+    and span_colour
+    sta ora_byte2+1
+
+    ldy #8
+    lda (writeptr), Y               ; 5c
+    and screen_mask_short, X        ; 4c
+    .ora_byte2
+    ora #0                          ; 2c
+    sta (writeptr), Y               ; 6c
+    .done
+
+    jmp return_here_from_plot_span
+    ;rts
+
+    .minus_1_times_4
+    EQUB 0, 0, 4, 8, 12
+}
 
 ; Plot pixels from [span_start,span_end] on line span_y using span_colour
 ; Can optimise all of this later for poly fill, as shouldn't need to check
 ; start and end point, also can probably keep track of screen address without
 ; having to recalculate each time etc.
+
+; This fn is called 3 million times across the entire sequence so every cycle counts!
 .plot_span
-{
+\{
     ldx span_start
+
     \\ Calculate span width in pixels
 	sec
 	lda span_end
     sbc span_start
 
     \\ Check span_start < span_end - should always be true w/ span_buffer
-;    bcs posdx
-;    ldx span_end
-;    eor #&ff
-;    adc #1
-;    .posdx
-IF _POLY_PLOT_END_POINTS
+    ; bcs posdx
+    ; ldx span_end
+    ; eor #&ff
+    ; adc #1
+    ; .posdx
+
+    \\ _POLY_PLOT_END_POINTS
     clc
     adc #1
-ENDIF
-
 	sta span_width
-    beq return
+    ; beq plot_span_return
 
     \\ Compute address of first screen byte
     ldy span_y
@@ -44,14 +120,12 @@ ENDIF
     adc draw_buffer_HI
     sta writeptr+1
 
-    \\ Column index
     ldy #0
 
     \\ Check if the span is short (<4 pixels)
     lda span_width
-    cmp #4
-    bcs long_span
-    jmp plot_short_span
+    cmp #5
+    bcc plot_short_span
 
     .long_span
     \\ First byte
@@ -80,16 +154,22 @@ ENDIF
     sbc four_minus, X
     sta span_width
 
-    \\ Increment column
+    \\ Increment column - can't overflow
+    IF _UNROLL_SPAN_LOOP
+    lda writeptr:clc:adc #8:sta writeptr
+    ELSE
     tya:clc:adc #8:tay
+    ENDIF
+
     .skip_first_byte
 
     \\ Main body of span
     lda span_width
     lsr a:lsr a
+    beq skip_span_loop
     tax
-    beq end_loop
 
+IF _UNROLL_SPAN_LOOP = FALSE
     lda span_colour         ; 3c
     sta load_span_colour+1  ; 4c
     clc                     ; 2c
@@ -103,15 +183,27 @@ ENDIF
     tya:adc #8:tay          ; 6c
     dex                     ; 2c
     bne loop                ; 3c
-    .end_loop
+    \\ 19c per byte
+ELSE
+    lda plot_span_unrolled_LO, X     ; 4c
+    sta jmp_to_unrolled_span_loop+1  ; 4c
+    lda plot_span_unrolled_HI, X     ; 4c
+    sta jmp_to_unrolled_span_loop+2  ; 4c
+    lda span_colour                  ; 3c
+    .jmp_to_unrolled_span_loop
+    jmp &ffff                        ; 3c + 3c
+    .return_here_from_unrolled_span_loop
+    \\ 22c overhead + 8c per byte
 
+    tya:clc:adc #8:tay
+ENDIF
+
+    .skip_span_loop
+    \\ Last byte?
     lda span_width
     and #3
-    tax
-
-    \\ Last byte?
-    cpx #0
     beq skip_last_byte
+    tax
 
     lda span_colour
     and screen_mask_starting_at_pixel, X
@@ -128,67 +220,10 @@ ENDIF
     sta (writeptr), Y
     .skip_last_byte
 
-    .return
-    rts
-}
-
-.plot_short_span
-{
-    \\ X=span start pixel
-    txa
-    and #3
-    tax
-
-    .short_loop
-    jsr plot_pixel_at
-
-    \\ Could spill into next column
-    inx
-    cpx #4
-    bcc same_column
-
-    \\ Next column along
-    tya:clc:adc #8:tay
-    ldx #0
-
-    .same_column
-    dec span_width
-    bne short_loop
-
-    rts
-}
-
-; pixel X at writeptr column Y using colour_byte
-.plot_pixel_at
-{
-    lda span_colour
-    and colour_mask_pixel, X
-    sta ora_pixel+1
-    lda (writeptr), Y
-    and screen_mask_pixel, X
-    .ora_pixel
-    ora #0
-    sta (writeptr), Y
-    rts
-}
-
-.plot_pixel
-{
-    \\ Compute address of first screen byte
-    clc
-    lda screen_row_LO, Y
-    adc screen_col_LO, X
-    sta writeptr
-    lda screen_row_HI, Y
-    adc screen_col_HI, X
-    clc
-    adc draw_buffer_HI
-    sta writeptr+1
-
-    txa:and #3:tax
-    ldy #0
-    jmp plot_pixel_at
-}
+    .plot_span_return
+    jmp return_here_from_plot_span
+    ;rts
+\}
 
 \ ******************************************************************
 \ *	POLYGON PLOT FUNCTIONS
@@ -231,7 +266,7 @@ IF _DEBUG
 ENDIF
 
 .plot_poly_span
-{
+\{
     \\ Reset our min/max tracking
     lda #255
     sta span_buffer_min_y
@@ -302,7 +337,9 @@ ENDIF
     tya:asl a:sta span_y
     ENDIF
 
-    jsr plot_span
+    ;jsr plot_span
+    jmp plot_span
+    .return_here_from_plot_span
 
     .skip_span
     IF _HALF_VERTICAL_RES
@@ -322,7 +359,7 @@ ENDIF
     bcc span_loop
 
     rts
-}
+\}
 
 \ ******************************************************************
 \ *	SPAN BUFFER FUNCTIONS
@@ -454,9 +491,8 @@ ENDMACRO
 	STA count
 	LSR A
 
-IF _POLY_PLOT_END_POINTS
+    \\ _POLY_PLOT_END_POINTS
     INC count
-ENDIF
 
 .steeplineloop
 
@@ -514,9 +550,8 @@ ENDIF
 	LSR A
 	STA accum
 
-IF _POLY_PLOT_END_POINTS
+    \\ _POLY_PLOT_END_POINTS
     INC count
-ENDIF
 
     \\ Plot first 'pixel' into span buffer
     ;jsr plot_pixel_into_span_buffer
@@ -569,3 +604,154 @@ ENDIF
     ; Plot last 'pixel' into span buffer
     jmp plot_pixel_into_span_buffer
 }
+
+MACRO ONE_OR_MANY v     ; haven't decided yet! may x4
+    EQUB v
+ENDMACRO
+
+IF _UNROLL_SPAN_LOOP
+.plot_span_unrolled_LO
+ONE_OR_MANY LO(span_loop_unrolled_0)
+ONE_OR_MANY LO(span_loop_unrolled_1)
+ONE_OR_MANY LO(span_loop_unrolled_2)
+ONE_OR_MANY LO(span_loop_unrolled_3)
+ONE_OR_MANY LO(span_loop_unrolled_4)
+ONE_OR_MANY LO(span_loop_unrolled_5)
+ONE_OR_MANY LO(span_loop_unrolled_6)
+ONE_OR_MANY LO(span_loop_unrolled_7)
+ONE_OR_MANY LO(span_loop_unrolled_8)
+ONE_OR_MANY LO(span_loop_unrolled_9)
+ONE_OR_MANY LO(span_loop_unrolled_10)
+ONE_OR_MANY LO(span_loop_unrolled_11)
+ONE_OR_MANY LO(span_loop_unrolled_12)
+ONE_OR_MANY LO(span_loop_unrolled_13)
+ONE_OR_MANY LO(span_loop_unrolled_14)
+ONE_OR_MANY LO(span_loop_unrolled_15)
+ONE_OR_MANY LO(span_loop_unrolled_16)
+ONE_OR_MANY LO(span_loop_unrolled_17)
+ONE_OR_MANY LO(span_loop_unrolled_18)
+ONE_OR_MANY LO(span_loop_unrolled_19)
+ONE_OR_MANY LO(span_loop_unrolled_20)
+ONE_OR_MANY LO(span_loop_unrolled_21)
+ONE_OR_MANY LO(span_loop_unrolled_22)
+ONE_OR_MANY LO(span_loop_unrolled_23)
+ONE_OR_MANY LO(span_loop_unrolled_24)
+ONE_OR_MANY LO(span_loop_unrolled_25)
+ONE_OR_MANY LO(span_loop_unrolled_26)
+ONE_OR_MANY LO(span_loop_unrolled_27)
+ONE_OR_MANY LO(span_loop_unrolled_28)
+ONE_OR_MANY LO(span_loop_unrolled_29)
+ONE_OR_MANY LO(span_loop_unrolled_30)
+ONE_OR_MANY LO(span_loop_unrolled_31)
+ONE_OR_MANY LO(span_loop_unrolled_32)
+
+.plot_span_unrolled_HI
+ONE_OR_MANY HI(span_loop_unrolled_0)
+ONE_OR_MANY HI(span_loop_unrolled_1)
+ONE_OR_MANY HI(span_loop_unrolled_2)
+ONE_OR_MANY HI(span_loop_unrolled_3)
+ONE_OR_MANY HI(span_loop_unrolled_4)
+ONE_OR_MANY HI(span_loop_unrolled_5)
+ONE_OR_MANY HI(span_loop_unrolled_6)
+ONE_OR_MANY HI(span_loop_unrolled_7)
+ONE_OR_MANY HI(span_loop_unrolled_8)
+ONE_OR_MANY HI(span_loop_unrolled_9)
+ONE_OR_MANY HI(span_loop_unrolled_10)
+ONE_OR_MANY HI(span_loop_unrolled_11)
+ONE_OR_MANY HI(span_loop_unrolled_12)
+ONE_OR_MANY HI(span_loop_unrolled_13)
+ONE_OR_MANY HI(span_loop_unrolled_14)
+ONE_OR_MANY HI(span_loop_unrolled_15)
+ONE_OR_MANY HI(span_loop_unrolled_16)
+ONE_OR_MANY HI(span_loop_unrolled_17)
+ONE_OR_MANY HI(span_loop_unrolled_18)
+ONE_OR_MANY HI(span_loop_unrolled_19)
+ONE_OR_MANY HI(span_loop_unrolled_20)
+ONE_OR_MANY HI(span_loop_unrolled_21)
+ONE_OR_MANY HI(span_loop_unrolled_22)
+ONE_OR_MANY HI(span_loop_unrolled_23)
+ONE_OR_MANY HI(span_loop_unrolled_24)
+ONE_OR_MANY HI(span_loop_unrolled_25)
+ONE_OR_MANY HI(span_loop_unrolled_26)
+ONE_OR_MANY HI(span_loop_unrolled_27)
+ONE_OR_MANY HI(span_loop_unrolled_28)
+ONE_OR_MANY HI(span_loop_unrolled_29)
+ONE_OR_MANY HI(span_loop_unrolled_30)
+ONE_OR_MANY HI(span_loop_unrolled_31)
+ONE_OR_MANY HI(span_loop_unrolled_32)
+
+MACRO UNROLL_SPAN_LOOP n
+    FOR i,0,n-1,1
+        ldy #(i*8)
+        sta (writeptr), y
+    NEXT
+    jmp return_here_from_unrolled_span_loop
+ENDMACRO
+
+.span_loop_unrolled_0
+brk     ; shouldn't happen!
+.span_loop_unrolled_1
+UNROLL_SPAN_LOOP 1
+.span_loop_unrolled_2
+UNROLL_SPAN_LOOP 2
+.span_loop_unrolled_3
+UNROLL_SPAN_LOOP 3
+.span_loop_unrolled_4
+UNROLL_SPAN_LOOP 4
+.span_loop_unrolled_5
+UNROLL_SPAN_LOOP 5
+.span_loop_unrolled_6
+UNROLL_SPAN_LOOP 6
+.span_loop_unrolled_7
+UNROLL_SPAN_LOOP 7
+.span_loop_unrolled_8
+UNROLL_SPAN_LOOP 8
+.span_loop_unrolled_9
+UNROLL_SPAN_LOOP 9
+.span_loop_unrolled_10
+UNROLL_SPAN_LOOP 10
+.span_loop_unrolled_11
+UNROLL_SPAN_LOOP 11
+.span_loop_unrolled_12
+UNROLL_SPAN_LOOP 12
+.span_loop_unrolled_13
+UNROLL_SPAN_LOOP 13
+.span_loop_unrolled_14
+UNROLL_SPAN_LOOP 14
+.span_loop_unrolled_15
+UNROLL_SPAN_LOOP 15
+.span_loop_unrolled_16
+UNROLL_SPAN_LOOP 16
+.span_loop_unrolled_17
+UNROLL_SPAN_LOOP 17
+.span_loop_unrolled_18
+UNROLL_SPAN_LOOP 18
+.span_loop_unrolled_19
+UNROLL_SPAN_LOOP 19
+.span_loop_unrolled_20
+UNROLL_SPAN_LOOP 20
+.span_loop_unrolled_21
+UNROLL_SPAN_LOOP 21
+.span_loop_unrolled_22
+UNROLL_SPAN_LOOP 22
+.span_loop_unrolled_23
+UNROLL_SPAN_LOOP 23
+.span_loop_unrolled_24
+UNROLL_SPAN_LOOP 24
+.span_loop_unrolled_25
+UNROLL_SPAN_LOOP 25
+.span_loop_unrolled_26
+UNROLL_SPAN_LOOP 26
+.span_loop_unrolled_27
+UNROLL_SPAN_LOOP 27
+.span_loop_unrolled_28
+UNROLL_SPAN_LOOP 28
+.span_loop_unrolled_29
+UNROLL_SPAN_LOOP 29
+.span_loop_unrolled_30
+UNROLL_SPAN_LOOP 30
+.span_loop_unrolled_31
+UNROLL_SPAN_LOOP 31
+.span_loop_unrolled_32
+UNROLL_SPAN_LOOP 32
+ENDIF
