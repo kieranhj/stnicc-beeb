@@ -7,6 +7,7 @@ _TESTS = FALSE
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
 _HALF_VERTICAL_RES = FALSE
+_STOP_AT_FRAME = 0
 
 \ ******************************************************************
 \ *	OS defines
@@ -280,6 +281,21 @@ GUARD screen2_addr
     lda disp_buffer+1:sta &fe01
     lda #13:sta &fe00
     lda disp_buffer:sta &fe01
+
+    \\ Debug
+    IF _DEBUG AND _STOP_AT_FRAME > 0
+    {
+        lda frame_no+1
+        cmp #HI(_STOP_AT_FRAME)
+        bcc continue
+        lda frame_no
+        cmp #LO(_STOP_AT_FRAME)
+        bcc continue
+        .wait_for_Key
+        lda #&79:ldx #&10:jsr osbyte:cpx #&ff:beq wait_for_Key
+        .continue
+    }
+    ENDIF
 
     jsr parse_frame
 

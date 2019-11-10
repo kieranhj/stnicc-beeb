@@ -408,6 +408,20 @@ ENDMACRO
 {
 	; calc screen row of starty
 	LDY starty
+
+    \\ Keep track of our min/max Y for span plot
+    {
+        cpy span_buffer_min_y
+        bcs not_smallest_y
+        sty span_buffer_min_y
+        .not_smallest_y
+        cpy span_buffer_max_y
+        bcc not_largest_y
+        sty span_buffer_max_y
+        .not_largest_y
+    }
+    \\ Don't need to do this for endy as we know tris are convex
+
 	; calc pixel within byte of startx
 	LDX startx
 
@@ -440,31 +454,6 @@ ENDMACRO
 	; Coincident start and end points exit early
 	ORA dx
 	BEQ exit_early
-
-    \\ Track min/max y values as polys often quite small
-    IF 0    ; get get away with not doing this as the polys are convex
-    {
-        ldy endy
-        cpy span_buffer_min_y
-        bcs not_smallest_y
-        sty span_buffer_min_y
-        .not_smallest_y
-        cpy span_buffer_max_y
-        bcc not_largest_y
-        sty span_buffer_max_y
-        .not_largest_y
-    }
-    ENDIF
-
-    ldy starty
-    cpy span_buffer_min_y
-    bcs not_smallest_y
-    sty span_buffer_min_y
-    .not_smallest_y
-    cpy span_buffer_max_y
-    bcc not_largest_y
-    sty span_buffer_max_y
-    .not_largest_y
 
 	; determine which type of line it is
 	LDA dy

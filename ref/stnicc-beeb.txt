@@ -178,3 +178,13 @@ Compute writeptr as the start address on the line inc. scanline
 Compute Y as column index
 
 Think need to special case small spans of 2 bytes as seems to be a common case.
+
+There are some incredibly small polys!
+This gets worse when using half res. E.g. Frame 4:
+     Polygon 3: Colour = 2 Num vertices = 3
+        Vertices = [7, 8, 9]
+          Edge 0 = [ 254, 98 ]
+          Edge 1 = [ 255, 99 ]
+          Edge 2 = [ 255, 98 ]
+ Becomes co-incident point
+ Worth culling these?
