@@ -59,6 +59,10 @@ MASK_START_AT_X &f0, &ff
     ora #0                          ; 2c
     sta (writeptr), Y               ; 6c
 
+    IF _DOUBLE_PLOT_Y
+    iny:sta (writeptr), Y               ; 6c
+    ENDIF
+
     inx
     lda color_mask_short, X
     beq done
@@ -71,6 +75,11 @@ MASK_START_AT_X &f0, &ff
     .ora_byte2
     ora #0                          ; 2c
     sta (writeptr), Y               ; 6c
+
+    IF _DOUBLE_PLOT_Y
+    iny:sta (writeptr), Y               ; 6c
+    ENDIF
+
     .done
 
     jmp return_here_from_plot_span
@@ -148,6 +157,10 @@ MASK_START_AT_X &f0, &ff
     \\ Write to screen
     sta (writeptr), Y
 
+    IF _DOUBLE_PLOT_Y
+    iny:sta (writeptr), Y:dey
+    ENDIF
+
     \\ Subtract pixels from width
     sec
     lda span_width
@@ -195,7 +208,13 @@ ELSE
     .return_here_from_unrolled_span_loop
     \\ 22c overhead + 8c per byte
 
-    tya:clc:adc #8:tay
+    tya:clc
+    IF _DOUBLE_PLOT_Y
+    adc #7
+    ELSE
+    adc #8
+    ENDIF
+    tay
 ENDIF
 
     .skip_span_loop
@@ -218,6 +237,10 @@ ENDIF
     ora #0
     \\ Write to screen
     sta (writeptr), Y
+
+    IF _DOUBLE_PLOT_Y
+    iny:sta (writeptr), Y
+    ENDIF
     .skip_last_byte
 
     .plot_span_return
@@ -673,6 +696,9 @@ MACRO UNROLL_SPAN_LOOP n
     FOR i,0,n-1,1
         ldy #(i*8)
         sta (writeptr), y
+        IF _DOUBLE_PLOT_Y
+        iny:sta (writeptr), y
+        ENDIF
     NEXT
     jmp return_here_from_unrolled_span_loop
 ENDMACRO

@@ -7,6 +7,7 @@ _TESTS = FALSE
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
 _HALF_VERTICAL_RES = FALSE
+_DOUBLE_PLOT_Y = _HALF_VERTICAL_RES AND TRUE
 _STOP_AT_FRAME = 0
 
 \ ******************************************************************
@@ -68,7 +69,7 @@ screen2_addr = screen1_addr - SCREEN_SIZE_BYTES
 TRACKS_per_disk = 75
 
 DISK1_drive_no = 0			; for loop!
-DISK1_first_track = 3		; the track at which the video file is located on side 0; all tracks prior to this are reserved for code
+DISK1_first_track = 4		; the track at which the video file is located on side 0; all tracks prior to this are reserved for code
 DISK1_last_track = DISK1_first_track + TRACKS_per_disk
 
 DISK2_drive_no = 2			; should be 2
@@ -730,7 +731,7 @@ exe_size=(end-start+&ff)AND&FF00
 PRINT "EXE size = ",~exe_size
 ; We know that Catalog + !Boot = &300
 ; Need to make a dummy file so 00 is at sector 20=track 2
-dummy_size=3*DFS_track_size-exe_size-&300
+dummy_size = (DISK1_first_track * DFS_track_size) - exe_size - &300
 
 CLEAR &0000,&FFFF
 ORG &0000
