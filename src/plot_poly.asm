@@ -426,7 +426,8 @@ ENDIF
     lda poly_verts_y+1, X
     sta endy
 
-    jsr drawline_into_span_buffer
+    jmp drawline_into_span_buffer       ; JSR/RTS => JMP/JMP
+    .return_here_from_drawline
 
     ldx poly_index
     inx
@@ -523,12 +524,6 @@ MACRO UPDATE_SPAN_BUFFER
     .not_larger
 }
 ENDMACRO
-
-.plot_pixel_into_span_buffer
-{
-    UPDATE_SPAN_BUFFER
-    rts
-}
 
 .drawline_into_span_buffer
 {
@@ -642,7 +637,7 @@ ENDMACRO
     PLP:PLP
 
 	.exitline
-    RTS
+    jmp return_here_from_drawline
 
 .shallowline
 
@@ -717,7 +712,9 @@ ENDMACRO
 
 	.exitline2
     ; Plot last 'pixel' into span buffer
-    jmp plot_pixel_into_span_buffer
+    ;jmp plot_pixel_into_span_buffer
+    UPDATE_SPAN_BUFFER
+    jmp return_here_from_drawline
 }
 
 MACRO ONE_OR_MANY v     ; haven't decided yet! may x4
