@@ -1,2 +1,4 @@
 compile.txt
 build
+/TAGS
+/.dir-locals.el
