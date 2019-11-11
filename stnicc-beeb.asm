@@ -11,7 +11,7 @@ _PLOT_WIREFRAME = FALSE
 
 _HALF_VERTICAL_RES = FALSE
 _DOUBLE_PLOT_Y = _HALF_VERTICAL_RES AND TRUE
-_STREAMING = TRUE
+_STREAMING = FALSE
 
 \ ******************************************************************
 \ *	OS defines
@@ -110,7 +110,7 @@ GUARD &9F
 .span_start         skip 1
 .span_end           skip 1
 .span_width         skip 1
-.span_y             skip 1
+;.span_y             skip 1
 .span_colour        skip 1
 
 ; vars for drawline
@@ -148,7 +148,6 @@ GUARD &9F
 ; system vars
 .rom_bank           skip 1
 .vsync_counter      skip 2
-.last_vsync         skip 1
 .draw_buffer_HI     skip 1
 .sector_no          skip 1
 .track_no			skip 1
@@ -157,6 +156,11 @@ GUARD &9F
 .decode_lock		skip 1
 .screen_lock		skip 1
 .pause_lock			skip 1
+
+; debug vars
+IF _DEBUG
+.last_vsync         skip 1
+ENDIF
 
 \ ******************************************************************
 \ *	BSS DATA IN LOWER RAM
@@ -225,6 +229,9 @@ GUARD screen2_addr
     jsr oswrch
     lda #5
     jsr oswrch
+
+	\\ Clear the extra bit!
+	jsr screen2_cls
 
 	{
 		lda #2
@@ -343,13 +350,27 @@ GUARD screen2_addr
     beq track_load_error
 
 IF _DEBUG
-    sec
-    lda vsync_counter
-    sbc last_vsync
-    jsr debug_write_A
+	{
+		jsr debug_write_init
 
-    lda vsync_counter
-    sta last_vsync
+		\\ Frame no.
+		lda frame_no+1
+		jsr debug_write_A
+		lda frame_no
+		jsr debug_write_A_spc
+
+		\\ Frame rate counter
+		sec
+		lda vsync_counter
+		sbc last_vsync
+		jsr debug_write_A_spc
+
+		lda vsync_counter
+		sta last_vsync
+
+		\\ Display other counters
+
+	}
 ENDIF
 
 	IF _STREAMING=FALSE
@@ -574,7 +595,6 @@ ENDIF
 		SEI
 	}
 	ENDIF
-
 
     IF _DEBUG AND _STOP_AT_FRAME > 0
     {

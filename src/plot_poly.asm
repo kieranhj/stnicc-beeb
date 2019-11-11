@@ -100,7 +100,7 @@ EQUB 0, 0, 4, 8, 12, 16
 ; This fn is called 3 million times across the entire sequence so every cycle counts!
 .plot_span
 \{
-    ldx span_start
+    ; X=span_start
 
     \\ Calculate span width in pixels
 	sec
@@ -121,7 +121,7 @@ EQUB 0, 0, 4, 8, 12, 16
     ; beq plot_span_return
 
     \\ Compute address of first screen byte
-    ldy span_y
+    ; Y=span_y
     clc
     lda screen_row_LO, Y
     adc screen_col_LO, X
@@ -439,23 +439,21 @@ ENDIF
     sta load_palette+1
 
     \\ Plot the spans
-    inc span_buffer_max_y
+    ldy span_buffer_max_y
+    iny
+    sty span_loop_max_y+1
 
     ldy span_buffer_min_y
     .span_loop
-    IF _HALF_VERTICAL_RES
     sty poly_y
-    ELSE
-    sty span_y
-    ENDIF
 
     tya:and #3:tax
     .load_palette
     lda poly_palette, X
     sta span_colour
 
-    lda span_buffer_start, Y
-    sta span_start
+    ldx span_buffer_start, Y
+    stx span_start
 
     lda span_buffer_end, Y
     sta span_end
@@ -465,7 +463,7 @@ ENDIF
     ;beq skip_span
 
     IF _HALF_VERTICAL_RES
-    tya:asl a:sta span_y
+    tya:asl a:tay
     ENDIF
 
     ;jsr plot_span
@@ -473,11 +471,7 @@ ENDIF
     .return_here_from_plot_span
 
     .skip_span
-    IF _HALF_VERTICAL_RES
     ldy poly_y
-    ELSE
-    ldy span_y
-    ENDIF
 
     \\ Reset this line of the span buffer since we're already here
     lda #255
@@ -486,10 +480,11 @@ ENDIF
     sta span_buffer_end, Y
 
     iny
-    cpy span_buffer_max_y
+    .span_loop_max_y
+    cpy #0
     bcc span_loop
 
-    rts
+    jmp return_here_from_plot_poly
 \}
 
 \ ******************************************************************

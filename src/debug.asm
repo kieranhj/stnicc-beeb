@@ -282,29 +282,45 @@ IF _DEBUG
     dey
     bpl loop
 
-    rts
+    lda writeptr
+    clc
+    adc #8
+    sta writeptr
+	rts
 }
 
+.debug_write_A_spc
+	sec
 .debug_write_A
 {
-    pha:pha
-    lda draw_buffer_HI
-    sta writeptr+1
-    lda #0
-    sta writeptr
+    php:pha
 
-    pla
     lsr a:lsr a:lsr a:lsr a
     jsr debug_plot_glyph
+
+    pla
+    and #&f
+    jsr debug_plot_glyph
+
+	plp
+	bcc return
 
     lda writeptr
     clc
     adc #8
     sta writeptr
+	.return
+	rts
+}
 
-    pla
-    and #&f
-    jmp debug_plot_glyph
+.debug_write_init
+{
+    lda draw_buffer_HI
+    sta writeptr+1
+    lda #0
+    sta writeptr
+	clc
+	rts
 }
 
 .debug_font_data

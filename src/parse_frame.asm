@@ -13,7 +13,7 @@ MACRO GET_BYTE
 ENDMACRO
 
 .parse_frame
-{
+\{
     ldy #0
     GET_BYTE
     sta frame_flags
@@ -38,7 +38,7 @@ ENDIF
 
     \\ Read palette words
     ldx #16
-    .palette_loop
+    .parse_palette_loop
     lsr frame_bitmask+1
     ror frame_bitmask
     bcc not_this_bit
@@ -49,7 +49,7 @@ ENDIF
 
     .not_this_bit
     dex
-    bne palette_loop
+    bne parse_palette_loop
     .no_palette
 
     \\ Check whether we have indexed data
@@ -81,7 +81,7 @@ ENDIF
     GET_BYTE
     sta poly_descriptor
     cmp #POLY_DESC_END_OF_STREAM
-    bcs end_of_frame
+    bcs parse_end_of_frame
 
     and #&f
     sta poly_num_verts
@@ -109,7 +109,7 @@ ENDIF
     inx
     cpx poly_num_verts
     bcc read_poly_loop
-    jmp do_plot
+    bcs parse_do_plot
 
     .non_indexed_data
     ldx #0
@@ -129,15 +129,17 @@ ENDIF
     cpx poly_num_verts
     bcc read_poly_ni_loop
 
-    .do_plot
+    .parse_do_plot
 IF _PLOT_WIREFRAME
     jsr plot_poly_line
 ELSE
-    jsr plot_poly_span
+    jmp plot_poly_span      ; JSR/RTS => JMP/JMP
+    .return_here_from_plot_poly
 ENDIF
+
     jmp read_poly_data
 
-    .end_of_frame
+    .parse_end_of_frame
 
     inc frame_no
     bne no_carry
@@ -145,4 +147,4 @@ ENDIF
     .no_carry
 
     rts
-}
+\}
