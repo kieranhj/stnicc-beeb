@@ -514,9 +514,8 @@ ENDIF
 
 \\ **
 
-MACRO UPDATE_SPAN_BUFFER
+MACRO UPDATE_SPAN_BUFFER_WITH_A
 {
-    txa
     cmp span_buffer_start, Y
     bcs not_smaller
     sta span_buffer_start, Y
@@ -530,9 +529,16 @@ MACRO UPDATE_SPAN_BUFFER
 }
 ENDMACRO
 
+MACRO UPDATE_SPAN_BUFFER_WITH_X
+{
+    txa
+	UPDATE_SPAN_BUFFER_WITH_A
+}
+ENDMACRO
+
 .plot_pixel_into_span_buffer
 {
-    UPDATE_SPAN_BUFFER
+    UPDATE_SPAN_BUFFER_WITH_X
     rts
 }
 
@@ -594,6 +600,12 @@ ENDMACRO
 		
 .steepline
 
+; count = X counter
+; Y = Y counter
+; X = count
+
+    stx count
+
 	; self-modify code so that line progresses according to direction remembered earlier
 	PLP
 	lda #&c8		; INY	\\ going down
@@ -602,18 +614,18 @@ ENDMACRO
 	STA branchupdown
 	
 	PLP
-	lda #&e8		; INX	\\ going right
+	lda #&e6		; INC zp	\\ going right
 	BCC P%+4
-	lda #&ca		; DEX	\\ going left
+	lda #&c6		; DEC zp	\\ going left
 	sta branchleftright
 
 	; initialise accumulator for 'steep' line
 	LDA dy
-	STA count
+	tax
 	LSR A
 
     \\ _POLY_PLOT_END_POINTS
-    INC count
+    INX
 
 .steeplineloop
 
@@ -621,16 +633,18 @@ ENDMACRO
 	
 	; 'plot' pixel
     ;jsr plot_pixel_into_span_buffer
-    UPDATE_SPAN_BUFFER
+	lda count
+	UPDATE_SPAN_BUFFER_WITH_A	
 
 	; check if done
-	DEC count
+	dex
     beq exitline
 
 	.branchupdown
 	; move up to next line
 	; move down to next line
-	nop                     ; self-mod to goingup or goingdown
+	nop                     ; iny/dey - self-mod to goingup or
+							; goingdown
 
 	; check move to next pixel column
 	.movetonextcolumn
@@ -641,7 +655,8 @@ ENDMACRO
 	ADC dy
 	
 	.branchleftright
-	nop					    ; self-modified to goingright or goingleft
+	inc count			   ; inc/dec - self-modified to goingright or
+						   ; goingleft
 	JMP steeplineloop		; always taken
 	
     .exit_early
@@ -650,7 +665,12 @@ ENDMACRO
 	.exitline
     RTS
 
+
 .shallowline
+
+; X = X counter
+; count = Y counter
+; Y = count
 
 	; self-modify code so that line progresses according to direction remembered earlier
 	PLP
@@ -676,7 +696,7 @@ ENDMACRO
 
     \\ Plot first 'pixel' into span buffer
     ;jsr plot_pixel_into_span_buffer
-    UPDATE_SPAN_BUFFER
+    UPDATE_SPAN_BUFFER_WITH_X
 
 .shallowlineloop
 
@@ -691,7 +711,8 @@ ENDMACRO
     beq exitline2
 
 	.branchleftright2
-	nop 					; self-modified to goingleft2 or goingright2
+	nop 					; inx/dex - self-modified to goingleft2 or
+							; goingright2
 
 	; check whether we move to the next line
 	SEC
@@ -710,14 +731,15 @@ ENDMACRO
 
     ; Plot 'pixel' for end of span on current line
     ;jsr plot_pixel_into_span_buffer
-    UPDATE_SPAN_BUFFER
+    UPDATE_SPAN_BUFFER_WITH_X
 
     .branchupdown2
-	nop		                ; self-modified to goingdown2 or goingup2
+	nop		                ; iny/dey - self-modified to goingdown2 or
+							; goingup2
 
     ; Plot 'pixel' for start of span on next line
     ;jsr plot_pixel_into_span_buffer
-    UPDATE_SPAN_BUFFER
+    UPDATE_SPAN_BUFFER_WITH_X
 
 	JMP shallowlineloop		; always taken
 
