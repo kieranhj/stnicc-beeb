@@ -17,28 +17,54 @@ _UNROLL_SPAN_LOOP = TRUE
 \\ 00p0 0000  00pp 0000  00pp p000  00pp pp00  00pp ppp0
 \\ 000p 0000  000p p000  000p pp00  000p ppp0  000p pppp
 
-MACRO SHORT_MASK_SHIFTS p, e
+MACRO SHORT_MASK_SHIFTS p, e, table_index
 FOR x,0,3,1
 s=p>>x
 h=(s AND &f0) >> 4
 l=(s AND &0f)
-EQUB (h OR h<<4) EOR e, (l OR l<<4) EOR e
+IF table_index==0
+EQUB (h OR h<<4) EOR e
+ELIF table_index==1
+EQUB (l OR l<<4) EOR e
+ELSE
+error "no"
+ENDIF
 NEXT
 ENDMACRO
 
-.color_mask_short
-SHORT_MASK_SHIFTS &80, 0
-SHORT_MASK_SHIFTS &c0, 0
-SHORT_MASK_SHIFTS &e0, 0
-SHORT_MASK_SHIFTS &f0, 0
-SHORT_MASK_SHIFTS &f8, 0
+short_value_0=$80
+short_value_1=$c0
+short_value_2=$e0
+short_value_3=$f0
+short_value_4=$f8
 
-.screen_mask_short
-SHORT_MASK_SHIFTS &80, &ff
-SHORT_MASK_SHIFTS &c0, &ff
-SHORT_MASK_SHIFTS &e0, &ff
-SHORT_MASK_SHIFTS &f0, &ff
-SHORT_MASK_SHIFTS &f8, &ff
+.color_mask_short_0
+SHORT_MASK_SHIFTS short_value_0, 0, 0
+SHORT_MASK_SHIFTS short_value_1, 0, 0
+SHORT_MASK_SHIFTS short_value_2, 0, 0
+SHORT_MASK_SHIFTS short_value_3, 0, 0
+SHORT_MASK_SHIFTS short_value_4, 0, 0
+
+.color_mask_short_1
+SHORT_MASK_SHIFTS short_value_0, 0, 1
+SHORT_MASK_SHIFTS short_value_1, 0, 1
+SHORT_MASK_SHIFTS short_value_2, 0, 1
+SHORT_MASK_SHIFTS short_value_3, 0, 1
+SHORT_MASK_SHIFTS short_value_4, 0, 1
+
+.screen_mask_short_0
+SHORT_MASK_SHIFTS short_value_0, &ff, 0
+SHORT_MASK_SHIFTS short_value_1, &ff, 0
+SHORT_MASK_SHIFTS short_value_2, &ff, 0
+SHORT_MASK_SHIFTS short_value_3, &ff, 0
+SHORT_MASK_SHIFTS short_value_4, &ff, 0
+
+.screen_mask_short_1
+SHORT_MASK_SHIFTS short_value_0, &ff, 1
+SHORT_MASK_SHIFTS short_value_1, &ff, 1
+SHORT_MASK_SHIFTS short_value_2, &ff, 1
+SHORT_MASK_SHIFTS short_value_3, &ff, 1
+SHORT_MASK_SHIFTS short_value_4, &ff, 1
 
 .plot_short_span
 {
@@ -49,15 +75,14 @@ SHORT_MASK_SHIFTS &f8, &ff
 
     ldx span_width
     adc minus_1_times_4, X
-    asl a
     tax
 
-    lda color_mask_short, X
+    lda color_mask_short_0, X
     and span_colour
     sta ora_byte1+1
 
     lda (writeptr), Y               ; 5c
-    and screen_mask_short, X        ; 4c
+    and screen_mask_short_0, X        ; 4c
     .ora_byte1
     ora #0                          ; 2c
     sta (writeptr), Y               ; 6c
@@ -66,15 +91,14 @@ SHORT_MASK_SHIFTS &f8, &ff
     iny:sta (writeptr), Y               ; 6c
     ENDIF
 
-    inx
-    lda color_mask_short, X
+    lda color_mask_short_1, X
     beq done
     and span_colour
     sta ora_byte2+1
 
     ldy #8
     lda (writeptr), Y               ; 5c
-    and screen_mask_short, X        ; 4c
+    and screen_mask_short_1, X        ; 4c
     .ora_byte2
     ora #0                          ; 2c
     sta (writeptr), Y               ; 6c
