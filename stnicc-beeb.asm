@@ -4,9 +4,14 @@
 
 _DEBUG = TRUE
 _TESTS = FALSE
+
+_STOP_AT_FRAME = 0
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
+
 _HALF_VERTICAL_RES = FALSE
+_DOUBLE_PLOT_Y = _HALF_VERTICAL_RES AND TRUE
+_STREAMING = TRUE
 
 \ ******************************************************************
 \ *	OS defines
@@ -67,7 +72,7 @@ screen2_addr = screen1_addr - SCREEN_SIZE_BYTES
 TRACKS_per_disk = 75
 
 DISK1_drive_no = 0			; for loop!
-DISK1_first_track = 3		; the track at which the video file is located on side 0; all tracks prior to this are reserved for code
+DISK1_first_track = 4		; the track at which the video file is located on side 0; all tracks prior to this are reserved for code
 DISK1_last_track = DISK1_first_track + TRACKS_per_disk
 
 DISK2_drive_no = 2			; should be 2
@@ -83,6 +88,12 @@ FLAG_INDEXED_DATA = 4
 POLY_DESC_END_OF_STREAM = &FD
 POLY_DESC_SKIP_TO_64K = &FE
 POLY_DESC_END_OF_FRAME = &FF
+
+; Exact time for a 50Hz frame less latch load time
+FramePeriod = 312*64-2
+
+; Calculate here the timer value to interrupt at the desired line
+TimerValue = (32+100)*64 - 2*64
 
 \ ******************************************************************
 \ *	ZERO PAGE
@@ -132,17 +143,20 @@ GUARD &9F
 .frame_bitmask      skip 2
 .indexed_num_verts  skip 1
 .poly_descriptor    skip 1
+.eof_flag			skip 1
 
 ; system vars
 .rom_bank           skip 1
 .vsync_counter      skip 2
 .last_vsync         skip 1
 .draw_buffer_HI     skip 1
-.disp_buffer        skip 2
 .sector_no          skip 1
 .track_no			skip 1
 .load_to_HI			skip 1
 .error_flag			skip 1
+.decode_lock		skip 1
+.screen_lock		skip 1
+.pause_lock			skip 1
 
 \ ******************************************************************
 \ *	BSS DATA IN LOWER RAM
@@ -179,6 +193,19 @@ GUARD screen2_addr
 	\\ Set interrupts
 
 	SEI							; disable interupts
+
+    \\ Init ZP
+    lda #0
+    ldx #0
+    .zp_loop
+    sta &00, x
+    inx
+    cpx #&A0
+    bne zp_loop
+
+	\\ Don't let the IRQ do anything yet!
+	INC decode_lock
+
 	LDA #&7F					; A=01111111
 	STA &FE4E					; R14=Interrupt Enable (disable all interrupts)
 	STA &FE43					; R3=Data Direction Register "A" (set keyboard data direction)
@@ -192,15 +219,6 @@ GUARD screen2_addr
     LDA #HI(irq_handler):STA IRQ1V+1		; set interrupt handler
 	CLI							; enable interupts
 
-    \\ Init ZP
-    lda #0
-    ldx #0
-    .zp_loop
-    sta &00, x
-    inx
-    cpx #&A0
-    bne zp_loop
-
     \\ Set MODE 5
 
     lda #22
@@ -208,10 +226,32 @@ GUARD screen2_addr
     lda #5
     jsr oswrch
 
+	{
+		lda #2
+		.vsync1
+		bit &FE4D
+		beq vsync1 \ wait for vsync
+	}
+
+	\\ Close enough for our purposes
+	; Write T1 low now (the timer will not be written until you write the high byte)
+    LDA #LO(TimerValue):STA &FE44
+    ; Get high byte ready so we can write it as quickly as possible at the right moment
+    LDX #HI(TimerValue):STX &FE45             		; start T1 counting		; 4c +1/2c 
+
+  	; Latch T1 to interupt exactly every 50Hz frame
+	LDA #LO(FramePeriod):STA &FE46
+	LDA #HI(FramePeriod):STA &FE47
+
     \\ Resolution 256x200 => 128x200
     lda #1:sta &fe00:lda #32:sta &fe01
     lda #6:sta &fe00:lda #24:sta &fe01
     lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
+
+    lda #12:sta &fe00
+    lda #HI(screen2_addr/8):sta &fe01
+    lda #13:sta &fe00
+    lda #LO(screen2_addr/8):sta &fe01
 
     \\ Load SWRAM data
 ;    SWRAM_SELECT 4
@@ -258,42 +298,48 @@ GUARD screen2_addr
 
     \\ jmp do_tests
 
+	DEC decode_lock
+
     .loop
     \\ Wait vsync
-    lda #19
-    jsr osbyte
+	lda #19
+	jsr osbyte
 
-    \\ Set display buffer
-    lda #0:sta disp_buffer
-    lda draw_buffer_HI
-    IF _DOUBLE_BUFFER
-    eor #HI(screen1_addr EOR screen2_addr)
+    \\ Debug
+    IF _DEBUG AND _STOP_AT_FRAME > 0
+    {
+		lda pause_lock
+		beq continue
+        .wait_for_Key
+        lda #&79:ldx #&10:jsr osbyte:cpx #&ff:beq wait_for_Key
+		lda #0:sta pause_lock
+        .continue
+    }
     ENDIF
-    sta disp_buffer+1
 
-    clc
-    lsr disp_buffer+1:ror disp_buffer
-    lsr disp_buffer+1:ror disp_buffer
-    lsr disp_buffer+1:ror disp_buffer
+	IF _STREAMING = FALSE
+	{
+		lda pause_lock
+		bne stream_ok
 
-    lda #12:sta &fe00
-    lda disp_buffer+1:sta &fe01
-    lda #13:sta &fe00
-    lda disp_buffer:sta &fe01
+		\\ Parse and draw the next frame
+		jsr parse_frame
+		sta eof_flag
 
-    jsr parse_frame
+		cmp #POLY_DESC_SKIP_TO_64K
+		bne stream_ok
+		
+		\\ Align to next page
+		lda #LO(STREAM_buffer_start-1)
+		sta STREAM_ptr_LO
+		lda #HI(STREAM_buffer_start-1)
+		sta STREAM_ptr_HI
+		.stream_ok
+	}
+	ENDIF
 
-    cmp #POLY_DESC_SKIP_TO_64K
-    bne stream_ok
-    
-    \\ Align to next page
-    lda #LO(STREAM_buffer_start-1)
-    sta STREAM_ptr_LO
-    lda #HI(STREAM_buffer_start-1)
-    sta STREAM_ptr_HI
-
-    .stream_ok
-    cmp #POLY_DESC_END_OF_STREAM
+	lda eof_flag
+	cmp #POLY_DESC_END_OF_STREAM
     beq track_load_error
 
 IF _DEBUG
@@ -306,12 +352,39 @@ IF _DEBUG
     sta last_vsync
 ENDIF
 
-    \\ Toggle draw buffer
-    lda draw_buffer_HI
-    IF _DOUBLE_BUFFER
-    eor #HI(screen1_addr EOR screen2_addr)
-    sta draw_buffer_HI
-    ENDIF
+	IF _STREAMING=FALSE
+	{
+		\\ Toggle draw buffer
+		lda draw_buffer_HI
+		eor #HI(screen1_addr EOR screen2_addr)
+		sta draw_buffer_HI
+
+		\\ Set screen buffer address in CRTC - not read until vsync
+		cmp #HI(screen1_addr)
+		IF _DOUBLE_BUFFER
+		beq show_screen2
+		ELSE
+		bne show_screen2
+		ENDIF
+
+		\\ Show screen 1
+		lda #12:sta &fe00
+		lda #HI(screen1_addr/8):sta &fe01
+		lda #13:sta &fe00
+		lda #LO(screen1_addr/8):sta &fe01
+		\\ Continue
+		bne done_swap
+
+		.show_screen2
+		\\ Show screen 2
+		lda #12:sta &fe00
+		lda #HI(screen2_addr/8):sta &fe01
+		lda #13:sta &fe00
+		lda #LO(screen2_addr/8):sta &fe01
+		\\ Continue
+		.done_swap
+	}
+	ENDIF
 
 	\\ Which page are we reading crunched data from?
 	sec
@@ -319,25 +392,33 @@ ENDIF
 
 	\\ Is it more than a "track" away?
 	SBC load_to_HI
+	BCS sectors_to_load_1
+	EOR #255
+	ADC #1
 	.sectors_to_load_1
 	CMP #DFS_sectors_to_load
 	BCC not_ready_to_load
 
 	\\ If so, load a track's worth of data into our buffer
 	JSR load_next_track
-
 	.not_ready_to_load
+
 	\\ Check for errors
 	LDA error_flag
 	BNE track_load_error
 
-    jmp loop
+	jmp loop
+
     .track_load_error
 
 	\\ Re-enable useful interupts
+	SEI
 	LDA #&D3					; A=11010011
 	STA &FE4E					; R14=Interrupt Enable
-    CLI
+
+    LDA old_irqv:STA IRQ1V
+    LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
+	CLI
 
 	\\ Exit gracefully (in theory)
     \\ But not back to BASIC as we trashed all its workspace :D
@@ -445,14 +526,121 @@ ENDIF
 	PHA
 
 	\\ Which interrupt?
-;	LDA &FE4D
-;	AND #&40			; timer 1
-;	BNE is_timer1
+	LDA &FE4D
+	AND #&40			; timer 1
+	BEQ not_timer1
 
+	\\ Acknowledge timer 1 interrupt
+	STA &FE4D
+
+	\\ If we're already busy just exit function
+	LDA decode_lock
+	\\ Can't start rendering as our frame buffer hasn't flipped
+	\\ Could start parse then block before touching the screen buffer
+	ora screen_lock
+	IF _DEBUG
+	\\ Waiting for keypress
+	ora pause_lock
+	ENDIF
+	BNE return_to_os
+
+	\\ Set a lock on our decode function
+	INC decode_lock
+
+	\\ Store registers in case of interupts
+	TXA:PHA:TYA:PHA
+
+	\\ Do the slow bit!
+	IF _STREAMING
+	{
+		\\ Decode the frame with interrupts off!
+		CLI
+
+		\\ Parse and draw the next frame
+		jsr parse_frame
+		sta eof_flag
+
+		cmp #POLY_DESC_SKIP_TO_64K
+		bne stream_ok
+		
+		\\ Align to next page
+		lda #LO(STREAM_buffer_start-1)
+		sta STREAM_ptr_LO
+		lda #HI(STREAM_buffer_start-1)
+		sta STREAM_ptr_HI
+		.stream_ok
+
+		\\ Disable interrupts again!
+		SEI
+	}
+	ENDIF
+
+
+    IF _DEBUG AND _STOP_AT_FRAME > 0
+    {
+        lda frame_no+1
+        cmp #HI(_STOP_AT_FRAME)
+        bcc continue
+        lda frame_no
+        cmp #LO(_STOP_AT_FRAME)
+        bcc continue
+
+		lda #&ff:sta pause_lock
+		.continue
+    }
+    ENDIF
+
+	\\ Restore registers
+	PLA:TAY:PLA:TAX
+
+	\\ Remove our work lock
+	DEC decode_lock
+
+	\\ Set our screen lock until frame swap
+	lda #&ff:sta screen_lock
+
+	IF _STREAMING
+    \\ Toggle draw buffer
+    lda draw_buffer_HI
+    eor #HI(screen1_addr EOR screen2_addr)
+    sta draw_buffer_HI
+
+	\\ Set screen buffer address in CRTC - not read until vsync
+	cmp #HI(screen1_addr)
+    IF _DOUBLE_BUFFER
+	beq show_screen2
+	ELSE
+	bne show_screen2
+    ENDIF
+
+	\\ Show screen 1
+    lda #12:sta &fe00
+    lda #HI(screen1_addr/8):sta &fe01
+    lda #13:sta &fe00
+    lda #LO(screen1_addr/8):sta &fe01
+	\\ Continue
+	bne return_to_os
+
+	.show_screen2
+	\\ Show screen 2
+    lda #12:sta &fe00
+    lda #HI(screen2_addr/8):sta &fe01
+    lda #13:sta &fe00
+    lda #LO(screen2_addr/8):sta &fe01
+	\\ Continue
+	ENDIF
+
+	bne return_to_os
+
+	.not_timer1
 	LDA &FE4D
 	AND #2
 	BEQ return_to_os
 
+	lda #0
+	sta screen_lock
+
+	\\ Vsync
     INC vsync_counter
     BNE no_carry
     INC vsync_counter+1
@@ -714,7 +902,7 @@ exe_size=(end-start+&ff)AND&FF00
 PRINT "EXE size = ",~exe_size
 ; We know that Catalog + !Boot = &300
 ; Need to make a dummy file so 00 is at sector 20=track 2
-dummy_size=3*DFS_track_size-exe_size-&300
+dummy_size = (DISK1_first_track * DFS_track_size) - exe_size - &300
 
 CLEAR &0000,&FFFF
 ORG &0000

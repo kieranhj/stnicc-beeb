@@ -8,15 +8,15 @@ _UNROLL_SPAN_LOOP = TRUE
 \ *	SPAN PLOTTING FUNCTIONS
 \ ******************************************************************
 
-\\ Can only be a maximum of 2 bytes plotted for short (<=4 pixel) spans
-\\ X = [0,3] W = [1,3]
+\\ Can only be a maximum of 2 bytes plotted for short (<=5 pixel) spans
+\\ X = [0,3] W = [1,5]
 
-\\ p000 0000  pp00 0000  ppp0 0000  pppp 0000
-\\ 0p00 0000  0pp0 0000  0ppp 0000  0ppp p000
-\\ 00p0 0000  00pp 0000  00pp p000  00pp pp00
-\\ 000p 0000  000p p000  000p pp00  000p ppp0
+\\ p000 0000  pp00 0000  ppp0 0000  pppp 0000  pppp p000
+\\ 0p00 0000  0pp0 0000  0ppp 0000  0ppp p000  0ppp pp00
+\\ 00p0 0000  00pp 0000  00pp p000  00pp pp00  00pp ppp0
+\\ 000p 0000  000p p000  000p pp00  000p ppp0  000p pppp
 
-MACRO MASK_START_AT_X p, e
+MACRO SHORT_MASK_SHIFTS p, e
 FOR x,0,3,1
 s=p>>x
 h=(s AND &f0) >> 4
@@ -26,20 +26,22 @@ NEXT
 ENDMACRO
 
 .color_mask_short
-MASK_START_AT_X &80, 0
-MASK_START_AT_X &c0, 0
-MASK_START_AT_X &e0, 0
-MASK_START_AT_X &f0, 0
+SHORT_MASK_SHIFTS &80, 0
+SHORT_MASK_SHIFTS &c0, 0
+SHORT_MASK_SHIFTS &e0, 0
+SHORT_MASK_SHIFTS &f0, 0
+SHORT_MASK_SHIFTS &f8, 0
 
 .screen_mask_short
-MASK_START_AT_X &80, &ff
-MASK_START_AT_X &c0, &ff
-MASK_START_AT_X &e0, &ff
-MASK_START_AT_X &f0, &ff
+SHORT_MASK_SHIFTS &80, &ff
+SHORT_MASK_SHIFTS &c0, &ff
+SHORT_MASK_SHIFTS &e0, &ff
+SHORT_MASK_SHIFTS &f0, &ff
+SHORT_MASK_SHIFTS &f8, &ff
 
 .plot_short_span
 {
-    \\ w = [1,4] x = [0,3]
+    \\ w = [1,5] x = [0,3]
     \\ X= ((w-1)*4+(xAND3))*2
     txa
     and #3
@@ -59,6 +61,10 @@ MASK_START_AT_X &f0, &ff
     ora #0                          ; 2c
     sta (writeptr), Y               ; 6c
 
+    IF _DOUBLE_PLOT_Y
+    iny:sta (writeptr), Y               ; 6c
+    ENDIF
+
     inx
     lda color_mask_short, X
     beq done
@@ -71,14 +77,20 @@ MASK_START_AT_X &f0, &ff
     .ora_byte2
     ora #0                          ; 2c
     sta (writeptr), Y               ; 6c
+
+    IF _DOUBLE_PLOT_Y
+    iny:sta (writeptr), Y               ; 6c
+    ENDIF
+
     .done
 
     jmp return_here_from_plot_span
     ;rts
-
-    .minus_1_times_4
-    EQUB 0, 0, 4, 8, 12
 }
+.minus_6_times_4
+EQUB 0, 0, 0, 0, 0
+.minus_1_times_4
+EQUB 0, 0, 4, 8, 12, 16
 
 ; Plot pixels from [span_start,span_end] on line span_y using span_colour
 ; Can optimise all of this later for poly fill, as shouldn't need to check
@@ -122,12 +134,19 @@ MASK_START_AT_X &f0, &ff
 
     ldy #0
 
-    \\ Check if the span is short (<4 pixels)
+    \\ Check if the span is short...
     lda span_width
-    cmp #5
-    bcc plot_short_span
+    cmp #6
+    bcc plot_short_span     ; [1-5]
 
-    .long_span
+    \\ Long...
+    cmp #10
+    bcs plot_long_span
+    
+    \\ Or medium...
+    jmp plot_medium_span   ; [6-9]
+
+    .plot_long_span
     \\ First byte
     txa     ; span_start
     and #3
@@ -147,6 +166,10 @@ MASK_START_AT_X &f0, &ff
     ora #0
     \\ Write to screen
     sta (writeptr), Y
+
+    IF _DOUBLE_PLOT_Y
+    iny:sta (writeptr), Y:dey
+    ENDIF
 
     \\ Subtract pixels from width
     sec
@@ -195,7 +218,13 @@ ELSE
     .return_here_from_unrolled_span_loop
     \\ 22c overhead + 8c per byte
 
-    tya:clc:adc #8:tay
+    tya:clc
+    IF _DOUBLE_PLOT_Y
+    adc #7
+    ELSE
+    adc #8
+    ENDIF
+    tay
 ENDIF
 
     .skip_span_loop
@@ -218,12 +247,114 @@ ENDIF
     ora #0
     \\ Write to screen
     sta (writeptr), Y
+
+    IF _DOUBLE_PLOT_Y
+    iny:sta (writeptr), Y
+    ENDIF
     .skip_last_byte
 
     .plot_span_return
     jmp return_here_from_plot_span
     ;rts
 \}
+
+\\ Can only be a maximum of 3 bytes plotted for medium spans..
+\\ X = [0,3] W = [6,9]
+
+\\ pppp pp00 0000  pppp ppp0 0000  pppp pppp 0000  pppp pppp p000
+\\ 0ppp ppp0 0000  0ppp pppp 0000  0ppp pppp p000  0ppp pppp pp00
+\\ 00pp pppp 0000  00pp pppp p000  00pp pppp pp00  00pp pppp ppp0
+\\ 000p pppp p000  000p pppp pp00  000p pppp ppp0  000p pppp pppp
+
+MACRO MEDIUM_MASK_SHIFTS p, e
+FOR x,0,3,1
+s=p>>x
+h=(s AND &f00) >> 8
+m=(s AND &0f0) >> 4
+l=(s AND &00f)
+EQUB (h OR h<<4) EOR e, (m OR m<<4) EOR e, (l OR l<<4) EOR e, 0
+NEXT
+ENDMACRO
+
+.colour_mask_medium
+MEDIUM_MASK_SHIFTS &FC0, 0
+MEDIUM_MASK_SHIFTS &FE0, 0
+MEDIUM_MASK_SHIFTS &FF0, 0
+MEDIUM_MASK_SHIFTS &FF8, 0
+
+.screen_mask_medium
+MEDIUM_MASK_SHIFTS &FC0, &ff
+MEDIUM_MASK_SHIFTS &FE0, &ff
+MEDIUM_MASK_SHIFTS &FF0, &ff
+MEDIUM_MASK_SHIFTS &FF8, &ff
+
+.plot_medium_span
+{
+    \\ w = [6,9] x = [0,3]
+    \\ X= ((w-6)*4+(xAND3))*4
+    txa
+    and #3
+
+    ldx span_width
+    adc minus_6_times_4, X
+    asl a:asl a
+    tax
+
+    \\ Byte 1
+    lda colour_mask_medium, X
+    and span_colour
+    sta ora_byte1+1
+
+    lda (writeptr), Y               ; 5c
+    and screen_mask_medium, X        ; 4c
+    .ora_byte1
+    ora #0                          ; 2c
+    sta (writeptr), Y               ; 6c
+
+    IF _DOUBLE_PLOT_Y
+    iny:sta (writeptr), Y
+    ENDIF
+
+    \\ Byte 2
+    inx
+    lda colour_mask_medium, X
+    and span_colour
+    sta ora_byte2+1
+
+    ldy #8
+    lda (writeptr), Y               ; 5c
+    and screen_mask_medium, X        ; 4c
+    .ora_byte2
+    ora #0                          ; 2c
+    sta (writeptr), Y               ; 6c
+
+    IF _DOUBLE_PLOT_Y
+    iny:sta (writeptr), Y
+    ENDIF
+
+    \\ Byte 3
+    inx
+    lda colour_mask_medium, X
+    beq done
+    and span_colour
+    sta ora_byte3+1
+
+    ldy #16
+    lda (writeptr), Y               ; 5c
+    and screen_mask_medium, X        ; 4c
+    .ora_byte3
+    ora #0                          ; 2c
+    sta (writeptr), Y               ; 6c
+
+    IF _DOUBLE_PLOT_Y
+    iny:sta (writeptr), Y
+    ENDIF
+
+    .done
+
+    jmp return_here_from_plot_span
+    ;rts
+}
 
 \ ******************************************************************
 \ *	POLYGON PLOT FUNCTIONS
@@ -408,6 +539,20 @@ ENDMACRO
 {
 	; calc screen row of starty
 	LDY starty
+
+    \\ Keep track of our min/max Y for span plot
+    {
+        cpy span_buffer_min_y
+        bcs not_smallest_y
+        sty span_buffer_min_y
+        .not_smallest_y
+        cpy span_buffer_max_y
+        bcc not_largest_y
+        sty span_buffer_max_y
+        .not_largest_y
+    }
+    \\ Don't need to do this for endy as we know tris are convex
+
 	; calc pixel within byte of startx
 	LDX startx
 
@@ -440,31 +585,6 @@ ENDMACRO
 	; Coincident start and end points exit early
 	ORA dx
 	BEQ exit_early
-
-    \\ Track min/max y values as polys often quite small
-    IF 0    ; get get away with not doing this as the polys are convex
-    {
-        ldy endy
-        cpy span_buffer_min_y
-        bcs not_smallest_y
-        sty span_buffer_min_y
-        .not_smallest_y
-        cpy span_buffer_max_y
-        bcc not_largest_y
-        sty span_buffer_max_y
-        .not_largest_y
-    }
-    ENDIF
-
-    ldy starty
-    cpy span_buffer_min_y
-    bcs not_smallest_y
-    sty span_buffer_min_y
-    .not_smallest_y
-    cpy span_buffer_max_y
-    bcc not_largest_y
-    sty span_buffer_max_y
-    .not_largest_y
 
 	; determine which type of line it is
 	LDA dy
@@ -684,6 +804,9 @@ MACRO UNROLL_SPAN_LOOP n
     FOR i,0,n-1,1
         ldy #(i*8)
         sta (writeptr), y
+        IF _DOUBLE_PLOT_Y
+        iny:sta (writeptr), y
+        ENDIF
     NEXT
     jmp return_here_from_unrolled_span_loop
 ENDMACRO

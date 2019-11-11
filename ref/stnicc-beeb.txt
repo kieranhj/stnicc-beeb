@@ -146,20 +146,21 @@ Put get_byte into ZP. - DONE
 Plot span:
  - span_start should always be <= span_end w/ span buffer - DONE
  - Any coherency between calls to reduce start address calc?
- - Unroll long span plot
+ - Unroll long span plot - DONE
  - Divide width by 4 so can just dex - DONE (or remove altogether).
- - Any savings in plot_short_span? Inline plot_pixel_at?
+ - Any savings in plot_short_span? Inline plot_pixel_at? - DONE
 
 Vsync on timer at line 200.
 Frame swap on vsync.
 Run ahead and block plot until swapped.
 
-Only plot every other scanline?! What does this look like?
+Only plot every other scanline?! What does this look like? - DONE
 
 Optimisation progress:
  5/11 - first frame down to &1E=30 vsyncs
  5/11 - unrolled CLS a bit - down to &1D vsyncs
  7/11 - align to 7.5K, inline get_byte, inline pixel_plot - down to &1C vsyncs
+ 8/11 - unroll plot_short_span - down to &19 vsyncs!
 
 Tidy up code
 ~~~
@@ -178,3 +179,13 @@ Compute writeptr as the start address on the line inc. scanline
 Compute Y as column index
 
 Think need to special case small spans of 2 bytes as seems to be a common case.
+
+There are some incredibly small polys!
+This gets worse when using half res. E.g. Frame 4:
+     Polygon 3: Colour = 2 Num vertices = 3
+        Vertices = [7, 8, 9]
+          Edge 0 = [ 254, 98 ]
+          Edge 1 = [ 255, 99 ]
+          Edge 2 = [ 255, 98 ]
+ Becomes co-incident point
+ Worth culling these?
