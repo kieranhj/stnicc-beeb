@@ -815,10 +815,15 @@ ALIGN &100  ; lazy
     EQUB %00010001
 }
 
+
 .four_minus
-{
-    EQUB 4,3,2,1
-}
+EQUB 4,3,2,1
+
+.minus_6_times_4
+EQUB 0, 0, 0, 0, 0
+
+.minus_1_times_4
+EQUB 0, 0, 4, 8, 12, 16
 
 ;.filename0
 ;EQUS "00", 13

@@ -41,19 +41,23 @@ SHORT_MASK_SHIFTS &f8, &ff
 
 .plot_short_span
 {
+    \\ A=span_width
+    \\ X=span_start (pixel column)
+    \\ Y=0
+
     \\ w = [1,5] x = [0,3]
-    \\ X= ((w-1)*4+(xAND3))*2
-    txa
-    and #3
+    \\ index= ((w-1)*4+(xAND3))*2
+    txa                             ; 2c
+    and #3                          ; 2c
 
-    ldx span_width
-    adc minus_1_times_4, X
-    asl a
-    tax
+    ldx span_width                  ; 3c
+    adc minus_1_times_4, X          ; 4c
+    asl a                           ; 2c
+    tax                             ; 2c
 
-    lda color_mask_short, X
-    and span_colour
-    sta ora_byte1+1
+    lda color_mask_short, X         ; 4c
+    and span_colour                 ; 3c
+    sta ora_byte1+1                 ; 4c
 
     lda (writeptr), Y               ; 5c
     and screen_mask_short, X        ; 4c
@@ -62,16 +66,16 @@ SHORT_MASK_SHIFTS &f8, &ff
     sta (writeptr), Y               ; 6c
 
     IF _DOUBLE_PLOT_Y
-    iny:sta (writeptr), Y               ; 6c
+    iny:sta (writeptr), Y           ; 8c
     ENDIF
 
-    inx
-    lda color_mask_short, X
-    beq done
-    and span_colour
-    sta ora_byte2+1
+    inx                             ; 2c
+    lda color_mask_short, X         ; 4c
+    beq done                        ; 2/3c
+    and span_colour                 ; 3c
+    sta ora_byte2+1                 ; 4c
 
-    ldy #8
+    ldy #8                          ; 2c
     lda (writeptr), Y               ; 5c
     and screen_mask_short, X        ; 4c
     .ora_byte2
@@ -87,10 +91,6 @@ SHORT_MASK_SHIFTS &f8, &ff
     jmp return_here_from_plot_span
     ;rts
 }
-.minus_6_times_4
-EQUB 0, 0, 0, 0, 0
-.minus_1_times_4
-EQUB 0, 0, 4, 8, 12, 16
 
 ; Plot pixels from [span_start,span_end] on line span_y using span_colour
 ; Can optimise all of this later for poly fill, as shouldn't need to check
@@ -117,51 +117,52 @@ EQUB 0, 0, 4, 8, 12, 16
     ldy #0                          ; 2c
 
     \\ Check if the span is short...
-    lda span_width
-    cmp #6
-    bcc plot_short_span     ; [1-5]
+    lda span_width                  ; 3c
+    cmp #6                          ; 2c
+    bcc plot_short_span     ; [1-5] ; 2/3c
 
     \\ Long...
-    cmp #10
-    bcs plot_long_span
+    cmp #10                         ; 2c
+    bcs plot_long_span              ; 2/3c
     
     \\ Or medium...
     jmp plot_medium_span   ; [6-9]
 
     .plot_long_span
     \\ First byte
-    txa     ; span_start
-    and #3
-    beq skip_first_byte
+    \\ X=span_start
+    txa                                     ; 2c
+    and #3                                  ; 2c
+    beq skip_first_byte                     ; 2/3c
     tax
 
-    lda span_colour
-    and colour_mask_starting_at_pixel, X
-    sta ora_left_hand_byte+1
+    lda span_colour                         ; 3c
+    and colour_mask_starting_at_pixel, X    ; 4c
+    sta ora_left_hand_byte+1                ; 4c
 
     \\ Read screen byte
-    lda (writeptr), Y
+    lda (writeptr), Y                       ; 5c
     \\ Mask out pixels to be drawn
-    and screen_mask_starting_at_pixel, X
+    and screen_mask_starting_at_pixel, X    ; 4c
     \\ Mask in our colour pixels
     .ora_left_hand_byte
-    ora #0
+    ora #0                                  ; 2c
     \\ Write to screen
-    sta (writeptr), Y
+    sta (writeptr), Y                       ; 6c
 
     IF _DOUBLE_PLOT_Y
-    iny:sta (writeptr), Y:dey
+    iny:sta (writeptr), Y:dey               ; 8c
     ENDIF
 
     \\ Subtract pixels from width
-    sec
-    lda span_width
-    sbc four_minus, X
-    sta span_width
+    sec                                     ; 2c
+    lda span_width                          ; 3c
+    sbc four_minus, X                       ; 4c
+    sta span_width                          ; 3c
 
     \\ Increment column - can't overflow
     IF _UNROLL_SPAN_LOOP
-    lda writeptr:clc:adc #8:sta writeptr
+    lda writeptr:clc:adc #8:sta writeptr    ; 10c
     ELSE
     tya:clc:adc #8:tay
     ENDIF
@@ -169,69 +170,69 @@ EQUB 0, 0, 4, 8, 12, 16
     .skip_first_byte
 
     \\ Main body of span
-    lda span_width
-    lsr a:lsr a
-    beq skip_span_loop
-    tax
+    lda span_width                      ; 3c
+    lsr a:lsr a                         ; 4c
+    beq skip_span_loop                  ; 2/3c
+    tax                                 ; 2c
 
 IF _UNROLL_SPAN_LOOP = FALSE
-    lda span_colour         ; 3c
-    sta load_span_colour+1  ; 4c
-    clc                     ; 2c
+    lda span_colour                     ; 3c
+    sta load_span_colour+1              ; 4c
+    clc                                 ; 2c
     .loop
 
     \\ Need to unroll this really
     .load_span_colour
-    lda #0                  ; 2c
-    sta (writeptr), Y       ; 6c
+    lda #0                              ; 2c
+    sta (writeptr), Y                   ; 6c
 
-    tya:adc #8:tay          ; 6c
-    dex                     ; 2c
-    bne loop                ; 3c
+    tya:adc #8:tay                      ; 6c
+    dex                                 ; 2c
+    bne loop                            ; 3c
     \\ 19c per byte
 ELSE
-    lda plot_span_unrolled_LO, X     ; 4c
-    sta jmp_to_unrolled_span_loop+1  ; 4c
-    lda plot_span_unrolled_HI, X     ; 4c
-    sta jmp_to_unrolled_span_loop+2  ; 4c
-    lda span_colour                  ; 3c
+    lda plot_span_unrolled_LO, X        ; 4c
+    sta jmp_to_unrolled_span_loop+1     ; 4c
+    lda plot_span_unrolled_HI, X        ; 4c
+    sta jmp_to_unrolled_span_loop+2     ; 4c
+    lda span_colour                     ; 3c
     .jmp_to_unrolled_span_loop
-    jmp &ffff                        ; 3c + 3c
+    jmp &ffff                           ; 3c + 3c
     .return_here_from_unrolled_span_loop
     \\ 22c overhead + 8c per byte
 
-    tya:clc
+    tya:clc                             ; 4c
     IF _DOUBLE_PLOT_Y
-    adc #7
+    adc #7                              ; 2c
     ELSE
     adc #8
     ENDIF
-    tay
+    tay                                 ; 2c
 ENDIF
 
     .skip_span_loop
     \\ Last byte?
-    lda span_width
-    and #3
-    beq skip_last_byte
-    tax
+    lda span_width                      ; 3c
+    and #3                              ; 2c
+    beq skip_last_byte                  ; 2/3c
+    tax                                 ; 2c
 
-    lda span_colour
-    and screen_mask_starting_at_pixel, X
-    sta ora_right_hand_byte+1
+    lda span_colour                             ; 3c
+    and screen_mask_starting_at_pixel, x        ; 4c
+    sta ora_right_hand_byte+1                   ; 4c
 
     \\ Read screen byte
-    lda (writeptr), Y
+    lda (writeptr), Y                           ; 5c
     \\ Mask out pixels to be drawn
-    and colour_mask_starting_at_pixel, X
+    and colour_mask_starting_at_pixel, X        ; 4c
     \\ Mask in our colour pixels
     .ora_right_hand_byte
-    ora #0
+    ora #0                                      ; 2c
     \\ Write to screen
-    sta (writeptr), Y
+    sta (writeptr), Y                           ; 6c
 
     IF _DOUBLE_PLOT_Y
-    iny:sta (writeptr), Y
+    iny:sta (writeptr), Y                       ; 8c
     ENDIF
     .skip_last_byte
 
