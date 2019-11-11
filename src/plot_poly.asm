@@ -3,6 +3,7 @@
 \ ******************************************************************
 
 _UNROLL_SPAN_LOOP = TRUE
+_USE_MEDIUM_SPAN_PLOT = FALSE
 
 \ ******************************************************************
 \ *	SPAN PLOTTING FUNCTIONS
@@ -121,12 +122,14 @@ SHORT_MASK_SHIFTS &f8, &ff
     cmp #6                          ; 2c
     bcc plot_short_span     ; [1-5] ; 2/3c
 
+IF _USE_MEDIUM_SPAN_PLOT
     \\ Long...
     cmp #10                         ; 2c
     bcs plot_long_span              ; 2/3c
     
     \\ Or medium...
     jmp plot_medium_span   ; [6-9]
+ENDIF
 
     .plot_long_span
     \\ First byte
@@ -259,6 +262,7 @@ EQUB (h OR h<<4) EOR e, (m OR m<<4) EOR e, (l OR l<<4) EOR e, 0
 NEXT
 ENDMACRO
 
+IF _USE_MEDIUM_SPAN_PLOT
 .colour_mask_medium
 MEDIUM_MASK_SHIFTS &FC0, 0
 MEDIUM_MASK_SHIFTS &FE0, 0
@@ -338,6 +342,7 @@ MEDIUM_MASK_SHIFTS &FF8, &ff
     jmp return_here_from_plot_span
     ;rts
 }
+ENDIF
 
 \ ******************************************************************
 \ *	POLYGON PLOT FUNCTIONS

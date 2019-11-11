@@ -219,3 +219,6 @@ For every line of code:
 - Look for any loops, unrolling potential or SMC
 - Can we avoid temporary storage of values?
 - What does the 'perfect' code look like? How do we get there?
+
+Inc. Med span = 32108
+w/out med span = 32061
