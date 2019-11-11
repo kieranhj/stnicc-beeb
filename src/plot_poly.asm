@@ -101,27 +101,10 @@ EQUB 0, 0, 4, 8, 12, 16
 .plot_span
 \{
     ; X=span_start
-
-    \\ Calculate span width in pixels
-	sec
-	lda span_end
-    sbc span_start
-
-    \\ Check span_start < span_end - should always be true w/ span_buffer
-    ; bcs posdx
-    ; ldx span_end
-    ; eor #&ff
-    ; adc #1
-    ; .posdx
-
-    \\ _POLY_PLOT_END_POINTS
-    clc
-    adc #1
-	sta span_width
-    ; beq plot_span_return
+    ; Y=span_y
+    ; span_width already computed
 
     \\ Compute address of first screen byte
-    ; Y=span_y
     clc
     lda screen_row_LO, Y
     adc screen_col_LO, X
@@ -412,7 +395,7 @@ ENDIF
     sta poly_verts_y, X
 
     \\ 'Draw' lines into our span buffer
-    ldx #0
+    dex
     .line_loop
     stx poly_index
 
@@ -430,9 +413,8 @@ ENDIF
     .return_here_from_drawline
 
     ldx poly_index
-    inx
-    cpx poly_num_verts
-    bcc line_loop
+    dex
+    bpl line_loop
 
     \\ Set our palette lookup
     lda poly_colour
@@ -446,44 +428,49 @@ ENDIF
 
     ldy span_buffer_min_y
     .span_loop
-    sty poly_y
+    sty poly_y                  ; 3c
 
-    tya:and #3:tax
+    \\ v= on Master would happily burn a PAGE per palette to save 6c!
+    tya:and #3:tax              ; 6c
     .load_palette
-    lda poly_palette, X
-    sta span_colour
+    lda poly_palette, X         ; 4c
+    sta span_colour             ; 3c    <= where is this used?
 
-    ldx span_buffer_start, Y
-    stx span_start
+    lda span_buffer_start, Y    ; 4c
+    tax                         ; 2c    X=span_start
 
-    lda span_buffer_end, Y
-    sta span_end
+    \\ Calculate span width in pixels
+    sec                         ; 2c
+    sbc span_buffer_end, Y      ; 4c
+    eor #&ff                    ; 2c
+    clc                         ; 2c
+    adc #2                      ; 2c    _POLY_PLOT_END_POINTS
+    sta span_width              ; 3c
+    \\ 21c
 
     \\ Shouldn't have blank spans now we have min/max Y
-    ;ora span_start
-    ;beq skip_span
 
     IF _HALF_VERTICAL_RES
-    tya:asl a:tay
+    tya:asl a:tay               ; 6c
     ENDIF
 
     ;jsr plot_span
-    jmp plot_span
+    jmp plot_span               ; eventually inline entire fn to save 6c
     .return_here_from_plot_span
 
     .skip_span
-    ldy poly_y
+    ldy poly_y                  ; 3c
 
     \\ Reset this line of the span buffer since we're already here
-    lda #255
-    sta span_buffer_start, Y
-    lda #0
-    sta span_buffer_end, Y
+    lda #255                    ; 2c
+    sta span_buffer_start, Y    ; 5c
+    lda #0                      ; 2c
+    sta span_buffer_end, Y      ; 5c
 
-    iny
+    iny                         ; 2c
     .span_loop_max_y
-    cpy #0
-    bcc span_loop
+    cpy #0                      ; 2c
+    bcc span_loop               ; 3c
 
     jmp return_here_from_plot_poly
 \}
