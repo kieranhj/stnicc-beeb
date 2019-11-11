@@ -698,7 +698,12 @@ ENDMACRO
     ;jsr plot_pixel_into_span_buffer
     UPDATE_SPAN_BUFFER_WITH_X
 
-.shallowlineloop
+.shallowlineloop_1
+
+	sec
+	lda accum
+
+.shallowlineloop_2
 
 	; cache byte from destination screen address
 	; doesn't mean anything in our context
@@ -715,14 +720,9 @@ ENDMACRO
 							; goingright2
 
 	; check whether we move to the next line
-	SEC
-	LDA accum
 	SBC dy
-	BCC movetonextline
+	BCS shallowlineloop_2
 
-	STA accum
-	BCS shallowlineloop 	; always taken
-	
 	; move down to next line
 	.movetonextline
 	.goingdown2
@@ -741,7 +741,7 @@ ENDMACRO
     ;jsr plot_pixel_into_span_buffer
     UPDATE_SPAN_BUFFER_WITH_X
 
-	JMP shallowlineloop		; always taken
+	JMP shallowlineloop_1		; always taken
 
 	.exitline2
     ; Plot last 'pixel' into span buffer
