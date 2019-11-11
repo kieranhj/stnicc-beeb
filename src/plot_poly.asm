@@ -514,31 +514,36 @@ ENDIF
 
 \\ **
 
-MACRO UPDATE_SPAN_BUFFER_WITH_A
+MACRO UPDATE_SPAN_BUFFER_WITH_A must_set_carry
 {
-    cmp span_buffer_start, Y
-    bcs not_smaller
-    sta span_buffer_start, Y
-
-    .not_smaller
     cmp span_buffer_end, Y
     bcc not_larger
     sta span_buffer_end, Y
 
     .not_larger
+	
+    cmp span_buffer_start, Y
+    bcs not_smaller
+    sta span_buffer_start, Y
+
+IF must_set_carry
+    sec
+ENDIF
+	
+    .not_smaller
 }
 ENDMACRO
 
-MACRO UPDATE_SPAN_BUFFER_WITH_X
+MACRO UPDATE_SPAN_BUFFER_WITH_X must_set_carry
 {
     txa
-	UPDATE_SPAN_BUFFER_WITH_A
+	UPDATE_SPAN_BUFFER_WITH_A must_set_carry
 }
 ENDMACRO
 
 .plot_pixel_into_span_buffer
 {
-    UPDATE_SPAN_BUFFER_WITH_X
+    UPDATE_SPAN_BUFFER_WITH_X FALSE
     rts
 }
 
@@ -634,7 +639,7 @@ ENDMACRO
 	; 'plot' pixel
     ;jsr plot_pixel_into_span_buffer
 	lda count
-	UPDATE_SPAN_BUFFER_WITH_A	
+	UPDATE_SPAN_BUFFER_WITH_A TRUE
 
 	; check if done
 	dex
@@ -648,7 +653,6 @@ ENDMACRO
 
 	; check move to next pixel column
 	.movetonextcolumn
-	SEC
 	LDA accum
 	SBC dx
 	BCS steeplineloop
@@ -696,7 +700,7 @@ ENDMACRO
 
     \\ Plot first 'pixel' into span buffer
     ;jsr plot_pixel_into_span_buffer
-    UPDATE_SPAN_BUFFER_WITH_X
+    UPDATE_SPAN_BUFFER_WITH_X FALSE
 
 .shallowlineloop_1
 
@@ -731,7 +735,7 @@ ENDMACRO
 
     ; Plot 'pixel' for end of span on current line
     ;jsr plot_pixel_into_span_buffer
-    UPDATE_SPAN_BUFFER_WITH_X
+    UPDATE_SPAN_BUFFER_WITH_X FALSE
 
     .branchupdown2
 	nop		                ; iny/dey - self-modified to goingdown2 or
@@ -739,7 +743,7 @@ ENDMACRO
 
     ; Plot 'pixel' for start of span on next line
     ;jsr plot_pixel_into_span_buffer
-    UPDATE_SPAN_BUFFER_WITH_X
+    UPDATE_SPAN_BUFFER_WITH_X FALSE
 
 	JMP shallowlineloop_1		; always taken
 
