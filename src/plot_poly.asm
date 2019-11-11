@@ -272,27 +272,38 @@ ENDIF
 \\ 00pp pppp 0000  00pp pppp p000  00pp pppp pp00  00pp pppp ppp0
 \\ 000p pppp p000  000p pppp pp00  000p pppp ppp0  000p pppp pppp
 
-MACRO MEDIUM_MASK_SHIFTS p, e
+MACRO MEDIUM_MASK_SHIFTS p, e, table_index
 FOR x,0,3,1
 s=p>>x
 h=(s AND &f00) >> 8
 m=(s AND &0f0) >> 4
 l=(s AND &00f)
-EQUB (h OR h<<4) EOR e, (m OR m<<4) EOR e, (l OR l<<4) EOR e, 0
+IF table_index==0
+EQUB (h OR h<<4) EOR e
+ELIF table_index==1
+EQUB (m OR m<<4) EOR e
+ELIF table_index==2
+EQUB (l OR l<<4) EOR e
+ELSE
+ERROR "no"
+ENDIF
 NEXT
 ENDMACRO
 
-.colour_mask_medium
-MEDIUM_MASK_SHIFTS &FC0, 0
-MEDIUM_MASK_SHIFTS &FE0, 0
-MEDIUM_MASK_SHIFTS &FF0, 0
-MEDIUM_MASK_SHIFTS &FF8, 0
+MACRO MEDIUM_MASK_TABLE e,table_index
+MEDIUM_MASK_SHIFTS &FC0, e, table_index
+MEDIUM_MASK_SHIFTS &FE0, e, table_index
+MEDIUM_MASK_SHIFTS &FF0, e, table_index
+MEDIUM_MASK_SHIFTS &FF8, e, table_index
+ENDMACRO
 
-.screen_mask_medium
-MEDIUM_MASK_SHIFTS &FC0, &ff
-MEDIUM_MASK_SHIFTS &FE0, &ff
-MEDIUM_MASK_SHIFTS &FF0, &ff
-MEDIUM_MASK_SHIFTS &FF8, &ff
+.colour_mask_medium_0:MEDIUM_MASK_TABLE 0,0
+.colour_mask_medium_1:MEDIUM_MASK_TABLE 0,1
+.colour_mask_medium_2:MEDIUM_MASK_TABLE 0,2
+
+.screen_mask_medium_0:MEDIUM_MASK_TABLE $ff,0
+.screen_mask_medium_1:MEDIUM_MASK_TABLE $ff,1
+.screen_mask_medium_2:MEDIUM_MASK_TABLE $ff,2
 
 .plot_medium_span
 {
@@ -303,16 +314,15 @@ MEDIUM_MASK_SHIFTS &FF8, &ff
 
     ldx span_width
     adc minus_6_times_4, X
-    asl a:asl a
     tax
 
     \\ Byte 1
-    lda colour_mask_medium, X
+    lda colour_mask_medium_0, X
     and span_colour
     sta ora_byte1+1
 
     lda (writeptr), Y               ; 5c
-    and screen_mask_medium, X        ; 4c
+    and screen_mask_medium_0, X        ; 4c
     .ora_byte1
     ora #0                          ; 2c
     sta (writeptr), Y               ; 6c
@@ -322,14 +332,13 @@ MEDIUM_MASK_SHIFTS &FF8, &ff
     ENDIF
 
     \\ Byte 2
-    inx
-    lda colour_mask_medium, X
+    lda colour_mask_medium_1, X
     and span_colour
     sta ora_byte2+1
 
     ldy #8
     lda (writeptr), Y               ; 5c
-    and screen_mask_medium, X        ; 4c
+    and screen_mask_medium_1, X        ; 4c
     .ora_byte2
     ora #0                          ; 2c
     sta (writeptr), Y               ; 6c
@@ -339,15 +348,14 @@ MEDIUM_MASK_SHIFTS &FF8, &ff
     ENDIF
 
     \\ Byte 3
-    inx
-    lda colour_mask_medium, X
+    lda colour_mask_medium_2, X
     beq done
     and span_colour
     sta ora_byte3+1
 
     ldy #16
     lda (writeptr), Y               ; 5c
-    and screen_mask_medium, X        ; 4c
+    and screen_mask_medium_2, X        ; 4c
     .ora_byte3
     ora #0                          ; 2c
     sta (writeptr), Y               ; 6c
