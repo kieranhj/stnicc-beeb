@@ -32,39 +32,19 @@ ENDIF
 NEXT
 ENDMACRO
 
-short_value_0=$80
-short_value_1=$c0
-short_value_2=$e0
-short_value_3=$f0
-short_value_4=$f8
+MACRO SHORT_MASK_TABLE e,table_index
+SHORT_MASK_SHIFTS &80, e, table_index
+SHORT_MASK_SHIFTS &c0, e, table_index
+SHORT_MASK_SHIFTS &e0, e, table_index
+SHORT_MASK_SHIFTS &f0, e, table_index
+SHORT_MASK_SHIFTS &f8, e, table_index
+ENDMACRO
 
-.color_mask_short_0
-SHORT_MASK_SHIFTS short_value_0, 0, 0
-SHORT_MASK_SHIFTS short_value_1, 0, 0
-SHORT_MASK_SHIFTS short_value_2, 0, 0
-SHORT_MASK_SHIFTS short_value_3, 0, 0
-SHORT_MASK_SHIFTS short_value_4, 0, 0
+.color_mask_short_0:SHORT_MASK_TABLE 0,0
+.color_mask_short_1:SHORT_MASK_TABLE 0,1
 
-.color_mask_short_1
-SHORT_MASK_SHIFTS short_value_0, 0, 1
-SHORT_MASK_SHIFTS short_value_1, 0, 1
-SHORT_MASK_SHIFTS short_value_2, 0, 1
-SHORT_MASK_SHIFTS short_value_3, 0, 1
-SHORT_MASK_SHIFTS short_value_4, 0, 1
-
-.screen_mask_short_0
-SHORT_MASK_SHIFTS short_value_0, &ff, 0
-SHORT_MASK_SHIFTS short_value_1, &ff, 0
-SHORT_MASK_SHIFTS short_value_2, &ff, 0
-SHORT_MASK_SHIFTS short_value_3, &ff, 0
-SHORT_MASK_SHIFTS short_value_4, &ff, 0
-
-.screen_mask_short_1
-SHORT_MASK_SHIFTS short_value_0, &ff, 1
-SHORT_MASK_SHIFTS short_value_1, &ff, 1
-SHORT_MASK_SHIFTS short_value_2, &ff, 1
-SHORT_MASK_SHIFTS short_value_3, &ff, 1
-SHORT_MASK_SHIFTS short_value_4, &ff, 1
+.screen_mask_short_0:SHORT_MASK_TABLE $ff,0
+.screen_mask_short_1:SHORT_MASK_TABLE $ff,1
 
 .plot_short_span
 {
