@@ -10,6 +10,10 @@ _STOP_AT_FRAME = 0
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
 
+; If set, show total vsync count, rather than just the count for the
+; last frame. Intended for use in conjunction with _STOP_AT_FRAME.
+_SHOW_TOTAL_VSYNC_COUNTER = FALSE
+
 _HALF_VERTICAL_RES = FALSE
 _DOUBLE_PLOT_Y = _HALF_VERTICAL_RES AND TRUE
 _STREAMING = TRUE
@@ -343,14 +347,12 @@ GUARD screen2_addr
 	cmp #POLY_DESC_END_OF_STREAM
     beq track_load_error
 
+IF _STREAMING=FALSE
 IF _DEBUG
-    sec
-    lda vsync_counter
-    sbc last_vsync
-    jsr debug_write_A
 
-    lda vsync_counter
-    sta last_vsync
+	jsr show_vsync_counter
+
+ENDIF
 ENDIF
 
 	IF _STREAMING=FALSE
@@ -425,6 +427,33 @@ ENDIF
     \\ But not back to BASIC as we trashed all its workspace :D
 	RTS
 }
+
+IF _DEBUG
+.show_vsync_counter
+	jsr debug_reset_writeptr
+
+IF _SHOW_TOTAL_VSYNC_COUNTER
+
+    lda vsync_counter+1
+	jsr debug_write_A
+
+	lda vsync_counter+0
+	jsr debug_write_A
+
+ELSE
+
+    sec
+    lda vsync_counter
+    sbc last_vsync
+    jsr debug_write_A
+
+    lda vsync_counter
+    sta last_vsync
+
+ENDIF
+
+	rts
+ENDIF
 
 \ ******************************************************************
 \ *	Streaming tracks from disk
@@ -570,6 +599,12 @@ ENDIF
 		lda #HI(STREAM_buffer_start-1)
 		sta STREAM_ptr_HI
 		.stream_ok
+
+IF _DEBUG
+
+		jsr show_vsync_counter
+
+ENDIF
 
 		\\ Disable interrupts again!
 		SEI

@@ -1,3 +1,4 @@
+\ -*- mode:beebasm -*-
 \ ******************************************************************
 \ *	DEBUG FUNCTIONS
 \ ******************************************************************
@@ -282,25 +283,31 @@ IF _DEBUG
     dey
     bpl loop
 
+	lda writeptr+0
+	adc #8
+	sta writeptr+0
+	bcc done_writeptr_carry
+	inc writeptr+1
+.done_writeptr_carry
+
     rts
 }
 
-.debug_write_A
+.debug_reset_writeptr
 {
-    pha:pha
     lda draw_buffer_HI
     sta writeptr+1
     lda #0
     sta writeptr
+	rts
+}
 
-    pla
+.debug_write_A
+{
+	pha
+	
     lsr a:lsr a:lsr a:lsr a
     jsr debug_plot_glyph
-
-    lda writeptr
-    clc
-    adc #8
-    sta writeptr
 
     pla
     and #&f
