@@ -116,20 +116,21 @@ EQUB 0, 0, 4, 8, 12, 16
     ; .posdx
 
     \\ _POLY_PLOT_END_POINTS
-    clc
-    adc #1
+    ; clc
+    ; adc #1
+	adc #0
 	sta span_width
     ; beq plot_span_return
 
     \\ Compute address of first screen byte
     ldy span_y
-    clc
+;    clc
     lda screen_row_LO, Y
     adc screen_col_LO, X
     sta writeptr
     lda screen_row_HI, Y
     adc screen_col_HI, X
-    clc
+;    clc
     adc draw_buffer_HI
     sta writeptr+1
 
@@ -180,7 +181,7 @@ EQUB 0, 0, 4, 8, 12, 16
 
     \\ Increment column - can't overflow
     IF _UNROLL_SPAN_LOOP
-    lda writeptr:clc:adc #8:sta writeptr
+    lda writeptr:adc #7:sta writeptr
     ELSE
     tya:clc:adc #8:tay
     ENDIF
