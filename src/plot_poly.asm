@@ -105,17 +105,16 @@ EQUB 0, 0, 4, 8, 12, 16
     ; span_width already computed
 
     \\ Compute address of first screen byte
-    clc
-    lda screen_row_LO, Y
-    adc screen_col_LO, X
-    sta writeptr
-    lda screen_row_HI, Y
-    adc screen_col_HI, X
-    clc
-    adc draw_buffer_HI
-    sta writeptr+1
+    clc                             ; 2c
+    lda screen_row_LO, Y            ; 4c
+    adc screen_col_LO, X            ; 4c
+    sta writeptr                    ; 3c
+    .plot_span_set_screen
+    lda screen1_row_HI, Y           ; 4c
+    adc screen_col_HI, X            ; 4c
+    sta writeptr+1                  ; 3c
 
-    ldy #0
+    ldy #0                          ; 2c
 
     \\ Check if the span is short...
     lda span_width

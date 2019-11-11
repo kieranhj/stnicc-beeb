@@ -393,6 +393,11 @@ ENDIF
 		lda #HI(screen1_addr/8):sta &fe01
 		lda #13:sta &fe00
 		lda #LO(screen1_addr/8):sta &fe01
+
+		\\ Draw screen 2
+		lda #HI(screen2_row_HI)
+		sta plot_span_set_screen+2
+
 		\\ Continue
 		bne done_swap
 
@@ -402,6 +407,11 @@ ENDIF
 		lda #HI(screen2_addr/8):sta &fe01
 		lda #13:sta &fe00
 		lda #LO(screen2_addr/8):sta &fe01
+
+		\\ Draw screen 1
+		lda #HI(screen1_row_HI)
+		sta plot_span_set_screen+2
+
 		\\ Continue
 		.done_swap
 	}
@@ -638,6 +648,11 @@ ENDIF
     lda #HI(screen1_addr/8):sta &fe01
     lda #13:sta &fe00
     lda #LO(screen1_addr/8):sta &fe01
+
+	\\ Draw screen 2
+	lda #HI(screen2_row_HI)
+	sta plot_span_set_screen+2
+
 	\\ Continue
 	bne return_to_os
 
@@ -647,6 +662,11 @@ ENDIF
     lda #HI(screen2_addr/8):sta &fe01
     lda #13:sta &fe00
     lda #LO(screen2_addr/8):sta &fe01
+
+	\\ Draw screen 1
+	lda #HI(screen1_row_HI)
+	sta plot_span_set_screen+2
+
 	\\ Continue
 	ENDIF
 
@@ -826,25 +846,32 @@ ALIGN &100
 .screen_row_LO
 FOR n,0,255,1
 row=n DIV 8:sl=n MOD 8
-addr=row * SCREEN_ROW_BYTES + sl
-EQUB LO(addr)
+addr = row * SCREEN_ROW_BYTES + sl
+EQUB LO(screen1_addr + addr)
 NEXT
 
-.screen_row_HI
+.screen1_row_HI
 FOR n,0,255,1
 row=n DIV 8:sl=n MOD 8
-addr=row * SCREEN_ROW_BYTES + sl
-EQUB HI(addr)
+addr = row * SCREEN_ROW_BYTES + sl
+EQUB HI(screen1_addr + addr)
+NEXT
+
+.screen2_row_HI
+FOR n,0,255,1
+row=n DIV 8:sl=n MOD 8
+addr = row * SCREEN_ROW_BYTES + sl
+EQUB HI(screen2_addr + addr)
 NEXT
 
 .screen_col_LO
-FOR n,0,255,1
+FOR n,0,127,1
 col=n DIV 4
 EQUB LO(col*8)
 NEXT
 
 .screen_col_HI
-FOR n,0,255,1
+FOR n,0,127,1
 col=n DIV 4
 EQUB HI(col*8)
 NEXT
