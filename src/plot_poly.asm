@@ -209,13 +209,7 @@ ELSE
     .return_here_from_unrolled_span_loop
     \\ 22c overhead + 8c per byte
 
-    tya:clc                             ; 4c
-    IF _DOUBLE_PLOT_Y
-    adc #7                              ; 2c
-    ELSE
-    adc #8
-    ENDIF
-    tay                                 ; 2c
+	lda next_line_offset,y:tay		; 6c
 ENDIF
 
     .skip_span_loop

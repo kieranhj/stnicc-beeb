@@ -878,6 +878,15 @@ FOR n,0,255,1
 EQUB n>>4
 NEXT
 
+.next_line_offset
+FOR n,0,255,1
+IF _DOUBLE_PLOT_Y
+equb (n+7) and $ff
+ELSE
+equb (n+8) and $ff
+ENDIF
+NEXT
+
 .palette_size
 FOR n,0,255,1
 equb ((n and $01)+((n div $02) and 1)+((n div $04) and 1)+((n div $08) and 1)+((n div $10) and 1)+((n div $20) and 1)+((n div $40) and 1)+((n div $80) and 1))*2
