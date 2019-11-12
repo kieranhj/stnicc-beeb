@@ -13,7 +13,7 @@ MACRO GET_BYTE
 ENDMACRO
 
 .parse_frame
-{
+\{
     ldy #0
     GET_BYTE
     sta frame_flags
@@ -38,7 +38,7 @@ ENDIF
 
     \\ Read palette words
     ldx #16
-    .palette_loop
+    .parse_palette_loop
     lsr frame_bitmask+1
     ror frame_bitmask
     bcc not_this_bit
@@ -49,7 +49,7 @@ ENDIF
 
     .not_this_bit
     dex
-    bne palette_loop
+    bne parse_palette_loop
     .no_palette
 
     \\ Check whether we have indexed data
@@ -61,11 +61,48 @@ ENDIF
     GET_BYTE
     sta indexed_num_verts
 
+IF _PREPROCESSED_VERTS
+    GET_BYTE
+    
+    clc
+    lda STREAM_ptr_LO
+    sta read_verts_x+1
+    adc indexed_num_verts
+    sta STREAM_ptr_LO
+
+    lda STREAM_ptr_HI
+    sta read_verts_x+2
+    adc #0
+    sta STREAM_ptr_HI
+ELSE
     ldx #0
-    .read_verts_loop
+    .read_verts_loop_x
     GET_BYTE
     lsr a
     sta vertices_x, X
+    inx
+    cpx indexed_num_verts
+    bcc read_verts_loop_x
+ENDIF
+
+IF _PREPROCESSED_VERTS
+    dec indexed_num_verts
+
+    clc
+    lda STREAM_ptr_LO
+    sta read_verts_y+1
+    adc indexed_num_verts
+    sta STREAM_ptr_LO
+
+    lda STREAM_ptr_HI
+    sta read_verts_y+2
+    adc #0
+    sta STREAM_ptr_HI
+
+    inc indexed_num_verts
+ELSE
+    ldx #0
+    .read_verts_loop_y
     GET_BYTE
     IF _HALF_VERTICAL_RES
     lsr a
@@ -73,7 +110,8 @@ ENDIF
     sta vertices_y, X
     inx
     cpx indexed_num_verts
-    bcc read_verts_loop
+    bcc read_verts_loop_y
+ENDIF
 
     \\ Read polygon data
     .read_poly_data
@@ -81,7 +119,7 @@ ENDIF
     GET_BYTE
     sta poly_descriptor
     cmp #POLY_DESC_END_OF_STREAM
-    bcs end_of_frame
+    bcs parse_end_of_frame
 
     and #&f
     sta poly_num_verts
@@ -100,16 +138,30 @@ ENDIF
     GET_BYTE
     tay
 
-    \\ This can be changed to read the poly indices directly.
+IF _PREPROCESSED_VERTS
+    \\ Read the vertices directly from the stream data
+    .read_verts_x
+    lda &ffff, Y
+    sta poly_verts_x, X
+    .read_verts_y
+    lda &ffff, Y
+    IF _HALF_VERTICAL_RES
+    lsr a
+    ENDIF
+    sta poly_verts_y, X
+ELSE
     lda vertices_x, Y
     sta poly_verts_x, X
     lda vertices_y, Y
     sta poly_verts_y, X
+ENDIF
+
+    \\ Next step would be to inline the poly loop here.
 
     inx
     cpx poly_num_verts
     bcc read_poly_loop
-    jmp do_plot
+    bcs parse_do_plot
 
     .non_indexed_data
     ldx #0
@@ -125,19 +177,23 @@ ENDIF
     ENDIF
     sta poly_verts_y, X
 
+    \\ Next step would be to inline the poly loop here.
+
     inx
     cpx poly_num_verts
     bcc read_poly_ni_loop
 
-    .do_plot
+    .parse_do_plot
 IF _PLOT_WIREFRAME
     jsr plot_poly_line
 ELSE
-    jsr plot_poly_span
+    jmp plot_poly_span      ; JSR/RTS => JMP/JMP
+    .return_here_from_plot_poly
 ENDIF
+
     jmp read_poly_data
 
-    .end_of_frame
+    .parse_end_of_frame
 
     inc frame_no
     bne no_carry
@@ -145,4 +201,4 @@ ENDIF
     .no_carry
 
     rts
-}
+\}

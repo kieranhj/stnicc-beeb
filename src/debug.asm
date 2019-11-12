@@ -288,7 +288,7 @@ IF _DEBUG
 	sta writeptr+0
 	bcc done_writeptr_carry
 	inc writeptr+1
-.done_writeptr_carry
+	.done_writeptr_carry
 
     rts
 }
@@ -302,16 +302,32 @@ IF _DEBUG
 	rts
 }
 
+.debug_write_A_spc
+	sec
+	equb &24		; BIT zp - swallow clc
 .debug_write_A
 {
-	pha
-	
+	clc
+    php:pha
+
     lsr a:lsr a:lsr a:lsr a
     jsr debug_plot_glyph
 
     pla
     and #&f
-    jmp debug_plot_glyph
+    jsr debug_plot_glyph
+
+	plp
+	bcc return
+
+    clc
+    lda writeptr
+    adc #8
+    sta writeptr
+	bcc return
+	inc writeptr+1
+	.return
+	rts
 }
 
 .debug_font_data
