@@ -878,6 +878,11 @@ FOR n,0,255,1
 EQUB n>>4
 NEXT
 
+.palette_size
+FOR n,0,255,1
+equb ((n and $01)+((n div $02) and 1)+((n div $04) and 1)+((n div $08) and 1)+((n div $10) and 1)+((n div $20) and 1)+((n div $40) and 1)+((n div $80) and 1))*2
+NEXT
+
 .screen_row_LO
 FOR n,0,255,1
 row=n DIV 8:sl=n MOD 8

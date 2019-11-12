@@ -31,26 +31,21 @@ ENDIF
     and #FLAG_CONTAINS_PALETTE
     beq no_palette
 
-    \\ Read 16-bit palette mask
+    \\ Read 16-bit palette mask and skip palette words
     GET_BYTE
-    sta frame_bitmask+1
-    GET_BYTE
-    sta frame_bitmask
-
-    \\ Read palette words
-    ldx #16
-    .parse_palette_loop
-    lsr frame_bitmask+1
-    ror frame_bitmask
-    bcc not_this_bit
-
-    \\ Discard our palette for now
-    GET_BYTE
-    GET_BYTE
-
-    .not_this_bit
-    dex
-    bne parse_palette_loop
+	tax
+	GET_BYTE
+	tay
+	clc
+	lda palette_size,x
+	adc palette_size,y
+	adc STREAM_ptr_LO
+	sta STREAM_ptr_LO
+	bcc carried
+	inc STREAM_ptr_HI
+	.carried
+	ldy #0
+	
     .no_palette
 
     \\ Check whether we have indexed data
