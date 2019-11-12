@@ -121,6 +121,8 @@ if __name__ == '__main__':
 
             print "    Num vertices = {0}".format(num_verts)
 
+            indexed_vert_pos = my_file.tell()
+
             for v in xrange(0, num_verts):
 
                 x = get_byte(my_file)
@@ -306,9 +308,23 @@ if __name__ == '__main__':
             if dest_len > 0:
                 new_data[dest_len-1] = POLY_DESC_END_OF_FRAME
 
+        dest_start_pos = len(new_data)
+
         my_file.seek(start_pos)
         new_data.extend(my_file.read(eof_byte - start_pos))
         my_file.seek(end_pos)
+
+        if indexed:
+            # Super hack-balls!
+            print "  Twiddling index data."
+            dest_vert_pos = dest_start_pos + indexed_vert_pos - start_pos
+            for v in xrange(0, num_verts):
+                # print "{0}: {1} -> {2}".format(v,new_data[dest_vert_pos + v],verts_x[v])
+                new_data[dest_vert_pos + v] = verts_x[v] / 2
+            for v in xrange(0, num_verts):
+                # print "{0}: {1} -> {2}".format(v,new_data[dest_vert_pos + num_verts + v],verts_y[v])
+                new_data[dest_vert_pos + num_verts + v] = verts_y[v]
+
         print
 
     print "Total frames = ", frame

@@ -9,6 +9,7 @@ _STOP_AT_FRAME = 0
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
 
+_PREPROCESSED_VERTS = TRUE
 _HALF_VERTICAL_RES = FALSE
 _DOUBLE_PLOT_Y = _HALF_VERTICAL_RES AND TRUE
 _STREAMING = FALSE
@@ -108,7 +109,7 @@ GUARD &9F
 ; vars for plot_span
 .writeptr           skip 2
 .span_start         skip 1
-.span_end           skip 1
+;.span_end           skip 1
 .span_width         skip 1
 ;.span_y             skip 1
 .span_colour        skip 1
@@ -168,10 +169,12 @@ ENDIF
 
 ORG &300
 GUARD &800
+IF _PREPROCESSED_VERTS = FALSE
 .vertices_x
 skip &100
 .vertices_y
 skip &100
+ENDIF
 .span_buffer_start
 skip &100
 .span_buffer_end

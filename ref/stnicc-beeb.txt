@@ -115,8 +115,8 @@ Info pane:
 - FPS
 
 Debug pane could be in MODE 4, single buffered, after the main window using vrup.
-Single frame step on keypress.
-Run to frame X (then single step).
+Single frame step on keypress. - DONE
+Run to frame X (then single step). - DONE
 Toggle solid / wireframe draw on paused frame.
 
 Optimisations
@@ -222,3 +222,6 @@ For every line of code:
 
 Inc. Med span = 32108
 w/out med span = 32061
+
+Not copying the vertex data save a measly 2 vsyncs :(
+Pre-dividing the vertices saves another 10 vsyncs.

@@ -61,11 +61,48 @@ ENDIF
     GET_BYTE
     sta indexed_num_verts
 
+IF _PREPROCESSED_VERTS
+    GET_BYTE
+    
+    clc
+    lda STREAM_ptr_LO
+    sta read_verts_x+1
+    adc indexed_num_verts
+    sta STREAM_ptr_LO
+
+    lda STREAM_ptr_HI
+    sta read_verts_x+2
+    adc #0
+    sta STREAM_ptr_HI
+ELSE
     ldx #0
-    .read_verts_loop
+    .read_verts_loop_x
     GET_BYTE
     lsr a
     sta vertices_x, X
+    inx
+    cpx indexed_num_verts
+    bcc read_verts_loop_x
+ENDIF
+
+IF _PREPROCESSED_VERTS
+    dec indexed_num_verts
+
+    clc
+    lda STREAM_ptr_LO
+    sta read_verts_y+1
+    adc indexed_num_verts
+    sta STREAM_ptr_LO
+
+    lda STREAM_ptr_HI
+    sta read_verts_y+2
+    adc #0
+    sta STREAM_ptr_HI
+
+    inc indexed_num_verts
+ELSE
+    ldx #0
+    .read_verts_loop_y
     GET_BYTE
     IF _HALF_VERTICAL_RES
     lsr a
@@ -73,7 +110,8 @@ ENDIF
     sta vertices_y, X
     inx
     cpx indexed_num_verts
-    bcc read_verts_loop
+    bcc read_verts_loop_y
+ENDIF
 
     \\ Read polygon data
     .read_poly_data
@@ -100,11 +138,25 @@ ENDIF
     GET_BYTE
     tay
 
-    \\ This can be changed to read the poly indices directly.
+IF _PREPROCESSED_VERTS
+    \\ Read the vertices directly from the stream data
+    .read_verts_x
+    lda &ffff, Y
+    sta poly_verts_x, X
+    .read_verts_y
+    lda &ffff, Y
+    IF _HALF_VERTICAL_RES
+    lsr a
+    ENDIF
+    sta poly_verts_y, X
+ELSE
     lda vertices_x, Y
     sta poly_verts_x, X
     lda vertices_y, Y
     sta poly_verts_y, X
+ENDIF
+
+    \\ Next step would be to inline the poly loop here.
 
     inx
     cpx poly_num_verts
@@ -124,6 +176,8 @@ ENDIF
     lsr a
     ENDIF
     sta poly_verts_y, X
+
+    \\ Next step would be to inline the poly loop here.
 
     inx
     cpx poly_num_verts
