@@ -18,28 +18,34 @@ _USE_MEDIUM_SPAN_PLOT = FALSE
 \\ 00p0 0000  00pp 0000  00pp p000  00pp pp00  00pp ppp0
 \\ 000p 0000  000p p000  000p pp00  000p ppp0  000p pppp
 
-MACRO SHORT_MASK_SHIFTS p, e
+MACRO SHORT_MASK_SHIFTS p, e, table_index
 FOR x,0,3,1
 s=p>>x
 h=(s AND &f0) >> 4
 l=(s AND &0f)
-EQUB (h OR h<<4) EOR e, (l OR l<<4) EOR e
+IF table_index==0
+EQUB (h OR h<<4) EOR e
+ELIF table_index==1
+EQUB (l OR l<<4) EOR e
+ELSE
+error "no"
+ENDIF
 NEXT
 ENDMACRO
 
-.color_mask_short
-SHORT_MASK_SHIFTS &80, 0
-SHORT_MASK_SHIFTS &c0, 0
-SHORT_MASK_SHIFTS &e0, 0
-SHORT_MASK_SHIFTS &f0, 0
-SHORT_MASK_SHIFTS &f8, 0
+MACRO SHORT_MASK_TABLE e,table_index
+SHORT_MASK_SHIFTS &80, e, table_index
+SHORT_MASK_SHIFTS &c0, e, table_index
+SHORT_MASK_SHIFTS &e0, e, table_index
+SHORT_MASK_SHIFTS &f0, e, table_index
+SHORT_MASK_SHIFTS &f8, e, table_index
+ENDMACRO
 
-.screen_mask_short
-SHORT_MASK_SHIFTS &80, &ff
-SHORT_MASK_SHIFTS &c0, &ff
-SHORT_MASK_SHIFTS &e0, &ff
-SHORT_MASK_SHIFTS &f0, &ff
-SHORT_MASK_SHIFTS &f8, &ff
+.color_mask_short_0:SHORT_MASK_TABLE 0,0
+.color_mask_short_1:SHORT_MASK_TABLE 0,1
+
+.screen_mask_short_0:SHORT_MASK_TABLE $ff,0
+.screen_mask_short_1:SHORT_MASK_TABLE $ff,1
 
 .plot_short_span
 {
@@ -52,17 +58,16 @@ SHORT_MASK_SHIFTS &f8, &ff
     txa                             ; 2c
     and #3                          ; 2c
 
-    ldx span_width                  ; 3c
-    adc minus_1_times_4, X          ; 4c
-    asl a                           ; 2c
-    tax                             ; 2c
+    ldx span_width
+    adc minus_1_times_4, X
+    tax
 
-    lda color_mask_short, X         ; 4c
-    and span_colour                 ; 3c
-    sta ora_byte1+1                 ; 4c
+    lda color_mask_short_0, X
+    and span_colour
+    sta ora_byte1+1
 
     lda (writeptr), Y               ; 5c
-    and screen_mask_short, X        ; 4c
+    and screen_mask_short_0, X        ; 4c
     .ora_byte1
     ora #0                          ; 2c
     sta (writeptr), Y               ; 6c
@@ -71,15 +76,14 @@ SHORT_MASK_SHIFTS &f8, &ff
     iny:sta (writeptr), Y           ; 8c
     ENDIF
 
-    inx                             ; 2c
-    lda color_mask_short, X         ; 4c
-    beq done                        ; 2/3c
-    and span_colour                 ; 3c
-    sta ora_byte2+1                 ; 4c
+    lda color_mask_short_1, X
+    beq done
+    and span_colour
+    sta ora_byte2+1
 
     ldy #8                          ; 2c
     lda (writeptr), Y               ; 5c
-    and screen_mask_short, X        ; 4c
+    and screen_mask_short_1, X        ; 4c
     .ora_byte2
     ora #0                          ; 2c
     sta (writeptr), Y               ; 6c
@@ -166,7 +170,7 @@ ENDIF
 
     \\ Increment column - can't overflow
     IF _UNROLL_SPAN_LOOP
-    lda writeptr:clc:adc #8:sta writeptr    ; 10c
+    lda writeptr:adc #7:sta writeptr
     ELSE
     tya:clc:adc #8:tay
     ENDIF
@@ -245,6 +249,7 @@ ENDIF
     ;rts
 \}
 
+IF _USE_MEDIUM_SPAN_PLOT
 \\ Can only be a maximum of 3 bytes plotted for medium spans..
 \\ X = [0,3] W = [6,9]
 
@@ -253,28 +258,38 @@ ENDIF
 \\ 00pp pppp 0000  00pp pppp p000  00pp pppp pp00  00pp pppp ppp0
 \\ 000p pppp p000  000p pppp pp00  000p pppp ppp0  000p pppp pppp
 
-MACRO MEDIUM_MASK_SHIFTS p, e
+MACRO MEDIUM_MASK_SHIFTS p, e, table_index
 FOR x,0,3,1
 s=p>>x
 h=(s AND &f00) >> 8
 m=(s AND &0f0) >> 4
 l=(s AND &00f)
-EQUB (h OR h<<4) EOR e, (m OR m<<4) EOR e, (l OR l<<4) EOR e, 0
+IF table_index==0
+EQUB (h OR h<<4) EOR e
+ELIF table_index==1
+EQUB (m OR m<<4) EOR e
+ELIF table_index==2
+EQUB (l OR l<<4) EOR e
+ELSE
+ERROR "no"
+ENDIF
 NEXT
 ENDMACRO
 
-IF _USE_MEDIUM_SPAN_PLOT
-.colour_mask_medium
-MEDIUM_MASK_SHIFTS &FC0, 0
-MEDIUM_MASK_SHIFTS &FE0, 0
-MEDIUM_MASK_SHIFTS &FF0, 0
-MEDIUM_MASK_SHIFTS &FF8, 0
+MACRO MEDIUM_MASK_TABLE e,table_index
+MEDIUM_MASK_SHIFTS &FC0, e, table_index
+MEDIUM_MASK_SHIFTS &FE0, e, table_index
+MEDIUM_MASK_SHIFTS &FF0, e, table_index
+MEDIUM_MASK_SHIFTS &FF8, e, table_index
+ENDMACRO
 
-.screen_mask_medium
-MEDIUM_MASK_SHIFTS &FC0, &ff
-MEDIUM_MASK_SHIFTS &FE0, &ff
-MEDIUM_MASK_SHIFTS &FF0, &ff
-MEDIUM_MASK_SHIFTS &FF8, &ff
+.colour_mask_medium_0:MEDIUM_MASK_TABLE 0,0
+.colour_mask_medium_1:MEDIUM_MASK_TABLE 0,1
+.colour_mask_medium_2:MEDIUM_MASK_TABLE 0,2
+
+.screen_mask_medium_0:MEDIUM_MASK_TABLE $ff,0
+.screen_mask_medium_1:MEDIUM_MASK_TABLE $ff,1
+.screen_mask_medium_2:MEDIUM_MASK_TABLE $ff,2
 
 .plot_medium_span
 {
@@ -285,16 +300,15 @@ MEDIUM_MASK_SHIFTS &FF8, &ff
 
     ldx span_width
     adc minus_6_times_4, X
-    asl a:asl a
     tax
 
     \\ Byte 1
-    lda colour_mask_medium, X
+    lda colour_mask_medium_0, X
     and span_colour
     sta ora_byte1+1
 
     lda (writeptr), Y               ; 5c
-    and screen_mask_medium, X        ; 4c
+    and screen_mask_medium_0, X        ; 4c
     .ora_byte1
     ora #0                          ; 2c
     sta (writeptr), Y               ; 6c
@@ -304,14 +318,13 @@ MEDIUM_MASK_SHIFTS &FF8, &ff
     ENDIF
 
     \\ Byte 2
-    inx
-    lda colour_mask_medium, X
+    lda colour_mask_medium_1, X
     and span_colour
     sta ora_byte2+1
 
     ldy #8
     lda (writeptr), Y               ; 5c
-    and screen_mask_medium, X        ; 4c
+    and screen_mask_medium_1, X        ; 4c
     .ora_byte2
     ora #0                          ; 2c
     sta (writeptr), Y               ; 6c
@@ -321,15 +334,14 @@ MEDIUM_MASK_SHIFTS &FF8, &ff
     ENDIF
 
     \\ Byte 3
-    inx
-    lda colour_mask_medium, X
+    lda colour_mask_medium_2, X
     beq done
     and span_colour
     sta ora_byte3+1
 
     ldy #16
     lda (writeptr), Y               ; 5c
-    and screen_mask_medium, X        ; 4c
+    and screen_mask_medium_2, X        ; 4c
     .ora_byte3
     ora #0                          ; 2c
     sta (writeptr), Y               ; 6c
@@ -502,19 +514,30 @@ ENDIF
 
 \\ **
 
-MACRO UPDATE_SPAN_BUFFER
+MACRO UPDATE_SPAN_BUFFER_WITH_A must_set_carry
 {
-    txa
-    cmp span_buffer_start, Y
-    bcs not_smaller
-    sta span_buffer_start, Y
-
-    .not_smaller
     cmp span_buffer_end, Y
     bcc not_larger
     sta span_buffer_end, Y
 
     .not_larger
+	
+    cmp span_buffer_start, Y
+    bcs not_smaller
+    sta span_buffer_start, Y
+
+IF must_set_carry
+    sec
+ENDIF
+	
+    .not_smaller
+}
+ENDMACRO
+
+MACRO UPDATE_SPAN_BUFFER_WITH_X must_set_carry
+{
+    txa
+	UPDATE_SPAN_BUFFER_WITH_A must_set_carry
 }
 ENDMACRO
 
@@ -576,6 +599,12 @@ ENDMACRO
 		
 .steepline
 
+; count = X counter
+; Y = Y counter
+; X = count
+
+    stx count
+
 	; self-modify code so that line progresses according to direction remembered earlier
 	PLP
 	lda #&c8		; INY	\\ going down
@@ -584,18 +613,18 @@ ENDMACRO
 	STA branchupdown
 	
 	PLP
-	lda #&e8		; INX	\\ going right
+	lda #&e6		; INC zp	\\ going right
 	BCC P%+4
-	lda #&ca		; DEX	\\ going left
+	lda #&c6		; DEC zp	\\ going left
 	sta branchleftright
 
 	; initialise accumulator for 'steep' line
 	LDA dy
-	STA count
+	tax
 	LSR A
 
     \\ _POLY_PLOT_END_POINTS
-    INC count
+    INX
 
 .steeplineloop
 
@@ -603,27 +632,29 @@ ENDMACRO
 	
 	; 'plot' pixel
     ;jsr plot_pixel_into_span_buffer
-    UPDATE_SPAN_BUFFER
+	lda count
+	UPDATE_SPAN_BUFFER_WITH_A TRUE
 
 	; check if done
-	DEC count
+	dex
     beq exitline
 
 	.branchupdown
 	; move up to next line
 	; move down to next line
-	nop                     ; self-mod to goingup or goingdown
+	nop                     ; iny/dey - self-mod to goingup or
+							; goingdown
 
 	; check move to next pixel column
 	.movetonextcolumn
-	SEC
 	LDA accum
 	SBC dx
 	BCS steeplineloop
 	ADC dy
 	
 	.branchleftright
-	nop					    ; self-modified to goingright or goingleft
+	inc count			   ; inc/dec - self-modified to goingright or
+						   ; goingleft
 	JMP steeplineloop		; always taken
 	
     .exit_early
@@ -632,7 +663,12 @@ ENDMACRO
 	.exitline
     jmp return_here_from_drawline
 
+
 .shallowline
+
+; X = X counter
+; count = Y counter
+; Y = count
 
 	; self-modify code so that line progresses according to direction remembered earlier
 	PLP
@@ -658,9 +694,14 @@ ENDMACRO
 
     \\ Plot first 'pixel' into span buffer
     ;jsr plot_pixel_into_span_buffer
-    UPDATE_SPAN_BUFFER
+    UPDATE_SPAN_BUFFER_WITH_X FALSE
 
-.shallowlineloop
+.shallowlineloop_1
+
+	sec
+	lda accum
+
+.shallowlineloop_2
 
 	; cache byte from destination screen address
 	; doesn't mean anything in our context
@@ -673,17 +714,13 @@ ENDMACRO
     beq exitline2
 
 	.branchleftright2
-	nop 					; self-modified to goingleft2 or goingright2
+	nop 					; inx/dex - self-modified to goingleft2 or
+							; goingright2
 
 	; check whether we move to the next line
-	SEC
-	LDA accum
 	SBC dy
-	BCC movetonextline
+	BCS shallowlineloop_2
 
-	STA accum
-	BCS shallowlineloop 	; always taken
-	
 	; move down to next line
 	.movetonextline
 	.goingdown2
@@ -692,21 +729,22 @@ ENDMACRO
 
     ; Plot 'pixel' for end of span on current line
     ;jsr plot_pixel_into_span_buffer
-    UPDATE_SPAN_BUFFER
+    UPDATE_SPAN_BUFFER_WITH_X FALSE
 
     .branchupdown2
-	nop		                ; self-modified to goingdown2 or goingup2
+	nop		                ; iny/dey - self-modified to goingdown2 or
+							; goingup2
 
     ; Plot 'pixel' for start of span on next line
     ;jsr plot_pixel_into_span_buffer
-    UPDATE_SPAN_BUFFER
+    UPDATE_SPAN_BUFFER_WITH_X FALSE
 
-	JMP shallowlineloop		; always taken
+	JMP shallowlineloop_1		; always taken
 
 	.exitline2
     ; Plot last 'pixel' into span buffer
     ;jmp plot_pixel_into_span_buffer
-    UPDATE_SPAN_BUFFER
+    UPDATE_SPAN_BUFFER_WITH_X FALSE
     jmp return_here_from_drawline
 }
 
