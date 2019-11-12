@@ -147,7 +147,7 @@ GUARD &9F
 .frame_flags        skip 1
 .frame_bitmask      skip 2
 .indexed_num_verts  skip 1
-.poly_descriptor    skip 1
+; .poly_descriptor    skip 1
 .eof_flag			skip 1
 
 ; system vars
@@ -873,6 +873,11 @@ EQUB 0				; returned error value
 EQUB 2,3,1,0
 
 ALIGN &100
+.shr4
+FOR n,0,255,1
+EQUB n>>4
+NEXT
+
 .screen_row_LO
 FOR n,0,255,1
 row=n DIV 8:sl=n MOD 8

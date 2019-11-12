@@ -118,16 +118,15 @@ ENDIF
     .read_poly_data
     ldy #0
     GET_BYTE
-    sta poly_descriptor
+	tax
     cmp #POLY_DESC_END_OF_STREAM
     bcs parse_end_of_frame
 
     and #&f
     sta poly_num_verts
 
-    lda poly_descriptor
-    lsr a:lsr a:lsr a:lsr a
-    sta poly_colour
+	lda shr4,x
+	sta poly_colour
 
     lda frame_flags
     and #FLAG_INDEXED_DATA
