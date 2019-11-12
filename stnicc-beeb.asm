@@ -1,3 +1,4 @@
+\ -*- mode:beebasm -*-
 \ ******************************************************************
 \ *	STNICC BEEB
 \ ******************************************************************
@@ -5,6 +6,9 @@
 _DEBUG = TRUE
 _TESTS = FALSE
 
+; If set, show total vsync count, rather than just the count for the
+; last frame. Intended for use in conjunction with _STOP_AT_FRAME.
+_SHOW_TOTAL_VSYNC_COUNTER = FALSE
 _STOP_AT_FRAME = 0
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
@@ -12,7 +16,7 @@ _PLOT_WIREFRAME = FALSE
 _PREPROCESSED_VERTS = TRUE
 _HALF_VERTICAL_RES = FALSE
 _DOUBLE_PLOT_Y = _HALF_VERTICAL_RES AND TRUE
-_STREAMING = FALSE
+_STREAMING = TRUE
 
 \ ******************************************************************
 \ *	OS defines
@@ -352,31 +356,11 @@ GUARD screen2_addr
 	cmp #POLY_DESC_END_OF_STREAM
     beq track_load_error
 
-IF _DEBUG
-	{
-		jsr debug_write_init
-
-		\\ Frame no.
-		lda frame_no+1
-		jsr debug_write_A
-		lda frame_no
-		jsr debug_write_A_spc
-
-		\\ Frame rate counter
-		sec
-		lda vsync_counter
-		sbc last_vsync
-		jsr debug_write_A_spc
-
-		lda vsync_counter
-		sta last_vsync
-
-		\\ Display other counters
-
-	}
-ENDIF
-
 	IF _STREAMING=FALSE
+
+	IF _DEBUG
+	jsr show_vsync_counter
+	ENDIF
 	{
 		\\ Toggle draw buffer
 		lda draw_buffer_HI
@@ -458,6 +442,41 @@ ENDIF
     \\ But not back to BASIC as we trashed all its workspace :D
 	RTS
 }
+
+IF _DEBUG
+.show_vsync_counter
+{
+	jsr debug_reset_writeptr
+
+	\\ Frame no.
+	lda frame_no+1
+	jsr debug_write_A
+	lda frame_no
+	jsr debug_write_A_spc
+
+IF _SHOW_TOTAL_VSYNC_COUNTER
+
+    lda vsync_counter+1
+	jsr debug_write_A
+
+	lda vsync_counter+0
+	jsr debug_write_A
+
+ELSE
+
+    sec
+    lda vsync_counter
+    sbc last_vsync
+    jsr debug_write_A
+
+    lda vsync_counter
+    sta last_vsync
+
+ENDIF
+
+	rts
+}
+ENDIF
 
 \ ******************************************************************
 \ *	Streaming tracks from disk
@@ -559,10 +578,25 @@ ENDIF
 	LDA &FC
 	PHA
 
+	LDA &FE4D
+	AND #2
+	BEQ not_vsync
+
+	lda #0
+	sta screen_lock
+
+	\\ Vsync
+    INC vsync_counter
+    BNE no_carry
+    INC vsync_counter+1
+    .no_carry
+	JMP return_to_os
+
+	.not_vsync
 	\\ Which interrupt?
 	LDA &FE4D
 	AND #&40			; timer 1
-	BEQ not_timer1
+	BEQ return_to_os
 
 	\\ Acknowledge timer 1 interrupt
 	STA &FE4D
@@ -603,6 +637,10 @@ ENDIF
 		lda #HI(STREAM_buffer_start-1)
 		sta STREAM_ptr_HI
 		.stream_ok
+
+	IF _DEBUG
+		jsr show_vsync_counter
+	ENDIF
 
 		\\ Disable interrupts again!
 		SEI
@@ -672,22 +710,6 @@ ENDIF
 
 	\\ Continue
 	ENDIF
-
-	bne return_to_os
-
-	.not_timer1
-	LDA &FE4D
-	AND #2
-	BEQ return_to_os
-
-	lda #0
-	sta screen_lock
-
-	\\ Vsync
-    INC vsync_counter
-    BNE no_carry
-    INC vsync_counter+1
-    .no_carry
 
 	\\ Pass on to OS IRQ handler
 	.return_to_os

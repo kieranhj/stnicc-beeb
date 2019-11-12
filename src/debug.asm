@@ -1,3 +1,4 @@
+\ -*- mode:beebasm -*-
 \ ******************************************************************
 \ *	DEBUG FUNCTIONS
 \ ******************************************************************
@@ -282,17 +283,31 @@ IF _DEBUG
     dey
     bpl loop
 
-    lda writeptr
-    clc
-    adc #8
+	lda writeptr+0
+	adc #8
+	sta writeptr+0
+	bcc done_writeptr_carry
+	inc writeptr+1
+	.done_writeptr_carry
+
+    rts
+}
+
+.debug_reset_writeptr
+{
+    lda draw_buffer_HI
+    sta writeptr+1
+    lda #0
     sta writeptr
 	rts
 }
 
 .debug_write_A_spc
 	sec
+	equb &24		; BIT zp - swallow clc
 .debug_write_A
 {
+	clc
     php:pha
 
     lsr a:lsr a:lsr a:lsr a
@@ -305,21 +320,13 @@ IF _DEBUG
 	plp
 	bcc return
 
-    lda writeptr
     clc
+    lda writeptr
     adc #8
     sta writeptr
+	bcc return
+	inc writeptr+1
 	.return
-	rts
-}
-
-.debug_write_init
-{
-    lda draw_buffer_HI
-    sta writeptr+1
-    lda #0
-    sta writeptr
-	clc
 	rts
 }
 
