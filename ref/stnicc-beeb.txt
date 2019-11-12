@@ -115,8 +115,8 @@ Info pane:
 - FPS
 
 Debug pane could be in MODE 4, single buffered, after the main window using vrup.
-Single frame step on keypress.
-Run to frame X (then single step).
+Single frame step on keypress. - DONE
+Run to frame X (then single step). - DONE
 Toggle solid / wireframe draw on paused frame.
 
 Optimisations
@@ -189,3 +189,39 @@ This gets worse when using half res. E.g. Frame 4:
           Edge 2 = [ 255, 98 ]
  Becomes co-incident point
  Worth culling these?
+
+10/11/2019
+~~~
+First fully streamed version working. Final vsync counts:
+
+Full plot: 33876 vsyncs / 1800 frames = 18.8 vsyncs/frame = 2.66fps
+Skipped scanlines: 21358 vsyncs = 11.9 vsyncs/frame = 4.2fps
+Doubled scanlines: 22986 vsyncs = 12.77 vsyncs/frame = 3.9fps
+
+Target framerate = 5fps for doubled scanlines = 10 vsyncs / frame
+1800 frames => total vsync target = 18000
+
+So need to save 5000 vsyncs across 1800 frames
+Or ~2.77 vsyncs per frame! (That's a lot). Or 111,000 cycles per frame. Gulp.
+Average of 40 polys per frame / 1000 spans.
+Looking to save ~111 cycles per span (seems optimistic).
+Or 2775 cycles per poly (also seems optimistic).
+
+Profile how much time each section takes:
+- Parse
+- Line draw
+- Span fill
+Where's the opportunity?
+
+For every line of code:
+- Do we need to do this at all? Can it be removed?
+- Can we reorder instructions to save cycles?
+- Look for any loops, unrolling potential or SMC
+- Can we avoid temporary storage of values?
+- What does the 'perfect' code look like? How do we get there?
+
+Inc. Med span = 32108
+w/out med span = 32061
+
+Not copying the vertex data save a measly 2 vsyncs :(
+Pre-dividing the vertices saves another 10 vsyncs.

@@ -6,14 +6,14 @@
 _DEBUG = TRUE
 _TESTS = FALSE
 
+; If set, show total vsync count, rather than just the count for the
+; last frame. Intended for use in conjunction with _STOP_AT_FRAME.
+_SHOW_TOTAL_VSYNC_COUNTER = FALSE
 _STOP_AT_FRAME = 0
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
 
-; If set, show total vsync count, rather than just the count for the
-; last frame. Intended for use in conjunction with _STOP_AT_FRAME.
-_SHOW_TOTAL_VSYNC_COUNTER = FALSE
-
+_PREPROCESSED_VERTS = TRUE
 _HALF_VERTICAL_RES = FALSE
 _DOUBLE_PLOT_Y = _HALF_VERTICAL_RES AND TRUE
 _STREAMING = TRUE
@@ -113,9 +113,9 @@ GUARD &9F
 ; vars for plot_span
 .writeptr           skip 2
 .span_start         skip 1
-.span_end           skip 1
+;.span_end           skip 1
 .span_width         skip 1
-.span_y             skip 1
+;.span_y             skip 1
 .span_colour        skip 1
 
 ; vars for drawline
@@ -153,7 +153,6 @@ GUARD &9F
 ; system vars
 .rom_bank           skip 1
 .vsync_counter      skip 2
-.last_vsync         skip 1
 .draw_buffer_HI     skip 1
 .sector_no          skip 1
 .track_no			skip 1
@@ -163,16 +162,23 @@ GUARD &9F
 .screen_lock		skip 1
 .pause_lock			skip 1
 
+; debug vars
+IF _DEBUG
+.last_vsync         skip 1
+ENDIF
+
 \ ******************************************************************
 \ *	BSS DATA IN LOWER RAM
 \ ******************************************************************
 
 ORG &300
 GUARD &800
+IF _PREPROCESSED_VERTS = FALSE
 .vertices_x
 skip &100
 .vertices_y
 skip &100
+ENDIF
 .span_buffer_start
 skip &100
 .span_buffer_end
@@ -230,6 +236,9 @@ GUARD screen2_addr
     jsr oswrch
     lda #5
     jsr oswrch
+
+	\\ Clear the extra bit!
+	jsr screen2_cls
 
 	{
 		lda #2
@@ -347,15 +356,11 @@ GUARD screen2_addr
 	cmp #POLY_DESC_END_OF_STREAM
     beq track_load_error
 
-IF _STREAMING=FALSE
-IF _DEBUG
-
-	jsr show_vsync_counter
-
-ENDIF
-ENDIF
-
 	IF _STREAMING=FALSE
+
+	IF _DEBUG
+	jsr show_vsync_counter
+	ENDIF
 	{
 		\\ Toggle draw buffer
 		lda draw_buffer_HI
@@ -375,6 +380,11 @@ ENDIF
 		lda #HI(screen1_addr/8):sta &fe01
 		lda #13:sta &fe00
 		lda #LO(screen1_addr/8):sta &fe01
+
+		\\ Draw screen 2
+		lda #HI(screen2_row_HI)
+		sta plot_span_set_screen+2
+
 		\\ Continue
 		bne done_swap
 
@@ -384,6 +394,11 @@ ENDIF
 		lda #HI(screen2_addr/8):sta &fe01
 		lda #13:sta &fe00
 		lda #LO(screen2_addr/8):sta &fe01
+
+		\\ Draw screen 1
+		lda #HI(screen1_row_HI)
+		sta plot_span_set_screen+2
+
 		\\ Continue
 		.done_swap
 	}
@@ -430,7 +445,14 @@ ENDIF
 
 IF _DEBUG
 .show_vsync_counter
+{
 	jsr debug_reset_writeptr
+
+	\\ Frame no.
+	lda frame_no+1
+	jsr debug_write_A
+	lda frame_no
+	jsr debug_write_A_spc
 
 IF _SHOW_TOTAL_VSYNC_COUNTER
 
@@ -453,6 +475,7 @@ ELSE
 ENDIF
 
 	rts
+}
 ENDIF
 
 \ ******************************************************************
@@ -555,10 +578,25 @@ ENDIF
 	LDA &FC
 	PHA
 
+	LDA &FE4D
+	AND #2
+	BEQ not_vsync
+
+	lda #0
+	sta screen_lock
+
+	\\ Vsync
+    INC vsync_counter
+    BNE no_carry
+    INC vsync_counter+1
+    .no_carry
+	JMP return_to_os
+
+	.not_vsync
 	\\ Which interrupt?
 	LDA &FE4D
 	AND #&40			; timer 1
-	BEQ not_timer1
+	BEQ return_to_os
 
 	\\ Acknowledge timer 1 interrupt
 	STA &FE4D
@@ -600,17 +638,14 @@ ENDIF
 		sta STREAM_ptr_HI
 		.stream_ok
 
-IF _DEBUG
-
+	IF _DEBUG
 		jsr show_vsync_counter
-
-ENDIF
+	ENDIF
 
 		\\ Disable interrupts again!
 		SEI
 	}
 	ENDIF
-
 
     IF _DEBUG AND _STOP_AT_FRAME > 0
     {
@@ -654,6 +689,11 @@ ENDIF
     lda #HI(screen1_addr/8):sta &fe01
     lda #13:sta &fe00
     lda #LO(screen1_addr/8):sta &fe01
+
+	\\ Draw screen 2
+	lda #HI(screen2_row_HI)
+	sta plot_span_set_screen+2
+
 	\\ Continue
 	bne return_to_os
 
@@ -663,24 +703,13 @@ ENDIF
     lda #HI(screen2_addr/8):sta &fe01
     lda #13:sta &fe00
     lda #LO(screen2_addr/8):sta &fe01
+
+	\\ Draw screen 1
+	lda #HI(screen1_row_HI)
+	sta plot_span_set_screen+2
+
 	\\ Continue
 	ENDIF
-
-	bne return_to_os
-
-	.not_timer1
-	LDA &FE4D
-	AND #2
-	BEQ return_to_os
-
-	lda #0
-	sta screen_lock
-
-	\\ Vsync
-    INC vsync_counter
-    BNE no_carry
-    INC vsync_counter+1
-    .no_carry
 
 	\\ Pass on to OS IRQ handler
 	.return_to_os
@@ -811,10 +840,15 @@ ALIGN &100  ; lazy
     EQUB %00010001
 }
 
+
 .four_minus
-{
-    EQUB 4,3,2,1
-}
+EQUB 4,3,2,1
+
+.minus_6_times_4
+EQUB 0, 0, 0, 0, 0
+
+.minus_1_times_4
+EQUB 0, 0, 4, 8, 12, 16
 
 ;.filename0
 ;EQUS "00", 13
@@ -842,25 +876,32 @@ ALIGN &100
 .screen_row_LO
 FOR n,0,255,1
 row=n DIV 8:sl=n MOD 8
-addr=row * SCREEN_ROW_BYTES + sl
-EQUB LO(addr)
+addr = row * SCREEN_ROW_BYTES + sl
+EQUB LO(screen1_addr + addr)
 NEXT
 
-.screen_row_HI
+.screen1_row_HI
 FOR n,0,255,1
 row=n DIV 8:sl=n MOD 8
-addr=row * SCREEN_ROW_BYTES + sl
-EQUB HI(addr)
+addr = row * SCREEN_ROW_BYTES + sl
+EQUB HI(screen1_addr + addr)
+NEXT
+
+.screen2_row_HI
+FOR n,0,255,1
+row=n DIV 8:sl=n MOD 8
+addr = row * SCREEN_ROW_BYTES + sl
+EQUB HI(screen2_addr + addr)
 NEXT
 
 .screen_col_LO
-FOR n,0,255,1
+FOR n,0,127,1
 col=n DIV 4
 EQUB LO(col*8)
 NEXT
 
 .screen_col_HI
-FOR n,0,255,1
+FOR n,0,127,1
 col=n DIV 4
 EQUB HI(col*8)
 NEXT
