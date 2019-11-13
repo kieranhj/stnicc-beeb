@@ -8,7 +8,7 @@ _TESTS = FALSE
 
 ; If set, show total vsync count, rather than just the count for the
 ; last frame. Intended for use in conjunction with _STOP_AT_FRAME.
-_SHOW_TOTAL_VSYNC_COUNTER = FALSE
+_SHOW_TOTAL_VSYNC_COUNTER = TRUE
 _STOP_AT_FRAME = 0
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
@@ -173,6 +173,21 @@ ENDIF
 
 ORG &300
 GUARD &800
+.reloc_to_start
+.screen_row_LO
+skip &100
+.screen1_row_HI
+skip &100
+.screen2_row_HI
+skip &100
+.screen_col_LO
+skip &80
+.screen_col_HI
+skip &80
+.reloc_to_end
+
+ORG &A00
+GUARD &D00
 IF _PREPROCESSED_VERTS = FALSE
 .vertices_x
 skip &100
@@ -236,6 +251,13 @@ GUARD screen2_addr
     jsr oswrch
     lda #5
     jsr oswrch
+
+	\\ Relocate data to lower RAM
+	\\ Might want to do this before clearing the screen if data overlaps!
+	lda #HI(reloc_from_start)
+	ldy #HI(reloc_to_start)
+	ldx #HI(reloc_to_end - reloc_to_start + &ff)
+	jsr copy_pages
 
 	\\ Clear the extra bit!
 	jsr screen2_cls
@@ -719,6 +741,28 @@ ENDIF
 }
 old_irqv = P%-2
 
+; A=from page, Y=to page, X=number of pages
+.copy_pages
+{
+	sta read_from+2
+	sty write_to+2
+
+	ldy #0
+	.page_loop
+	.read_from
+	lda &ff00, Y
+	.write_to
+	sta &ff00, Y
+	iny
+	bne page_loop
+	inc read_from+2
+	inc write_to+2
+	dex
+	bne page_loop
+
+	rts
+}
+
 .main_end
 
 \ ******************************************************************
@@ -840,7 +884,6 @@ ALIGN &100  ; lazy
     EQUB %00010001
 }
 
-
 .four_minus
 EQUB 4,3,2,1
 
@@ -872,41 +915,44 @@ EQUB 0				; returned error value
 .drive_order
 EQUB 2,3,1,0
 
+.data_end
+
 ALIGN &100
-.screen_row_LO
+.reloc_from_start
+.reloc_screen_row_LO
 FOR n,0,255,1
 row=n DIV 8:sl=n MOD 8
 addr = row * SCREEN_ROW_BYTES + sl
 EQUB LO(screen1_addr + addr)
 NEXT
 
-.screen1_row_HI
+.reloc_screen1_row_HI
 FOR n,0,255,1
 row=n DIV 8:sl=n MOD 8
 addr = row * SCREEN_ROW_BYTES + sl
 EQUB HI(screen1_addr + addr)
 NEXT
 
-.screen2_row_HI
+.reloc_screen2_row_HI
 FOR n,0,255,1
 row=n DIV 8:sl=n MOD 8
 addr = row * SCREEN_ROW_BYTES + sl
 EQUB HI(screen2_addr + addr)
 NEXT
 
-.screen_col_LO
+.reloc_screen_col_LO
 FOR n,0,127,1
 col=n DIV 4
 EQUB LO(col*8)
 NEXT
 
-.screen_col_HI
+.reloc_screen_col_HI
 FOR n,0,127,1
 col=n DIV 4
 EQUB HI(col*8)
 NEXT
 
-.data_end
+.reloc_from_end
 
 \ ******************************************************************
 \ *	End address to be saved
@@ -926,6 +972,10 @@ SAVE "STNICC", start, end, main
 
 .bss_start
 
+CLEAR reloc_from_start, screen2_addr
+ORG reloc_from_start
+GUARD screen2_addr
+
 ALIGN &100
 .STREAM_buffer_start
 SKIP STREAM_buffer_size
@@ -943,6 +993,7 @@ PRINT "------"
 PRINT "MAIN size =", ~main_end-main_start
 PRINT "FX size = ", ~fx_end-fx_start
 PRINT "DATA size =",~data_end-data_start
+PRINT "RELOC size =",~reloc_from_end-reloc_from_start
 PRINT "BSS size =",~bss_end-bss_start
 PRINT "------"
 PRINT "HIGH WATERMARK =", ~P%
