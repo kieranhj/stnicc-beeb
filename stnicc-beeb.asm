@@ -909,9 +909,13 @@ EQUB 0				; returned error value
 .drive_order
 EQUB 2,3,1,0
 
-.span_column_offset
+
+.long_span_tables
 FOR col,0,32,1
-EQUB (32-col) * 3
+EQUB (32-col)*3					; +0,x for span_column_offset
+EQUB (col*8) AND 255			; +1,x for mult_8
+EQUB 0							; +2,x spare
+EQUB 0							; +3,x spare
 NEXT
 
 .data_end
