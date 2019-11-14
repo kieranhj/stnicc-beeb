@@ -9,7 +9,7 @@ _TESTS = FALSE
 ; If set, show total vsync count, rather than just the count for the
 ; last frame. Intended for use in conjunction with _STOP_AT_FRAME.
 _SHOW_TOTAL_VSYNC_COUNTER = TRUE
-_STOP_AT_FRAME = 0
+_STOP_AT_FRAME = 100
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
 
@@ -117,6 +117,7 @@ GUARD &9F
 .span_width         skip 1
 ;.span_y             skip 1
 .span_colour        skip 1
+.shortptr			skip 2
 
 ; vars for drawline
 .startx             skip 1
@@ -715,7 +716,8 @@ old_irqv = P%-2
 
 	\\ Draw screen 2
 	lda #HI(screen2_row_HI)
-	sta plot_span_set_screen+2
+	sta plot_long_span_set_screen+2
+	sta plot_short_span_set_screen+2
 
 		lda #LO(span_row_table_screen2_LO)
 		sta plot_span_set_row_table_LO+1
@@ -738,7 +740,8 @@ old_irqv = P%-2
 
 	\\ Draw screen 1
 	lda #HI(screen1_row_HI)
-	sta plot_span_set_screen+2
+	sta plot_long_span_set_screen+2
+	sta plot_short_span_set_screen+2
 		
 		lda #LO(span_row_table_screen1_LO)
 		sta plot_span_set_row_table_LO+1
@@ -882,7 +885,7 @@ EQUB 4,3,2,1
 EQUB 0, 0, 0, 0, 0
 
 .minus_1_times_4
-EQUB 0, 0, 4, 8, 12, 16
+EQUB 0, 0, 4, 8, 12, 16, 20, 24, 28, 32
 
 ;.filename0
 ;EQUS "00", 13
