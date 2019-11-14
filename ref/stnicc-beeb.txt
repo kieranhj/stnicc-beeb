@@ -225,3 +225,12 @@ w/out med span = 32061
 
 Not copying the vertex data save a measly 2 vsyncs :(
 Pre-dividing the vertices saves another 10 vsyncs.
+
+12/11/2019 - full run now &7A4D = 31309!
+First 100 frames = &67F = 1663 vsyncs.
+
+lda (writeptr), Y
+lda &5800, Y
+lda &5800, (col*8) + sl
+
+After row unrolling = &79AA = 31146

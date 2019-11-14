@@ -188,8 +188,8 @@ IF _PLOT_WIREFRAME
     jsr plot_poly_line
 ELSE
     jmp plot_poly_span      ; JSR/RTS => JMP/JMP
-    .return_here_from_plot_poly
 ENDIF
+    .return_here_from_plot_poly
 
     jmp read_poly_data
 

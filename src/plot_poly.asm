@@ -3,7 +3,7 @@
 \ *	SPAN BUFFER POLYGON FILL ROUTINES
 \ ******************************************************************
 
-_UNROLL_SPAN_LOOP = TRUE
+_UNROLL_SPAN_LOOP = FALSE
 _USE_MEDIUM_SPAN_PLOT = FALSE
 
 \ ******************************************************************
@@ -81,9 +81,9 @@ ENDMACRO
     and span_colour
     sta ora_byte2+1
 
-    ldy #8                          ; 2c
+    clc:tya:adc #8:tay              ; 6c
     lda (writeptr), Y               ; 5c
-    and screen_mask_short_1, X        ; 4c
+    and screen_mask_short_1, X      ; 4c
     .ora_byte2
     ora #0                          ; 2c
     sta (writeptr), Y               ; 6c
@@ -107,20 +107,20 @@ ENDMACRO
 .plot_span
 \{
     ; X=span_start
-    ; Y=span_y
+    ; Y=span_y / poly_y
     ; span_width already computed
 
-    \\ Compute address of first screen byte
-    clc                             ; 2c
-    lda screen_row_LO, Y            ; 4c
-    adc screen_col_LO, X            ; 4c
-    sta writeptr                    ; 3c
+    \\ Compute address screen row for writeptr
+    \\ NB. writeptr_LO = 0 then indexed by Y
     .plot_span_set_screen
     lda screen1_row_HI, Y           ; 4c
-    adc screen_col_HI, X            ; 4c
     sta writeptr+1                  ; 3c
 
-    ldy #0                          ; 2c
+    \\ Calculate offset into screen row for Y
+    clc
+    lda screen_row_LO, Y            ; 4c        ; scanline
+    adc screen_col_LO, X            ; 4c        ; column * 8
+    tay
 
     \\ Check if the span is short...
     lda span_width                  ; 3c
@@ -167,63 +167,58 @@ ENDIF
     lda span_width                          ; 3c
     sbc four_minus, X                       ; 4c
     sta span_width                          ; 3c
+    \\ C=1
 
-    \\ Increment column - can't overflow
-    IF _UNROLL_SPAN_LOOP
-    lda writeptr:adc #7:sta writeptr
-    ELSE
-    tya:clc:adc #8:tay
-    ENDIF
+    \\ Increment column - can't overflow row
+    tya:adc #7:tay
 
     .skip_first_byte
 
-    \\ Main body of span
-    lda span_width                      ; 3c
-    lsr a:lsr a                         ; 4c
-    beq skip_span_loop                  ; 2/3c
-    tax                                 ; 2c
+    \\ Main body of span; bytes to plot = span_width DIV 4
+    lda span_width                          ; 3c
+    lsr a:lsr a                             ; 4c
+    beq skip_span_loop                      ; 2/3c
+    tax                                     ; 2c
 
-IF _UNROLL_SPAN_LOOP = FALSE
-    lda span_colour                     ; 3c
-    sta load_span_colour+1              ; 4c
-    clc                                 ; 2c
-    .loop
+    \\ X=width in columns
 
-    \\ Need to unroll this really
-    .load_span_colour
-    lda #0                              ; 2c
-    sta (writeptr), Y                   ; 6c
+    sty load_y_offset+1
 
-    tya:adc #8:tay                      ; 6c
-    dex                                 ; 2c
-    bne loop                            ; 3c
-    \\ 19c per byte
-ELSE
-    lda plot_span_unrolled_LO, X        ; 4c
-    sta jmp_to_unrolled_span_loop+1     ; 4c
-    lda plot_span_unrolled_HI, X        ; 4c
-    sta jmp_to_unrolled_span_loop+2     ; 4c
-    lda span_colour                     ; 3c
-    .jmp_to_unrolled_span_loop
-    jmp &ffff                           ; 3c + 3c
+    \\ Select row fn (row = Y DIV 8)
+    \\ Add offset into fn based on #columns to plot
+    ldy poly_y                              ; 3c
+    lda y_to_row, Y                         ; 4c
+    tay                                     ; 2c
+
+    clc                                     ; 2c
+    .plot_span_set_row_table_LO
+    lda span_row_table_screen1_LO, Y        ; 4c
+    adc span_column_offset, X               ; 4c
+    sta jump_to_unrolled_span_row+1         ; 4c
+    .plot_span_set_row_table_HI
+    lda span_row_table_screen1_HI, Y        ; 4c
+    adc #0                                  ; 2c
+    sta jump_to_unrolled_span_row+2         ; 4c
+
+    \\ Y=column offset from start of row + scanline = writeptr_LO
+    .load_y_offset
+    ldy #0                            ; 3c
+
+    \\ A=screen byte
+    lda span_colour                         ; 3c
+    .jump_to_unrolled_span_row
+    jmp &ffff                               ; _DOUBLE_PLOT_Y ?
     .return_here_from_unrolled_span_loop
-    \\ 22c overhead + 8c per byte
 
-    tya:clc                             ; 4c
-    IF _DOUBLE_PLOT_Y
-    adc #7                              ; 2c
-    ELSE
-    adc #8
-    ENDIF
-    tay                                 ; 2c
-ENDIF
+    \\ Increment to last column
+    tya:clc:adc mult_8, X:tay     
 
     .skip_span_loop
     \\ Last byte?
-    lda span_width                      ; 3c
-    and #3                              ; 2c
-    beq skip_last_byte                  ; 2/3c
-    tax                                 ; 2c
+    lda span_width                              ; 3c
+    and #3                                      ; 2c
+    beq skip_last_byte                          ; 2/3c
+    tax                                         ; 2c
 
     lda span_colour                             ; 3c
     and screen_mask_starting_at_pixel, x        ; 4c
@@ -900,4 +895,152 @@ UNROLL_SPAN_LOOP 30
 UNROLL_SPAN_LOOP 31
 .span_loop_unrolled_32
 UNROLL_SPAN_LOOP 32
+ENDIF
+
+IF _UNROLL_SPAN_LOOP=FALSE
+MACRO UNROLL_SPAN_ROW screen, row
+    IF screen = 1
+    row_addr = screen1_addr + row * SCREEN_ROW_BYTES
+    ELSE
+    row_addr = screen2_addr + row * SCREEN_ROW_BYTES
+    ENDIF
+
+    FOR col,31,0,-1
+    sta row_addr + col*8, Y
+    NEXT
+    JMP return_here_from_unrolled_span_loop
+ENDMACRO
+
+.mult_8
+FOR x,0,32,1
+EQUB LO(x*8)        ; OK that 32 => 0
+NEXT
+
+UNROLLED_ROW_SIZE = 33 * 3
+
+.span_row_table_screen1_LO
+FOR row,0,24,1    ;SCREEN_HEIGHT_PIXELS-1,1
+;row = y DIV 8
+EQUB LO(span_screen1_row0_unrolled + row * UNROLLED_ROW_SIZE)
+NEXT
+
+.span_row_table_screen1_HI
+FOR row,0,24,1    ;SCREEN_HEIGHT_PIXELS-1,1
+;row = y DIV 8
+EQUB HI(span_screen1_row0_unrolled + row * UNROLLED_ROW_SIZE)
+NEXT
+
+.span_row_table_screen2_LO
+FOR row,0,24,1    ;SCREEN_HEIGHT_PIXELS-1,1
+;row = y DIV 8
+EQUB LO(span_screen2_row0_unrolled + row * UNROLLED_ROW_SIZE)
+NEXT
+
+.span_row_table_screen2_HI
+FOR row,0,24,1    ;SCREEN_HEIGHT_PIXELS-1,1
+;row = y DIV 8
+EQUB HI(span_screen2_row0_unrolled + row * UNROLLED_ROW_SIZE)
+NEXT
+
+.span_screen1_row0_unrolled
+UNROLL_SPAN_ROW 1, 0
+.span_screen1_row1_unrolled
+UNROLL_SPAN_ROW 1, 1
+.span_screen1_row2_unrolled
+UNROLL_SPAN_ROW 1, 2
+.span_screen1_row3_unrolled
+UNROLL_SPAN_ROW 1, 3
+.span_screen1_row4_unrolled
+UNROLL_SPAN_ROW 1, 4
+.span_screen1_row5_unrolled
+UNROLL_SPAN_ROW 1, 5
+.span_screen1_row6_unrolled
+UNROLL_SPAN_ROW 1, 6
+.span_screen1_row7_unrolled
+UNROLL_SPAN_ROW 1, 7
+.span_screen1_row8_unrolled
+UNROLL_SPAN_ROW 1, 8
+.span_screen1_row9_unrolled
+UNROLL_SPAN_ROW 1, 9
+.span_screen1_row10_unrolled
+UNROLL_SPAN_ROW 1, 10
+.span_screen1_row11_unrolled
+UNROLL_SPAN_ROW 1, 11
+.span_screen1_row12_unrolled
+UNROLL_SPAN_ROW 1, 12
+.span_screen1_row13_unrolled
+UNROLL_SPAN_ROW 1, 13
+.span_screen1_row14_unrolled
+UNROLL_SPAN_ROW 1, 14
+.span_screen1_row15_unrolled
+UNROLL_SPAN_ROW 1, 15
+.span_screen1_row16_unrolled
+UNROLL_SPAN_ROW 1, 16
+.span_screen1_row17_unrolled
+UNROLL_SPAN_ROW 1, 17
+.span_screen1_row18_unrolled
+UNROLL_SPAN_ROW 1, 18
+.span_screen1_row19_unrolled
+UNROLL_SPAN_ROW 1, 19
+.span_screen1_row20_unrolled
+UNROLL_SPAN_ROW 1, 20
+.span_screen1_row21_unrolled
+UNROLL_SPAN_ROW 1, 21
+.span_screen1_row22_unrolled
+UNROLL_SPAN_ROW 1, 22
+.span_screen1_row23_unrolled
+UNROLL_SPAN_ROW 1, 23
+.span_screen1_row24_unrolled
+UNROLL_SPAN_ROW 1, 24
+
+.span_screen2_row0_unrolled
+UNROLL_SPAN_ROW 2, 0
+.span_screen2_row1_unrolled
+UNROLL_SPAN_ROW 2, 1
+.span_screen2_row2_unrolled
+UNROLL_SPAN_ROW 2, 2
+.span_screen2_row3_unrolled
+UNROLL_SPAN_ROW 2, 3
+.span_screen2_row4_unrolled
+UNROLL_SPAN_ROW 2, 4
+.span_screen2_row5_unrolled
+UNROLL_SPAN_ROW 2, 5
+.span_screen2_row6_unrolled
+UNROLL_SPAN_ROW 2, 6
+.span_screen2_row7_unrolled
+UNROLL_SPAN_ROW 2, 7
+.span_screen2_row8_unrolled
+UNROLL_SPAN_ROW 2, 8
+.span_screen2_row9_unrolled
+UNROLL_SPAN_ROW 2, 9
+.span_screen2_row10_unrolled
+UNROLL_SPAN_ROW 2, 10
+.span_screen2_row11_unrolled
+UNROLL_SPAN_ROW 2, 11
+.span_screen2_row12_unrolled
+UNROLL_SPAN_ROW 2, 12
+.span_screen2_row13_unrolled
+UNROLL_SPAN_ROW 2, 13
+.span_screen2_row14_unrolled
+UNROLL_SPAN_ROW 2, 14
+.span_screen2_row15_unrolled
+UNROLL_SPAN_ROW 2, 15
+.span_screen2_row16_unrolled
+UNROLL_SPAN_ROW 2, 16
+.span_screen2_row17_unrolled
+UNROLL_SPAN_ROW 2, 17
+.span_screen2_row18_unrolled
+UNROLL_SPAN_ROW 2, 18
+.span_screen2_row19_unrolled
+UNROLL_SPAN_ROW 2, 19
+.span_screen2_row20_unrolled
+UNROLL_SPAN_ROW 2, 20
+.span_screen2_row21_unrolled
+UNROLL_SPAN_ROW 2, 21
+.span_screen2_row22_unrolled
+UNROLL_SPAN_ROW 2, 22
+.span_screen2_row23_unrolled
+UNROLL_SPAN_ROW 2, 23
+.span_screen2_row24_unrolled
+UNROLL_SPAN_ROW 2, 24
 ENDIF

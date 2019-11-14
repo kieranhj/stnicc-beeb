@@ -165,6 +165,7 @@ GUARD &9F
 ; debug vars
 IF _DEBUG
 .last_vsync         skip 1
+.debug_writeptr		skip 2
 ENDIF
 
 \ ******************************************************************
@@ -180,9 +181,9 @@ skip &100
 skip &100
 .screen2_row_HI
 skip &100
+.y_to_row
+skip &100
 .screen_col_LO
-skip &80
-.screen_col_HI
 skip &80
 .reloc_to_end
 
@@ -204,7 +205,7 @@ skip &100
 \ ******************************************************************
 
 ORG &1100
-GUARD screen2_addr
+GUARD &8000;screen2_addr
 
 .start
 
@@ -376,54 +377,18 @@ GUARD screen2_addr
 
 	lda eof_flag
 	cmp #POLY_DESC_END_OF_STREAM
-    beq track_load_error
+    bne not_eof
+	jmp track_load_error
+	.not_eof
 
 	IF _STREAMING=FALSE
 
 	IF _DEBUG
 	jsr show_vsync_counter
 	ENDIF
-	{
-		\\ Toggle draw buffer
-		lda draw_buffer_HI
-		eor #HI(screen1_addr EOR screen2_addr)
-		sta draw_buffer_HI
+	jmp swap_frame_buffers
+	.^return_here_from_swap_frame_buffers
 
-		\\ Set screen buffer address in CRTC - not read until vsync
-		cmp #HI(screen1_addr)
-		IF _DOUBLE_BUFFER
-		beq show_screen2
-		ELSE
-		bne show_screen2
-		ENDIF
-
-		\\ Show screen 1
-		lda #12:sta &fe00
-		lda #HI(screen1_addr/8):sta &fe01
-		lda #13:sta &fe00
-		lda #LO(screen1_addr/8):sta &fe01
-
-		\\ Draw screen 2
-		lda #HI(screen2_row_HI)
-		sta plot_span_set_screen+2
-
-		\\ Continue
-		bne done_swap
-
-		.show_screen2
-		\\ Show screen 2
-		lda #12:sta &fe00
-		lda #HI(screen2_addr/8):sta &fe01
-		lda #13:sta &fe00
-		lda #LO(screen2_addr/8):sta &fe01
-
-		\\ Draw screen 1
-		lda #HI(screen1_row_HI)
-		sta plot_span_set_screen+2
-
-		\\ Continue
-		.done_swap
-	}
 	ENDIF
 
 	\\ Which page are we reading crunched data from?
@@ -693,44 +658,8 @@ ENDIF
 	lda #&ff:sta screen_lock
 
 	IF _STREAMING
-    \\ Toggle draw buffer
-    lda draw_buffer_HI
-    eor #HI(screen1_addr EOR screen2_addr)
-    sta draw_buffer_HI
-
-	\\ Set screen buffer address in CRTC - not read until vsync
-	cmp #HI(screen1_addr)
-    IF _DOUBLE_BUFFER
-	beq show_screen2
-	ELSE
-	bne show_screen2
-    ENDIF
-
-	\\ Show screen 1
-    lda #12:sta &fe00
-    lda #HI(screen1_addr/8):sta &fe01
-    lda #13:sta &fe00
-    lda #LO(screen1_addr/8):sta &fe01
-
-	\\ Draw screen 2
-	lda #HI(screen2_row_HI)
-	sta plot_span_set_screen+2
-
-	\\ Continue
-	bne return_to_os
-
-	.show_screen2
-	\\ Show screen 2
-    lda #12:sta &fe00
-    lda #HI(screen2_addr/8):sta &fe01
-    lda #13:sta &fe00
-    lda #LO(screen2_addr/8):sta &fe01
-
-	\\ Draw screen 1
-	lda #HI(screen1_row_HI)
-	sta plot_span_set_screen+2
-
-	\\ Continue
+	jmp swap_frame_buffers
+	.^return_here_from_swap_frame_buffers
 	ENDIF
 
 	\\ Pass on to OS IRQ handler
@@ -761,6 +690,68 @@ old_irqv = P%-2
 	bne page_loop
 
 	rts
+}
+
+.swap_frame_buffers
+{
+    \\ Toggle draw buffer
+    lda draw_buffer_HI
+    eor #HI(screen1_addr EOR screen2_addr)
+    sta draw_buffer_HI
+
+	\\ Set screen buffer address in CRTC - not read until vsync
+	cmp #HI(screen1_addr)
+    IF _DOUBLE_BUFFER
+	beq show_screen2
+	ELSE
+	bne show_screen2
+    ENDIF
+
+	\\ Show screen 1
+    lda #12:sta &fe00
+    lda #HI(screen1_addr/8):sta &fe01
+    lda #13:sta &fe00
+    lda #LO(screen1_addr/8):sta &fe01
+
+	\\ Draw screen 2
+	lda #HI(screen2_row_HI)
+	sta plot_span_set_screen+2
+
+		lda #LO(span_row_table_screen2_LO)
+		sta plot_span_set_row_table_LO+1
+		lda #HI(span_row_table_screen2_LO)
+		sta plot_span_set_row_table_LO+2
+		lda #LO(span_row_table_screen2_HI)
+		sta plot_span_set_row_table_HI+1
+		lda #HI(span_row_table_screen2_HI)
+		sta plot_span_set_row_table_HI+2
+
+	\\ Continue
+	bne continue
+
+	.show_screen2
+	\\ Show screen 2
+    lda #12:sta &fe00
+    lda #HI(screen2_addr/8):sta &fe01
+    lda #13:sta &fe00
+    lda #LO(screen2_addr/8):sta &fe01
+
+	\\ Draw screen 1
+	lda #HI(screen1_row_HI)
+	sta plot_span_set_screen+2
+		
+		lda #LO(span_row_table_screen1_LO)
+		sta plot_span_set_row_table_LO+1
+		lda #HI(span_row_table_screen1_LO)
+		sta plot_span_set_row_table_LO+2
+		lda #LO(span_row_table_screen1_HI)
+		sta plot_span_set_row_table_HI+1
+		lda #HI(span_row_table_screen1_HI)
+		sta plot_span_set_row_table_HI+2
+
+	\\ Continue
+	.continue
+	jmp return_here_from_swap_frame_buffers
 }
 
 .main_end
@@ -915,6 +906,11 @@ EQUB 0				; returned error value
 .drive_order
 EQUB 2,3,1,0
 
+.span_column_offset
+FOR col,0,32,1
+EQUB (32-col) * 3
+NEXT
+
 .data_end
 
 ALIGN &100
@@ -940,16 +936,16 @@ addr = row * SCREEN_ROW_BYTES + sl
 EQUB HI(screen2_addr + addr)
 NEXT
 
+.reloc_y_to_row		; div_8
+FOR n,0,255,1
+row=n DIV 8
+EQUB row
+NEXT
+
 .reloc_screen_col_LO
 FOR n,0,127,1
 col=n DIV 4
 EQUB LO(col*8)
-NEXT
-
-.reloc_screen_col_HI
-FOR n,0,127,1
-col=n DIV 4
-EQUB HI(col*8)
 NEXT
 
 .reloc_from_end

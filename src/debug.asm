@@ -278,16 +278,16 @@ IF _DEBUG
     .read_glyph_data
     lda &ffff,y
     .write_glyph_data
-    sta (writeptr),y
+    sta (debug_writeptr),y
 
     dey
     bpl loop
 
-	lda writeptr+0
+	lda debug_writeptr+0
 	adc #8
-	sta writeptr+0
+	sta debug_writeptr+0
 	bcc done_writeptr_carry
-	inc writeptr+1
+	inc debug_writeptr+1
 	.done_writeptr_carry
 
     rts
@@ -296,9 +296,9 @@ IF _DEBUG
 .debug_reset_writeptr
 {
     lda draw_buffer_HI
-    sta writeptr+1
+    sta debug_writeptr+1
     lda #0
-    sta writeptr
+    sta debug_writeptr
 	rts
 }
 
@@ -321,11 +321,11 @@ IF _DEBUG
 	bcc return
 
     clc
-    lda writeptr
+    lda debug_writeptr
     adc #8
-    sta writeptr
+    sta debug_writeptr
 	bcc return
-	inc writeptr+1
+	inc debug_writeptr+1
 	.return
 	rts
 }
