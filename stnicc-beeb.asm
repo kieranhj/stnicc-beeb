@@ -9,12 +9,12 @@ _TESTS = FALSE
 ; If set, show total vsync count, rather than just the count for the
 ; last frame. Intended for use in conjunction with _STOP_AT_FRAME.
 _SHOW_TOTAL_VSYNC_COUNTER = TRUE
-_STOP_AT_FRAME = 100
+_STOP_AT_FRAME = 0
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
 
 _PREPROCESSED_VERTS = TRUE
-_HALF_VERTICAL_RES = FALSE
+_HALF_VERTICAL_RES = FALSE	; <== currently broken!
 _DOUBLE_PLOT_Y = _HALF_VERTICAL_RES AND TRUE
 _STREAMING = TRUE
 
