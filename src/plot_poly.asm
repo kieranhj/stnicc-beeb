@@ -3,100 +3,11 @@
 \ *	SPAN BUFFER POLYGON FILL ROUTINES
 \ ******************************************************************
 
-_UNROLL_SPAN_LOOP = TRUE
-_USE_MEDIUM_SPAN_PLOT = FALSE
+_USE_MEDIUM_SPAN_PLOT = TRUE
 
 \ ******************************************************************
 \ *	SPAN PLOTTING FUNCTIONS
 \ ******************************************************************
-
-\\ Can only be a maximum of 2 bytes plotted for short (<=5 pixel) spans
-\\ X = [0,3] W = [1,5]
-
-\\ p000 0000  pp00 0000  ppp0 0000  pppp 0000  pppp p000
-\\ 0p00 0000  0pp0 0000  0ppp 0000  0ppp p000  0ppp pp00
-\\ 00p0 0000  00pp 0000  00pp p000  00pp pp00  00pp ppp0
-\\ 000p 0000  000p p000  000p pp00  000p ppp0  000p pppp
-
-MACRO SHORT_MASK_SHIFTS p, e, table_index
-FOR x,0,3,1
-s=p>>x
-h=(s AND &f0) >> 4
-l=(s AND &0f)
-IF table_index==0
-EQUB (h OR h<<4) EOR e
-ELIF table_index==1
-EQUB (l OR l<<4) EOR e
-ELSE
-error "no"
-ENDIF
-NEXT
-ENDMACRO
-
-MACRO SHORT_MASK_TABLE e,table_index
-SHORT_MASK_SHIFTS &80, e, table_index
-SHORT_MASK_SHIFTS &c0, e, table_index
-SHORT_MASK_SHIFTS &e0, e, table_index
-SHORT_MASK_SHIFTS &f0, e, table_index
-SHORT_MASK_SHIFTS &f8, e, table_index
-ENDMACRO
-
-.color_mask_short_0:SHORT_MASK_TABLE 0,0
-.color_mask_short_1:SHORT_MASK_TABLE 0,1
-
-.screen_mask_short_0:SHORT_MASK_TABLE $ff,0
-.screen_mask_short_1:SHORT_MASK_TABLE $ff,1
-
-.plot_short_span
-{
-    \\ A=span_width
-    \\ X=span_start (pixel column)
-    \\ Y=0
-
-    \\ w = [1,5] x = [0,3]
-    \\ index= ((w-1)*4+(xAND3))*2
-    txa                             ; 2c
-    and #3                          ; 2c
-
-    ldx span_width
-    adc minus_1_times_4, X
-    tax
-
-    lda color_mask_short_0, X
-    and span_colour
-    sta ora_byte1+1
-
-    lda (writeptr), Y               ; 5c
-    and screen_mask_short_0, X        ; 4c
-    .ora_byte1
-    ora #0                          ; 2c
-    sta (writeptr), Y               ; 6c
-
-    IF _DOUBLE_PLOT_Y
-    iny:sta (writeptr), Y           ; 8c
-    ENDIF
-
-    lda color_mask_short_1, X
-    beq done
-    and span_colour
-    sta ora_byte2+1
-
-    ldy #8                          ; 2c
-    lda (writeptr), Y               ; 5c
-    and screen_mask_short_1, X        ; 4c
-    .ora_byte2
-    ora #0                          ; 2c
-    sta (writeptr), Y               ; 6c
-
-    IF _DOUBLE_PLOT_Y
-    iny:sta (writeptr), Y               ; 6c
-    ENDIF
-
-    .done
-
-    jmp return_here_from_plot_span
-    ;rts
-}
 
 ; Plot pixels from [span_start,span_end] on line span_y using span_colour
 ; Can optimise all of this later for poly fill, as shouldn't need to check
@@ -107,34 +18,20 @@ ENDMACRO
 .plot_span
 \{
     ; X=span_start
-    ; Y=span_y
+    ; Y=span_y / poly_y
     ; span_width already computed
 
-    \\ Compute address of first screen byte
-    clc                             ; 2c
-    lda screen_row_LO, Y            ; 4c
-    adc screen_col_LO, X            ; 4c
-    sta writeptr                    ; 3c
-    .plot_span_set_screen
+    \\ Compute address screen row for writeptr
+    \\ NB. writeptr_LO = 0 then indexed by Y
+    .plot_long_span_set_screen
     lda screen1_row_HI, Y           ; 4c
-    adc screen_col_HI, X            ; 4c
     sta writeptr+1                  ; 3c
 
-    ldy #0                          ; 2c
-
-    \\ Check if the span is short...
-    lda span_width                  ; 3c
-    cmp #6                          ; 2c
-    bcc plot_short_span     ; [1-5] ; 2/3c
-
-IF _USE_MEDIUM_SPAN_PLOT
-    \\ Long...
-    cmp #10                         ; 2c
-    bcs plot_long_span              ; 2/3c
-    
-    \\ Or medium...
-    jmp plot_medium_span   ; [6-9]
-ENDIF
+    \\ Calculate offset into screen row for Y
+    clc
+    lda screen_row_LO, Y            ; 4c        ; scanline
+    adc screen_col_LO, X            ; 4c        ; column * 8
+    tay
 
     .plot_long_span
     \\ First byte
@@ -167,63 +64,65 @@ ENDIF
     lda span_width                          ; 3c
     sbc four_minus, X                       ; 4c
     sta span_width                          ; 3c
+    \\ C=1
 
-    \\ Increment column - can't overflow
-    IF _UNROLL_SPAN_LOOP
-    lda writeptr:adc #7:sta writeptr
-    ELSE
-    tya:clc:adc #8:tay
-    ENDIF
+    \\ Increment column - can't overflow row
+    tya:adc #7:tay
+	\\ C=0
 
     .skip_first_byte
 
-    \\ Main body of span
-    lda span_width                      ; 3c
-    lsr a:lsr a                         ; 4c
-    beq skip_span_loop                  ; 2/3c
-    tax                                 ; 2c
+    \\ Main body of span; bytes to plot = span_width DIV 4
+    lda span_width                          ; 3c
+	and #%11111100							; 2c
+    beq skip_span_loop                      ; 2/3c
 
-IF _UNROLL_SPAN_LOOP = FALSE
-    lda span_colour                     ; 3c
-    sta load_span_colour+1              ; 4c
-    clc                                 ; 2c
-    .loop
+    \\ X=width in columns
+	sty load_y_offset+1
 
-    \\ Need to unroll this really
-    .load_span_colour
-    lda #0                              ; 2c
-    sta (writeptr), Y                   ; 6c
+    ; \\ Select row fn (row = Y DIV 8)
+    ; \\ Add offset into fn based on #columns to plot
+	ldx span_y
+	ldy y_to_row,x
+	
+    tax                                     ; 2c
 
-    tya:adc #8:tay                      ; 6c
-    dex                                 ; 2c
-    bne loop                            ; 3c
-    \\ 19c per byte
-ELSE
-    lda plot_span_unrolled_LO, X        ; 4c
-    sta jmp_to_unrolled_span_loop+1     ; 4c
-    lda plot_span_unrolled_HI, X        ; 4c
-    sta jmp_to_unrolled_span_loop+2     ; 4c
-    lda span_colour                     ; 3c
-    .jmp_to_unrolled_span_loop
-    jmp &ffff                           ; 3c + 3c
+    .plot_span_set_row_table_LO
+    lda span_row_table_screen1_LO, Y        ; 4c
+    adc long_span_tables+0,X				; 4c
+    sta jump_to_unrolled_span_row+1         ; 4c
+    .plot_span_set_row_table_HI
+    lda span_row_table_screen1_HI, Y        ; 4c
+    adc #0                                  ; 2c
+    sta jump_to_unrolled_span_row+2         ; 4c
+	\\ C=0
+	
+    \\ Y=column offset from start of row + scanline = writeptr_LO
+    .load_y_offset
+    ldy #0                            ; 3c
+
+    \\ A=screen byte
+    .do_unrolled_span
+    lda span_colour                         ; 3c
+    .jump_to_unrolled_span_row
+    jmp &ffff                               ; _DOUBLE_PLOT_Y ?
     .return_here_from_unrolled_span_loop
-    \\ 22c overhead + 8c per byte
-
-    tya:clc                             ; 4c
     IF _DOUBLE_PLOT_Y
-    adc #7                              ; 2c
-    ELSE
-    adc #8
+    tya:and #1:bne done_double_plot         ; 6c
+    iny:bne do_unrolled_span                ; 5c
+    .done_double_plot
+    dey                                     ; 2c
     ENDIF
-    tay                                 ; 2c
-ENDIF
+
+    \\ Increment to last column
+    tya:adc long_span_tables+1,X:tay     
 
     .skip_span_loop
     \\ Last byte?
-    lda span_width                      ; 3c
-    and #3                              ; 2c
-    beq skip_last_byte                  ; 2/3c
-    tax                                 ; 2c
+    lda span_width                              ; 3c
+    and #3                                      ; 2c
+    beq skip_last_byte                          ; 2/3c
+    tax                                         ; 2c
 
     lda span_colour                             ; 3c
     and screen_mask_starting_at_pixel, x        ; 4c
@@ -249,7 +148,33 @@ ENDIF
     ;rts
 \}
 
-IF _USE_MEDIUM_SPAN_PLOT
+\ ******************************************************************
+\ *	PRE-SHIFTED DATA FOR SHORT/MEDIUM SPANS
+\ ******************************************************************
+
+\\ Can only be a maximum of 2 bytes plotted for short (<=5 pixel) spans
+\\ X = [0,3] W = [1,5]
+
+\\ p000 0000  pp00 0000  ppp0 0000  pppp 0000  pppp p000
+\\ 0p00 0000  0pp0 0000  0ppp 0000  0ppp p000  0ppp pp00
+\\ 00p0 0000  00pp 0000  00pp p000  00pp pp00  00pp ppp0
+\\ 000p 0000  000p p000  000p pp00  000p ppp0  000p pppp
+
+MACRO SHORT_MASK_SHIFTS p, e, table_index
+FOR x,0,3,1
+s=p>>x
+h=(s AND &f0) >> 4
+l=(s AND &0f)
+IF table_index==0
+EQUB (h OR h<<4) EOR e
+ELIF table_index==1
+EQUB (l OR l<<4) EOR e
+ELSE
+error "no"
+ENDIF
+NEXT
+ENDMACRO
+
 \\ Can only be a maximum of 3 bytes plotted for medium spans..
 \\ X = [0,3] W = [6,9]
 
@@ -276,6 +201,14 @@ ENDIF
 NEXT
 ENDMACRO
 
+MACRO SHORT_MASK_TABLE e,table_index
+MEDIUM_MASK_SHIFTS &800, e, table_index
+MEDIUM_MASK_SHIFTS &C00, e, table_index
+MEDIUM_MASK_SHIFTS &E00, e, table_index
+MEDIUM_MASK_SHIFTS &F00, e, table_index
+MEDIUM_MASK_SHIFTS &F80, e, table_index
+ENDMACRO
+
 MACRO MEDIUM_MASK_TABLE e,table_index
 MEDIUM_MASK_SHIFTS &FC0, e, table_index
 MEDIUM_MASK_SHIFTS &FE0, e, table_index
@@ -283,78 +216,34 @@ MEDIUM_MASK_SHIFTS &FF0, e, table_index
 MEDIUM_MASK_SHIFTS &FF8, e, table_index
 ENDMACRO
 
+.color_mask_short_0:SHORT_MASK_TABLE 0,0
+IF _USE_MEDIUM_SPAN_PLOT
 .colour_mask_medium_0:MEDIUM_MASK_TABLE 0,0
+ENDIF
+
+.color_mask_short_1:SHORT_MASK_TABLE 0,1
+IF _USE_MEDIUM_SPAN_PLOT
 .colour_mask_medium_1:MEDIUM_MASK_TABLE 0,1
+ENDIF
+
+.color_mask_short_2:SHORT_MASK_TABLE 0,2
+IF _USE_MEDIUM_SPAN_PLOT
 .colour_mask_medium_2:MEDIUM_MASK_TABLE 0,2
+ENDIF
 
+.screen_mask_short_0:SHORT_MASK_TABLE $ff,0
+IF _USE_MEDIUM_SPAN_PLOT
 .screen_mask_medium_0:MEDIUM_MASK_TABLE $ff,0
+ENDIF
+
+.screen_mask_short_1:SHORT_MASK_TABLE $ff,1
+IF _USE_MEDIUM_SPAN_PLOT
 .screen_mask_medium_1:MEDIUM_MASK_TABLE $ff,1
+ENDIF
+
+.screen_mask_short_2:SHORT_MASK_TABLE $ff,2
+IF _USE_MEDIUM_SPAN_PLOT
 .screen_mask_medium_2:MEDIUM_MASK_TABLE $ff,2
-
-.plot_medium_span
-{
-    \\ w = [6,9] x = [0,3]
-    \\ X= ((w-6)*4+(xAND3))*4
-    txa
-    and #3
-
-    ldx span_width
-    adc minus_6_times_4, X
-    tax
-
-    \\ Byte 1
-    lda colour_mask_medium_0, X
-    and span_colour
-    sta ora_byte1+1
-
-    lda (writeptr), Y               ; 5c
-    and screen_mask_medium_0, X        ; 4c
-    .ora_byte1
-    ora #0                          ; 2c
-    sta (writeptr), Y               ; 6c
-
-    IF _DOUBLE_PLOT_Y
-    iny:sta (writeptr), Y
-    ENDIF
-
-    \\ Byte 2
-    lda colour_mask_medium_1, X
-    and span_colour
-    sta ora_byte2+1
-
-    ldy #8
-    lda (writeptr), Y               ; 5c
-    and screen_mask_medium_1, X        ; 4c
-    .ora_byte2
-    ora #0                          ; 2c
-    sta (writeptr), Y               ; 6c
-
-    IF _DOUBLE_PLOT_Y
-    iny:sta (writeptr), Y
-    ENDIF
-
-    \\ Byte 3
-    lda colour_mask_medium_2, X
-    beq done
-    and span_colour
-    sta ora_byte3+1
-
-    ldy #16
-    lda (writeptr), Y               ; 5c
-    and screen_mask_medium_2, X        ; 4c
-    .ora_byte3
-    ora #0                          ; 2c
-    sta (writeptr), Y               ; 6c
-
-    IF _DOUBLE_PLOT_Y
-    iny:sta (writeptr), Y
-    ENDIF
-
-    .done
-
-    jmp return_here_from_plot_span
-    ;rts
-}
 ENDIF
 
 \ ******************************************************************
@@ -468,8 +357,16 @@ ENDIF
 
     \\ Shouldn't have blank spans now we have min/max Y
 
+    \\ Check if the span is short...
+IF _USE_MEDIUM_SPAN_PLOT
+    cmp #10                         ; 2c
+ELSE
+    cmp #6                          ; 2c
+ENDIF
+    bcc plot_short_span     ; [1-5] ; 2/3c
+
     IF _HALF_VERTICAL_RES
-    tya:asl a:tay               ; 6c
+    tya:asl a:tay:sty span_y        ; 6c
     ENDIF
 
     ;jsr plot_span
@@ -492,6 +389,90 @@ ENDIF
 
     jmp return_here_from_plot_poly
 \}
+
+.plot_short_span
+{
+    IF _HALF_VERTICAL_RES
+    tya:asl a:tay                   ; 6c
+    ENDIF
+
+    \\ A=span_width
+    \\ X=span_start (pixel column)
+    \\ Y=span_y
+
+    clc                             ; 2c
+    lda screen_row_LO, Y            ; 4c
+    adc screen_col_LO, X            ; 4c        ; column * 8
+    sta shortptr
+    .^plot_short_span_set_screen
+    lda screen1_row_HI, Y           ; 4c
+    ; no carry!
+    sta shortptr+1                  ; 3c
+
+    \\ w = [1,5] x = [0,3]
+    \\ index= ((w-1)*4+(xAND3))*2
+    txa                             ; 2c
+    and #3                          ; 2c
+
+    ldx span_width                  ; 3c
+    adc minus_1_times_4, X          ; 4c
+    tax                             ; 2c
+
+    \\ Byte 1
+    lda color_mask_short_0, X       ; 2c
+    and span_colour                 ; 3c
+    sta ora_byte1+1                 ; 4c
+
+    ldy #0                          ; 2c
+    lda (shortptr), Y               ; 5c
+    and screen_mask_short_0, X      ; 4c
+    .ora_byte1
+    ora #0                          ; 2c
+    sta (shortptr), Y               ; 6c
+
+    IF _DOUBLE_PLOT_Y
+    iny:sta (shortptr), Y           ; 8c
+    ENDIF
+
+    \\ Byte 2
+    lda color_mask_short_1, X       ; 4c
+    beq done                        ; 2/3c
+    and span_colour                 ; 3c
+    sta ora_byte2+1                 ; 4c
+
+    ldy #8                          ; 2c
+    lda (shortptr), Y               ; 5c
+    and screen_mask_short_1, X      ; 4c
+    .ora_byte2
+    ora #0                          ; 2c
+    sta (shortptr), Y               ; 6c
+
+    IF _DOUBLE_PLOT_Y
+    iny:sta (shortptr), Y           ; 8c
+    ENDIF
+
+IF _USE_MEDIUM_SPAN_PLOT
+    \\ Byte 3
+    lda color_mask_short_2, X       ; 4c
+    beq done                        ; 2/3c
+    and span_colour                 ; 3c
+    sta ora_byte3+1                 ; 4c
+
+    ldy #16                         ; 2c
+    lda (shortptr), Y               ; 5c
+    and screen_mask_short_2, X       ; 4c
+    .ora_byte3
+    ora #0                          ; 2c
+    sta (shortptr), Y               ; 6c
+
+    IF _DOUBLE_PLOT_Y
+    iny:sta (shortptr), Y           ; 8c
+    ENDIF
+ENDIF
+
+    .done
+    jmp return_here_from_plot_span
+}
 
 \ ******************************************************************
 \ *	SPAN BUFFER FUNCTIONS
@@ -748,156 +729,143 @@ ENDMACRO
     jmp return_here_from_drawline
 }
 
-MACRO ONE_OR_MANY v     ; haven't decided yet! may x4
-    EQUB v
-ENDMACRO
+MACRO UNROLL_SPAN_ROW screen, row
+    IF screen = 1
+    row_addr = screen1_addr + row * SCREEN_ROW_BYTES
+    ELSE
+    row_addr = screen2_addr + row * SCREEN_ROW_BYTES
+    ENDIF
 
-IF _UNROLL_SPAN_LOOP
-.plot_span_unrolled_LO
-ONE_OR_MANY LO(span_loop_unrolled_0)
-ONE_OR_MANY LO(span_loop_unrolled_1)
-ONE_OR_MANY LO(span_loop_unrolled_2)
-ONE_OR_MANY LO(span_loop_unrolled_3)
-ONE_OR_MANY LO(span_loop_unrolled_4)
-ONE_OR_MANY LO(span_loop_unrolled_5)
-ONE_OR_MANY LO(span_loop_unrolled_6)
-ONE_OR_MANY LO(span_loop_unrolled_7)
-ONE_OR_MANY LO(span_loop_unrolled_8)
-ONE_OR_MANY LO(span_loop_unrolled_9)
-ONE_OR_MANY LO(span_loop_unrolled_10)
-ONE_OR_MANY LO(span_loop_unrolled_11)
-ONE_OR_MANY LO(span_loop_unrolled_12)
-ONE_OR_MANY LO(span_loop_unrolled_13)
-ONE_OR_MANY LO(span_loop_unrolled_14)
-ONE_OR_MANY LO(span_loop_unrolled_15)
-ONE_OR_MANY LO(span_loop_unrolled_16)
-ONE_OR_MANY LO(span_loop_unrolled_17)
-ONE_OR_MANY LO(span_loop_unrolled_18)
-ONE_OR_MANY LO(span_loop_unrolled_19)
-ONE_OR_MANY LO(span_loop_unrolled_20)
-ONE_OR_MANY LO(span_loop_unrolled_21)
-ONE_OR_MANY LO(span_loop_unrolled_22)
-ONE_OR_MANY LO(span_loop_unrolled_23)
-ONE_OR_MANY LO(span_loop_unrolled_24)
-ONE_OR_MANY LO(span_loop_unrolled_25)
-ONE_OR_MANY LO(span_loop_unrolled_26)
-ONE_OR_MANY LO(span_loop_unrolled_27)
-ONE_OR_MANY LO(span_loop_unrolled_28)
-ONE_OR_MANY LO(span_loop_unrolled_29)
-ONE_OR_MANY LO(span_loop_unrolled_30)
-ONE_OR_MANY LO(span_loop_unrolled_31)
-ONE_OR_MANY LO(span_loop_unrolled_32)
-
-.plot_span_unrolled_HI
-ONE_OR_MANY HI(span_loop_unrolled_0)
-ONE_OR_MANY HI(span_loop_unrolled_1)
-ONE_OR_MANY HI(span_loop_unrolled_2)
-ONE_OR_MANY HI(span_loop_unrolled_3)
-ONE_OR_MANY HI(span_loop_unrolled_4)
-ONE_OR_MANY HI(span_loop_unrolled_5)
-ONE_OR_MANY HI(span_loop_unrolled_6)
-ONE_OR_MANY HI(span_loop_unrolled_7)
-ONE_OR_MANY HI(span_loop_unrolled_8)
-ONE_OR_MANY HI(span_loop_unrolled_9)
-ONE_OR_MANY HI(span_loop_unrolled_10)
-ONE_OR_MANY HI(span_loop_unrolled_11)
-ONE_OR_MANY HI(span_loop_unrolled_12)
-ONE_OR_MANY HI(span_loop_unrolled_13)
-ONE_OR_MANY HI(span_loop_unrolled_14)
-ONE_OR_MANY HI(span_loop_unrolled_15)
-ONE_OR_MANY HI(span_loop_unrolled_16)
-ONE_OR_MANY HI(span_loop_unrolled_17)
-ONE_OR_MANY HI(span_loop_unrolled_18)
-ONE_OR_MANY HI(span_loop_unrolled_19)
-ONE_OR_MANY HI(span_loop_unrolled_20)
-ONE_OR_MANY HI(span_loop_unrolled_21)
-ONE_OR_MANY HI(span_loop_unrolled_22)
-ONE_OR_MANY HI(span_loop_unrolled_23)
-ONE_OR_MANY HI(span_loop_unrolled_24)
-ONE_OR_MANY HI(span_loop_unrolled_25)
-ONE_OR_MANY HI(span_loop_unrolled_26)
-ONE_OR_MANY HI(span_loop_unrolled_27)
-ONE_OR_MANY HI(span_loop_unrolled_28)
-ONE_OR_MANY HI(span_loop_unrolled_29)
-ONE_OR_MANY HI(span_loop_unrolled_30)
-ONE_OR_MANY HI(span_loop_unrolled_31)
-ONE_OR_MANY HI(span_loop_unrolled_32)
-
-MACRO UNROLL_SPAN_LOOP n
-    FOR i,0,n-1,1
-        ldy #(i*8)
-        sta (writeptr), y
-        IF _DOUBLE_PLOT_Y
-        iny:sta (writeptr), y
-        ENDIF
+    FOR col,31,0,-1
+    sta row_addr + col*8, Y
     NEXT
-    jmp return_here_from_unrolled_span_loop
+    JMP return_here_from_unrolled_span_loop
 ENDMACRO
 
-.span_loop_unrolled_0
-brk     ; shouldn't happen!
-.span_loop_unrolled_1
-UNROLL_SPAN_LOOP 1
-.span_loop_unrolled_2
-UNROLL_SPAN_LOOP 2
-.span_loop_unrolled_3
-UNROLL_SPAN_LOOP 3
-.span_loop_unrolled_4
-UNROLL_SPAN_LOOP 4
-.span_loop_unrolled_5
-UNROLL_SPAN_LOOP 5
-.span_loop_unrolled_6
-UNROLL_SPAN_LOOP 6
-.span_loop_unrolled_7
-UNROLL_SPAN_LOOP 7
-.span_loop_unrolled_8
-UNROLL_SPAN_LOOP 8
-.span_loop_unrolled_9
-UNROLL_SPAN_LOOP 9
-.span_loop_unrolled_10
-UNROLL_SPAN_LOOP 10
-.span_loop_unrolled_11
-UNROLL_SPAN_LOOP 11
-.span_loop_unrolled_12
-UNROLL_SPAN_LOOP 12
-.span_loop_unrolled_13
-UNROLL_SPAN_LOOP 13
-.span_loop_unrolled_14
-UNROLL_SPAN_LOOP 14
-.span_loop_unrolled_15
-UNROLL_SPAN_LOOP 15
-.span_loop_unrolled_16
-UNROLL_SPAN_LOOP 16
-.span_loop_unrolled_17
-UNROLL_SPAN_LOOP 17
-.span_loop_unrolled_18
-UNROLL_SPAN_LOOP 18
-.span_loop_unrolled_19
-UNROLL_SPAN_LOOP 19
-.span_loop_unrolled_20
-UNROLL_SPAN_LOOP 20
-.span_loop_unrolled_21
-UNROLL_SPAN_LOOP 21
-.span_loop_unrolled_22
-UNROLL_SPAN_LOOP 22
-.span_loop_unrolled_23
-UNROLL_SPAN_LOOP 23
-.span_loop_unrolled_24
-UNROLL_SPAN_LOOP 24
-.span_loop_unrolled_25
-UNROLL_SPAN_LOOP 25
-.span_loop_unrolled_26
-UNROLL_SPAN_LOOP 26
-.span_loop_unrolled_27
-UNROLL_SPAN_LOOP 27
-.span_loop_unrolled_28
-UNROLL_SPAN_LOOP 28
-.span_loop_unrolled_29
-UNROLL_SPAN_LOOP 29
-.span_loop_unrolled_30
-UNROLL_SPAN_LOOP 30
-.span_loop_unrolled_31
-UNROLL_SPAN_LOOP 31
-.span_loop_unrolled_32
-UNROLL_SPAN_LOOP 32
-ENDIF
+UNROLLED_ROW_SIZE = 33 * 3
+
+.span_row_table_screen1_LO
+FOR row,0,24,1    ;SCREEN_HEIGHT_PIXELS-1,1
+;row = y DIV 8
+EQUB LO(span_screen1_row0_unrolled + row * UNROLLED_ROW_SIZE)
+NEXT
+
+.span_row_table_screen1_HI
+FOR row,0,24,1    ;SCREEN_HEIGHT_PIXELS-1,1
+;row = y DIV 8
+EQUB HI(span_screen1_row0_unrolled + row * UNROLLED_ROW_SIZE)
+NEXT
+
+.span_row_table_screen2_LO
+FOR row,0,24,1    ;SCREEN_HEIGHT_PIXELS-1,1
+;row = y DIV 8
+EQUB LO(span_screen2_row0_unrolled + row * UNROLLED_ROW_SIZE)
+NEXT
+
+.span_row_table_screen2_HI
+FOR row,0,24,1    ;SCREEN_HEIGHT_PIXELS-1,1
+;row = y DIV 8
+EQUB HI(span_screen2_row0_unrolled + row * UNROLLED_ROW_SIZE)
+NEXT
+
+.span_screen1_row0_unrolled
+UNROLL_SPAN_ROW 1, 0
+.span_screen1_row1_unrolled
+UNROLL_SPAN_ROW 1, 1
+.span_screen1_row2_unrolled
+UNROLL_SPAN_ROW 1, 2
+.span_screen1_row3_unrolled
+UNROLL_SPAN_ROW 1, 3
+.span_screen1_row4_unrolled
+UNROLL_SPAN_ROW 1, 4
+.span_screen1_row5_unrolled
+UNROLL_SPAN_ROW 1, 5
+.span_screen1_row6_unrolled
+UNROLL_SPAN_ROW 1, 6
+.span_screen1_row7_unrolled
+UNROLL_SPAN_ROW 1, 7
+.span_screen1_row8_unrolled
+UNROLL_SPAN_ROW 1, 8
+.span_screen1_row9_unrolled
+UNROLL_SPAN_ROW 1, 9
+.span_screen1_row10_unrolled
+UNROLL_SPAN_ROW 1, 10
+.span_screen1_row11_unrolled
+UNROLL_SPAN_ROW 1, 11
+.span_screen1_row12_unrolled
+UNROLL_SPAN_ROW 1, 12
+.span_screen1_row13_unrolled
+UNROLL_SPAN_ROW 1, 13
+.span_screen1_row14_unrolled
+UNROLL_SPAN_ROW 1, 14
+.span_screen1_row15_unrolled
+UNROLL_SPAN_ROW 1, 15
+.span_screen1_row16_unrolled
+UNROLL_SPAN_ROW 1, 16
+.span_screen1_row17_unrolled
+UNROLL_SPAN_ROW 1, 17
+.span_screen1_row18_unrolled
+UNROLL_SPAN_ROW 1, 18
+.span_screen1_row19_unrolled
+UNROLL_SPAN_ROW 1, 19
+.span_screen1_row20_unrolled
+UNROLL_SPAN_ROW 1, 20
+.span_screen1_row21_unrolled
+UNROLL_SPAN_ROW 1, 21
+.span_screen1_row22_unrolled
+UNROLL_SPAN_ROW 1, 22
+.span_screen1_row23_unrolled
+UNROLL_SPAN_ROW 1, 23
+.span_screen1_row24_unrolled
+UNROLL_SPAN_ROW 1, 24
+
+.span_screen2_row0_unrolled
+UNROLL_SPAN_ROW 2, 0
+.span_screen2_row1_unrolled
+UNROLL_SPAN_ROW 2, 1
+.span_screen2_row2_unrolled
+UNROLL_SPAN_ROW 2, 2
+.span_screen2_row3_unrolled
+UNROLL_SPAN_ROW 2, 3
+.span_screen2_row4_unrolled
+UNROLL_SPAN_ROW 2, 4
+.span_screen2_row5_unrolled
+UNROLL_SPAN_ROW 2, 5
+.span_screen2_row6_unrolled
+UNROLL_SPAN_ROW 2, 6
+.span_screen2_row7_unrolled
+UNROLL_SPAN_ROW 2, 7
+.span_screen2_row8_unrolled
+UNROLL_SPAN_ROW 2, 8
+.span_screen2_row9_unrolled
+UNROLL_SPAN_ROW 2, 9
+.span_screen2_row10_unrolled
+UNROLL_SPAN_ROW 2, 10
+.span_screen2_row11_unrolled
+UNROLL_SPAN_ROW 2, 11
+.span_screen2_row12_unrolled
+UNROLL_SPAN_ROW 2, 12
+.span_screen2_row13_unrolled
+UNROLL_SPAN_ROW 2, 13
+.span_screen2_row14_unrolled
+UNROLL_SPAN_ROW 2, 14
+.span_screen2_row15_unrolled
+UNROLL_SPAN_ROW 2, 15
+.span_screen2_row16_unrolled
+UNROLL_SPAN_ROW 2, 16
+.span_screen2_row17_unrolled
+UNROLL_SPAN_ROW 2, 17
+.span_screen2_row18_unrolled
+UNROLL_SPAN_ROW 2, 18
+.span_screen2_row19_unrolled
+UNROLL_SPAN_ROW 2, 19
+.span_screen2_row20_unrolled
+UNROLL_SPAN_ROW 2, 20
+.span_screen2_row21_unrolled
+UNROLL_SPAN_ROW 2, 21
+.span_screen2_row22_unrolled
+UNROLL_SPAN_ROW 2, 22
+.span_screen2_row23_unrolled
+UNROLL_SPAN_ROW 2, 23
+.span_screen2_row24_unrolled
+UNROLL_SPAN_ROW 2, 24

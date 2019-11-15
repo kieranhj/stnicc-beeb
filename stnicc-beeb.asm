@@ -8,7 +8,7 @@ _TESTS = FALSE
 
 ; If set, show total vsync count, rather than just the count for the
 ; last frame. Intended for use in conjunction with _STOP_AT_FRAME.
-_SHOW_TOTAL_VSYNC_COUNTER = FALSE
+_SHOW_TOTAL_VSYNC_COUNTER = TRUE
 _STOP_AT_FRAME = 0
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
@@ -115,8 +115,8 @@ GUARD &9F
 .span_start         skip 1
 ;.span_end           skip 1
 .span_width         skip 1
-;.span_y             skip 1
 .span_colour        skip 1
+.shortptr			skip 2
 
 ; vars for drawline
 .startx             skip 1
@@ -134,7 +134,13 @@ GUARD &9F
 .poly_num_verts     skip 1
 .poly_colour        skip 1
 .poly_index         skip 1
+IF _HALF_VERTICAL_RES
+.span_y             skip 1
+ELSE
+.span_y		\\ alias for poly_y
+ENDIF
 .poly_y             skip 1
+
 .poly_verts_x       skip MAX_VERTS_PER_POLY+1
 .poly_verts_y       skip MAX_VERTS_PER_POLY+1
 
@@ -165,6 +171,7 @@ GUARD &9F
 ; debug vars
 IF _DEBUG
 .last_vsync         skip 1
+.debug_writeptr		skip 2
 ENDIF
 
 \ ******************************************************************
@@ -173,6 +180,21 @@ ENDIF
 
 ORG &300
 GUARD &800
+.reloc_to_start
+.screen_row_LO
+skip &100
+.screen1_row_HI
+skip &100
+.screen2_row_HI
+skip &100
+.y_to_row
+skip &100
+.screen_col_LO
+skip &80
+.reloc_to_end
+
+ORG &A00
+GUARD &D00
 IF _PREPROCESSED_VERTS = FALSE
 .vertices_x
 skip &100
@@ -189,7 +211,7 @@ skip &100
 \ ******************************************************************
 
 ORG &1100
-GUARD screen2_addr
+GUARD &8000;screen2_addr
 
 .start
 
@@ -236,6 +258,13 @@ GUARD screen2_addr
     jsr oswrch
     lda #5
     jsr oswrch
+
+	\\ Relocate data to lower RAM
+	\\ Might want to do this before clearing the screen if data overlaps!
+	lda #HI(reloc_from_start)
+	ldy #HI(reloc_to_start)
+	ldx #HI(reloc_to_end - reloc_to_start + &ff)
+	jsr copy_pages
 
 	\\ Clear the extra bit!
 	jsr screen2_cls
@@ -354,54 +383,18 @@ GUARD screen2_addr
 
 	lda eof_flag
 	cmp #POLY_DESC_END_OF_STREAM
-    beq track_load_error
+    bne not_eof
+	jmp track_load_error
+	.not_eof
 
 	IF _STREAMING=FALSE
 
 	IF _DEBUG
 	jsr show_vsync_counter
 	ENDIF
-	{
-		\\ Toggle draw buffer
-		lda draw_buffer_HI
-		eor #HI(screen1_addr EOR screen2_addr)
-		sta draw_buffer_HI
+	jmp swap_frame_buffers
+	.^return_here_from_swap_frame_buffers
 
-		\\ Set screen buffer address in CRTC - not read until vsync
-		cmp #HI(screen1_addr)
-		IF _DOUBLE_BUFFER
-		beq show_screen2
-		ELSE
-		bne show_screen2
-		ENDIF
-
-		\\ Show screen 1
-		lda #12:sta &fe00
-		lda #HI(screen1_addr/8):sta &fe01
-		lda #13:sta &fe00
-		lda #LO(screen1_addr/8):sta &fe01
-
-		\\ Draw screen 2
-		lda #HI(screen2_row_HI)
-		sta plot_span_set_screen+2
-
-		\\ Continue
-		bne done_swap
-
-		.show_screen2
-		\\ Show screen 2
-		lda #12:sta &fe00
-		lda #HI(screen2_addr/8):sta &fe01
-		lda #13:sta &fe00
-		lda #LO(screen2_addr/8):sta &fe01
-
-		\\ Draw screen 1
-		lda #HI(screen1_row_HI)
-		sta plot_span_set_screen+2
-
-		\\ Continue
-		.done_swap
-	}
 	ENDIF
 
 	\\ Which page are we reading crunched data from?
@@ -671,6 +664,42 @@ ENDIF
 	lda #&ff:sta screen_lock
 
 	IF _STREAMING
+	jmp swap_frame_buffers
+	.^return_here_from_swap_frame_buffers
+	ENDIF
+
+	\\ Pass on to OS IRQ handler
+	.return_to_os
+	PLA
+	STA &FC
+	JMP &FFFF
+}
+old_irqv = P%-2
+
+; A=from page, Y=to page, X=number of pages
+.copy_pages
+{
+	sta read_from+2
+	sty write_to+2
+
+	ldy #0
+	.page_loop
+	.read_from
+	lda &ff00, Y
+	.write_to
+	sta &ff00, Y
+	iny
+	bne page_loop
+	inc read_from+2
+	inc write_to+2
+	dex
+	bne page_loop
+
+	rts
+}
+
+.swap_frame_buffers
+{
     \\ Toggle draw buffer
     lda draw_buffer_HI
     eor #HI(screen1_addr EOR screen2_addr)
@@ -692,10 +721,20 @@ ENDIF
 
 	\\ Draw screen 2
 	lda #HI(screen2_row_HI)
-	sta plot_span_set_screen+2
+	sta plot_long_span_set_screen+2
+	sta plot_short_span_set_screen+2
+
+		lda #LO(span_row_table_screen2_LO)
+		sta plot_span_set_row_table_LO+1
+		lda #HI(span_row_table_screen2_LO)
+		sta plot_span_set_row_table_LO+2
+		lda #LO(span_row_table_screen2_HI)
+		sta plot_span_set_row_table_HI+1
+		lda #HI(span_row_table_screen2_HI)
+		sta plot_span_set_row_table_HI+2
 
 	\\ Continue
-	bne return_to_os
+	bne continue
 
 	.show_screen2
 	\\ Show screen 2
@@ -706,18 +745,22 @@ ENDIF
 
 	\\ Draw screen 1
 	lda #HI(screen1_row_HI)
-	sta plot_span_set_screen+2
+	sta plot_long_span_set_screen+2
+	sta plot_short_span_set_screen+2
+		
+		lda #LO(span_row_table_screen1_LO)
+		sta plot_span_set_row_table_LO+1
+		lda #HI(span_row_table_screen1_LO)
+		sta plot_span_set_row_table_LO+2
+		lda #LO(span_row_table_screen1_HI)
+		sta plot_span_set_row_table_HI+1
+		lda #HI(span_row_table_screen1_HI)
+		sta plot_span_set_row_table_HI+2
 
 	\\ Continue
-	ENDIF
-
-	\\ Pass on to OS IRQ handler
-	.return_to_os
-	PLA
-	STA &FC
-	JMP &FFFF
+	.continue
+	jmp return_here_from_swap_frame_buffers
 }
-old_irqv = P%-2
 
 .main_end
 
@@ -840,7 +883,6 @@ ALIGN &100  ; lazy
     EQUB %00010001
 }
 
-
 .four_minus
 EQUB 4,3,2,1
 
@@ -848,7 +890,7 @@ EQUB 4,3,2,1
 EQUB 0, 0, 0, 0, 0
 
 .minus_1_times_4
-EQUB 0, 0, 4, 8, 12, 16
+EQUB 0, 0, 4, 8, 12, 16, 20, 24, 28, 32
 
 ;.filename0
 ;EQUS "00", 13
@@ -872,41 +914,53 @@ EQUB 0				; returned error value
 .drive_order
 EQUB 2,3,1,0
 
+
+.long_span_tables
+FOR col,0,32,1
+EQUB (32-col)*3					; +0,x for span_column_offset
+EQUB (col*8) AND 255			; +1,x for mult_8
+EQUB 0							; +2,x spare
+EQUB 0							; +3,x spare
+NEXT
+
+.data_end
+
 ALIGN &100
-.screen_row_LO
+.reloc_from_start
+.reloc_screen_row_LO
 FOR n,0,255,1
 row=n DIV 8:sl=n MOD 8
 addr = row * SCREEN_ROW_BYTES + sl
 EQUB LO(screen1_addr + addr)
 NEXT
 
-.screen1_row_HI
+.reloc_screen1_row_HI
 FOR n,0,255,1
 row=n DIV 8:sl=n MOD 8
 addr = row * SCREEN_ROW_BYTES + sl
 EQUB HI(screen1_addr + addr)
 NEXT
 
-.screen2_row_HI
+.reloc_screen2_row_HI
 FOR n,0,255,1
 row=n DIV 8:sl=n MOD 8
 addr = row * SCREEN_ROW_BYTES + sl
 EQUB HI(screen2_addr + addr)
 NEXT
 
-.screen_col_LO
+.reloc_y_to_row		; div_8
+FOR n,0,255,1
+row=n DIV 8
+EQUB row
+NEXT
+
+.reloc_screen_col_LO
 FOR n,0,127,1
 col=n DIV 4
 EQUB LO(col*8)
 NEXT
 
-.screen_col_HI
-FOR n,0,127,1
-col=n DIV 4
-EQUB HI(col*8)
-NEXT
-
-.data_end
+.reloc_from_end
 
 \ ******************************************************************
 \ *	End address to be saved
@@ -926,6 +980,10 @@ SAVE "STNICC", start, end, main
 
 .bss_start
 
+CLEAR reloc_from_start, screen2_addr
+ORG reloc_from_start
+GUARD screen2_addr
+
 ALIGN &100
 .STREAM_buffer_start
 SKIP STREAM_buffer_size
@@ -943,6 +1001,7 @@ PRINT "------"
 PRINT "MAIN size =", ~main_end-main_start
 PRINT "FX size = ", ~fx_end-fx_start
 PRINT "DATA size =",~data_end-data_start
+PRINT "RELOC size =",~reloc_from_end-reloc_from_start
 PRINT "BSS size =",~bss_end-bss_start
 PRINT "------"
 PRINT "HIGH WATERMARK =", ~P%
