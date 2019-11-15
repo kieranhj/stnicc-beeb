@@ -78,14 +78,13 @@ _USE_MEDIUM_SPAN_PLOT = TRUE
     beq skip_span_loop                      ; 2/3c
 
     \\ X=width in columns
-	sty load_y_offset+1
+	sty load_y_offset+1                     ; 4c
 
     ; \\ Select row fn (row = Y DIV 8)
     ; \\ Add offset into fn based on #columns to plot
-	ldx span_y
-	ldy y_to_row,x
-	
-    tax                                     ; 2c
+	ldx span_y                              ; 3c
+	ldy y_to_row,x                          ; 4c
+	tax                                     ; 2c
 
     .plot_span_set_row_table_LO
     lda span_row_table_screen1_LO, Y        ; 4c
@@ -149,142 +148,8 @@ _USE_MEDIUM_SPAN_PLOT = TRUE
 \}
 
 \ ******************************************************************
-\ *	PRE-SHIFTED DATA FOR SHORT/MEDIUM SPANS
-\ ******************************************************************
-
-\\ Can only be a maximum of 2 bytes plotted for short (<=5 pixel) spans
-\\ X = [0,3] W = [1,5]
-
-\\ p000 0000  pp00 0000  ppp0 0000  pppp 0000  pppp p000
-\\ 0p00 0000  0pp0 0000  0ppp 0000  0ppp p000  0ppp pp00
-\\ 00p0 0000  00pp 0000  00pp p000  00pp pp00  00pp ppp0
-\\ 000p 0000  000p p000  000p pp00  000p ppp0  000p pppp
-
-MACRO SHORT_MASK_SHIFTS p, e, table_index
-FOR x,0,3,1
-s=p>>x
-h=(s AND &f0) >> 4
-l=(s AND &0f)
-IF table_index==0
-EQUB (h OR h<<4) EOR e
-ELIF table_index==1
-EQUB (l OR l<<4) EOR e
-ELSE
-error "no"
-ENDIF
-NEXT
-ENDMACRO
-
-\\ Can only be a maximum of 3 bytes plotted for medium spans..
-\\ X = [0,3] W = [6,9]
-
-\\ pppp pp00 0000  pppp ppp0 0000  pppp pppp 0000  pppp pppp p000
-\\ 0ppp ppp0 0000  0ppp pppp 0000  0ppp pppp p000  0ppp pppp pp00
-\\ 00pp pppp 0000  00pp pppp p000  00pp pppp pp00  00pp pppp ppp0
-\\ 000p pppp p000  000p pppp pp00  000p pppp ppp0  000p pppp pppp
-
-MACRO MEDIUM_MASK_SHIFTS p, e, table_index
-FOR x,0,3,1
-s=p>>x
-h=(s AND &f00) >> 8
-m=(s AND &0f0) >> 4
-l=(s AND &00f)
-IF table_index==0
-EQUB (h OR h<<4) EOR e
-ELIF table_index==1
-EQUB (m OR m<<4) EOR e
-ELIF table_index==2
-EQUB (l OR l<<4) EOR e
-ELSE
-ERROR "no"
-ENDIF
-NEXT
-ENDMACRO
-
-MACRO SHORT_MASK_TABLE e,table_index
-MEDIUM_MASK_SHIFTS &800, e, table_index
-MEDIUM_MASK_SHIFTS &C00, e, table_index
-MEDIUM_MASK_SHIFTS &E00, e, table_index
-MEDIUM_MASK_SHIFTS &F00, e, table_index
-MEDIUM_MASK_SHIFTS &F80, e, table_index
-ENDMACRO
-
-MACRO MEDIUM_MASK_TABLE e,table_index
-MEDIUM_MASK_SHIFTS &FC0, e, table_index
-MEDIUM_MASK_SHIFTS &FE0, e, table_index
-MEDIUM_MASK_SHIFTS &FF0, e, table_index
-MEDIUM_MASK_SHIFTS &FF8, e, table_index
-ENDMACRO
-
-.color_mask_short_0:SHORT_MASK_TABLE 0,0
-IF _USE_MEDIUM_SPAN_PLOT
-.colour_mask_medium_0:MEDIUM_MASK_TABLE 0,0
-ENDIF
-
-.color_mask_short_1:SHORT_MASK_TABLE 0,1
-IF _USE_MEDIUM_SPAN_PLOT
-.colour_mask_medium_1:MEDIUM_MASK_TABLE 0,1
-ENDIF
-
-.color_mask_short_2:SHORT_MASK_TABLE 0,2
-IF _USE_MEDIUM_SPAN_PLOT
-.colour_mask_medium_2:MEDIUM_MASK_TABLE 0,2
-ENDIF
-
-.screen_mask_short_0:SHORT_MASK_TABLE $ff,0
-IF _USE_MEDIUM_SPAN_PLOT
-.screen_mask_medium_0:MEDIUM_MASK_TABLE $ff,0
-ENDIF
-
-.screen_mask_short_1:SHORT_MASK_TABLE $ff,1
-IF _USE_MEDIUM_SPAN_PLOT
-.screen_mask_medium_1:MEDIUM_MASK_TABLE $ff,1
-ENDIF
-
-.screen_mask_short_2:SHORT_MASK_TABLE $ff,2
-IF _USE_MEDIUM_SPAN_PLOT
-.screen_mask_medium_2:MEDIUM_MASK_TABLE $ff,2
-ENDIF
-
-\ ******************************************************************
 \ *	POLYGON PLOT FUNCTIONS
 \ ******************************************************************
-
-IF _DEBUG
-\\ Technically a debug feature!
-.plot_poly_line
-{
-    \\ Duplicate first vertex to end
-    ldx poly_num_verts
-    lda poly_verts_x
-    sta poly_verts_x, X
-    lda poly_verts_y
-    sta poly_verts_y, X
-
-    ldx #0
-    .loop
-    stx poly_index
-
-    lda poly_verts_x, X
-    sta startx
-    lda poly_verts_y, X
-    sta starty
-
-    lda poly_verts_x+1, X
-    sta endx
-    lda poly_verts_y+1, X
-    sta endy
-
-    jsr drawline
-
-    ldx poly_index
-    inx
-    cpx poly_num_verts
-    bcc loop
-
-    rts
-}
-ENDIF
 
 .plot_poly_span
 \{
@@ -359,7 +224,7 @@ ENDIF
 
     \\ Check if the span is short...
 IF _USE_MEDIUM_SPAN_PLOT
-    cmp #10                         ; 2c
+    cmp #14 ;10                         ; 2c
 ELSE
     cmp #6                          ; 2c
 ENDIF
@@ -419,7 +284,7 @@ ENDIF
     tax                             ; 2c
 
     \\ Byte 1
-    lda color_mask_short_0, X       ; 2c
+    lda colour_mask_short_0, X       ; 2c
     and span_colour                 ; 3c
     sta ora_byte1+1                 ; 4c
 
@@ -435,7 +300,7 @@ ENDIF
     ENDIF
 
     \\ Byte 2
-    lda color_mask_short_1, X       ; 4c
+    lda colour_mask_short_1, X       ; 4c
     beq done                        ; 2/3c
     and span_colour                 ; 3c
     sta ora_byte2+1                 ; 4c
@@ -453,7 +318,7 @@ ENDIF
 
 IF _USE_MEDIUM_SPAN_PLOT
     \\ Byte 3
-    lda color_mask_short_2, X       ; 4c
+    lda colour_mask_short_2, X       ; 4c
     beq done                        ; 2/3c
     and span_colour                 ; 3c
     sta ora_byte3+1                 ; 4c
@@ -462,6 +327,23 @@ IF _USE_MEDIUM_SPAN_PLOT
     lda (shortptr), Y               ; 5c
     and screen_mask_short_2, X       ; 4c
     .ora_byte3
+    ora #0                          ; 2c
+    sta (shortptr), Y               ; 6c
+
+    IF _DOUBLE_PLOT_Y
+    iny:sta (shortptr), Y           ; 8c
+    ENDIF
+
+    \\ Byte 4
+    lda colour_mask_short_3, X       ; 4c
+    beq done                        ; 2/3c
+    and span_colour                 ; 3c
+    sta ora_byte4+1                 ; 4c
+
+    ldy #24                         ; 2c
+    lda (shortptr), Y               ; 5c
+    and screen_mask_short_3, X       ; 4c
+    .ora_byte4
     ora #0                          ; 2c
     sta (shortptr), Y               ; 6c
 

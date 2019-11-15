@@ -4,6 +4,39 @@
 \ ******************************************************************
 
 IF _DEBUG
+\\ Technically a debug feature!
+.plot_poly_line
+{
+    \\ Duplicate first vertex to end
+    ldx poly_num_verts
+    lda poly_verts_x
+    sta poly_verts_x, X
+    lda poly_verts_y
+    sta poly_verts_y, X
+
+    ldx #0
+    .loop
+    stx poly_index
+
+    lda poly_verts_x, X
+    sta startx
+    lda poly_verts_y, X
+    sta starty
+
+    lda poly_verts_x+1, X
+    sta endx
+    lda poly_verts_y+1, X
+    sta endy
+
+    jsr drawline
+
+    ldx poly_index
+    inx
+    cpx poly_num_verts
+    bcc loop
+
+    rts
+}
 
 \\ Technically this is a debug feature!
 .drawline

@@ -60,6 +60,12 @@ MACRO MODE5_PIXELS a,b,c,d
     EQUB (a AND 2) * &40 OR (a AND 1) * &08 OR (b AND 2) * &20 OR (b AND 1) * &04 OR (c AND 2) * &10 OR (c AND 1) * &02 OR (d AND 2) * &08 OR (d AND 1) * &01
 ENDMACRO
 
+MACRO PAGE_ALIGN
+H%=P%
+ALIGN &100
+PRINT "Lost ", P%-H%, "bytes"
+ENDMACRO
+
 \ ******************************************************************
 \ *	GLOBAL constants
 \ ******************************************************************
@@ -77,7 +83,7 @@ screen2_addr = screen1_addr - SCREEN_SIZE_BYTES
 TRACKS_per_disk = 75
 
 DISK1_drive_no = 0			; for loop!
-DISK1_first_track = 4		; the track at which the video file is located on side 0; all tracks prior to this are reserved for code
+DISK1_first_track = 5		; the track at which the video file is located on side 0; all tracks prior to this are reserved for code
 DISK1_last_track = DISK1_first_track + TRACKS_per_disk
 
 DISK2_drive_no = 2			; should be 2
@@ -191,6 +197,8 @@ skip &100
 skip &100
 .screen_col_LO
 skip &80
+.long_span_tables
+skip &80
 .reloc_to_end
 
 ORG &A00
@@ -211,7 +219,7 @@ skip &100
 \ ******************************************************************
 
 ORG &1100
-GUARD &8000;screen2_addr
+GUARD screen2_addr
 
 .start
 
@@ -770,19 +778,12 @@ old_irqv = P%-2
 
 .fx_start
 
-INCLUDE "src/plot_poly.asm"
+;INCLUDE "lib/disksys.asm"
+INCLUDE "src/screen.asm"
 INCLUDE "src/parse_frame.asm"
+INCLUDE "src/plot_poly.asm"
 
 .fx_end
-
-\ ******************************************************************
-\ *	ADDITIONAL CODE MODULES
-\ ******************************************************************
-
-include "lib/disksys.asm"
-INCLUDE "src/screen.asm"
-INCLUDE "src/debug.asm"
-INCLUDE "src/tests.asm"
 
 \ ******************************************************************
 \ *	DATA
@@ -808,89 +809,7 @@ IF 0
 	EQUB HI(screen_addr/8)	; R12 screen start address, high
 	EQUB LO(screen_addr/8)	; R13 screen start address, low
 }
-
-.palette
-{
-	EQUB &00 + PAL_black
-	EQUB &10 + PAL_black
-	EQUB &20 + PAL_red
-	EQUB &30 + PAL_red
-	EQUB &40 + PAL_black
-	EQUB &50 + PAL_black
-	EQUB &60 + PAL_red
-	EQUB &70 + PAL_red
-	EQUB &80 + PAL_yellow
-	EQUB &90 + PAL_yellow
-	EQUB &A0 + PAL_white
-	EQUB &B0 + PAL_white
-	EQUB &C0 + PAL_yellow
-	EQUB &D0 + PAL_yellow
-	EQUB &E0 + PAL_white
-	EQUB &F0 + PAL_white
-}
 ENDIF
-
-ALIGN &100  ; lazy
-.poly_palette
-{
-    EQUB &00,&00,&00,&00        ; black
-    EQUB &0F,&0F,&0F,&0F        ; colour 1
-    EQUB &F0,&F0,&F0,&F0        ; colour 2
-    EQUB &FF,&FF,&FF,&FF        ; colour 3
-    EQUB &05,&00,&0A,&00        ; colour 1.1
-    EQUB &05,&0A,&05,&0A        ; colour 1.2
-    EQUB &05,&0F,&0A,&0F        ; colour 1.3
-    EQUB &0F,&00,&0F,&00        ; stripe 1
-    EQUB &50,&00,&A0,&00        ; colour 2.1
-    EQUB &50,&A0,&50,&A0        ; colour 2.2
-    EQUB &50,&F0,&A0,&F0        ; colour 2.3
-    EQUB &F0,&00,&F0,&00        ; stripe 2
-    EQUB &55,&00,&AA,&00        ; colour 3.1
-    EQUB &55,&AA,&55,&AA        ; colour 3.2
-    EQUB &55,&FF,&AA,&FF        ; colour 3.3
-    EQUB &FF,&00,&FF,&00        ; stripe 3
-}
-
-.screen_mask_starting_at_pixel
-{
-    EQUB %00000000
-    EQUB %10001000
-    EQUB %11001100
-    EQUB %11101110
-}
-
-.colour_mask_starting_at_pixel
-{
-    EQUB %11111111
-    EQUB %01110111
-    EQUB %00110011
-    EQUB %00010001
-}
-
-.screen_mask_pixel
-{
-    EQUB %01110111
-    EQUB %10111011
-    EQUB %11011101
-    EQUB %11101110
-}
-
-.colour_mask_pixel
-{
-    EQUB %10001000
-    EQUB %01000100
-    EQUB %00100010
-    EQUB %00010001
-}
-
-.four_minus
-EQUB 4,3,2,1
-
-.minus_6_times_4
-EQUB 0, 0, 0, 0, 0
-
-.minus_1_times_4
-EQUB 0, 0, 4, 8, 12, 16, 20, 24, 28, 32
 
 ;.filename0
 ;EQUS "00", 13
@@ -914,18 +833,26 @@ EQUB 0				; returned error value
 .drive_order
 EQUB 2,3,1,0
 
-
-.long_span_tables
-FOR col,0,32,1
-EQUB (32-col)*3					; +0,x for span_column_offset
-EQUB (col*8) AND 255			; +1,x for mult_8
-EQUB 0							; +2,x spare
-EQUB 0							; +3,x spare
-NEXT
+include "src/plot_data.asm"
 
 .data_end
 
-ALIGN &100
+\ ******************************************************************
+\ *	ADDITIONAL CODE MODULES
+\ ******************************************************************
+
+.additional_start
+
+INCLUDE "src/debug.asm"
+INCLUDE "src/tests.asm"
+
+.additional_end
+
+\ ******************************************************************
+\ *	RELOCATABLE DATA OVERLAYING BSS DATA
+\ ******************************************************************
+
+PAGE_ALIGN
 .reloc_from_start
 .reloc_screen_row_LO
 FOR n,0,255,1
@@ -960,6 +887,14 @@ col=n DIV 4
 EQUB LO(col*8)
 NEXT
 
+.reloc_long_span_tables
+FOR col,0,32,1
+EQUB (32-col)*3					; +0,x for span_column_offset
+EQUB (col*8) AND 255			; +1,x for mult_8
+EQUB 0							; +2,x spare
+EQUB 0							; +3,x spare
+NEXT
+
 .reloc_from_end
 
 \ ******************************************************************
@@ -980,11 +915,11 @@ SAVE "STNICC", start, end, main
 
 .bss_start
 
-CLEAR reloc_from_start, screen2_addr
+CLEAR reloc_from_start, &8000;screen2_addr
 ORG reloc_from_start
-GUARD screen2_addr
+GUARD &8000;screen2_addr
 
-ALIGN &100
+PAGE_ALIGN
 .STREAM_buffer_start
 SKIP STREAM_buffer_size
 .STREAM_buffer_end
@@ -1001,6 +936,7 @@ PRINT "------"
 PRINT "MAIN size =", ~main_end-main_start
 PRINT "FX size = ", ~fx_end-fx_start
 PRINT "DATA size =",~data_end-data_start
+PRINT "ADDITIONAL size =",~additional_end-additional_start
 PRINT "RELOC size =",~reloc_from_end-reloc_from_start
 PRINT "BSS size =",~bss_end-bss_start
 PRINT "------"
