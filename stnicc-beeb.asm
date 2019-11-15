@@ -887,7 +887,7 @@ col=n DIV 4
 EQUB LO(col*8)
 NEXT
 
-.reloc_long_span_tables
+.reloc_long_span_tables	; <= is value 32 actually needed? (NOT CURENTLY RELOC'D!)
 FOR col,0,32,1
 EQUB (32-col)*3					; +0,x for span_column_offset
 EQUB (col*8) AND 255			; +1,x for mult_8
@@ -915,9 +915,9 @@ SAVE "STNICC", start, end, main
 
 .bss_start
 
-CLEAR reloc_from_start, &8000;screen2_addr
+CLEAR reloc_from_start, screen2_addr
 ORG reloc_from_start
-GUARD &8000;screen2_addr
+GUARD screen2_addr
 
 PAGE_ALIGN
 .STREAM_buffer_start

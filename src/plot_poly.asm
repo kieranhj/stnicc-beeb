@@ -234,7 +234,6 @@ ENDIF
     tya:asl a:tay:sty span_y        ; 6c
     ENDIF
 
-    ;jsr plot_span
     jmp plot_span               ; eventually inline entire fn to save 6c
     .return_here_from_plot_span
 
