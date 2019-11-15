@@ -68,35 +68,35 @@ _USE_MEDIUM_SPAN_PLOT = TRUE
 
     \\ Increment column - can't overflow row
     tya:adc #7:tay
+	\\ C=0
 
     .skip_first_byte
 
     \\ Main body of span; bytes to plot = span_width DIV 4
     lda span_width                          ; 3c
-    lsr a:lsr a                             ; 4c
+	and #%11111100							; 2c
     beq skip_span_loop                      ; 2/3c
-    tax                                     ; 2c
 
     \\ X=width in columns
+	sty load_y_offset+1
 
-    sty load_y_offset+1
+    ; \\ Select row fn (row = Y DIV 8)
+    ; \\ Add offset into fn based on #columns to plot
+	ldx poly_y
+	ldy y_to_row,x
+	
+    tax                                     ; 2c
 
-    \\ Select row fn (row = Y DIV 8)
-    \\ Add offset into fn based on #columns to plot
-    ldy poly_y                              ; 3c
-    lda y_to_row, Y                         ; 4c
-    tay                                     ; 2c
-
-    clc                                     ; 2c
     .plot_span_set_row_table_LO
     lda span_row_table_screen1_LO, Y        ; 4c
-    adc span_column_offset, X               ; 4c
+    adc long_span_tables+0,X				; 4c
     sta jump_to_unrolled_span_row+1         ; 4c
     .plot_span_set_row_table_HI
     lda span_row_table_screen1_HI, Y        ; 4c
     adc #0                                  ; 2c
     sta jump_to_unrolled_span_row+2         ; 4c
-
+	\\ C=0
+	
     \\ Y=column offset from start of row + scanline = writeptr_LO
     .load_y_offset
     ldy #0                            ; 3c
@@ -108,7 +108,7 @@ _USE_MEDIUM_SPAN_PLOT = TRUE
     .return_here_from_unrolled_span_loop
 
     \\ Increment to last column
-    tya:clc:adc mult_8, X:tay     
+    tya:adc long_span_tables+1,X:tay     
 
     .skip_span_loop
     \\ Last byte?
@@ -734,11 +734,6 @@ MACRO UNROLL_SPAN_ROW screen, row
     NEXT
     JMP return_here_from_unrolled_span_loop
 ENDMACRO
-
-.mult_8
-FOR x,0,32,1
-EQUB LO(x*8)        ; OK that 32 => 0
-NEXT
 
 UNROLLED_ROW_SIZE = 33 * 3
 
