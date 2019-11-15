@@ -82,7 +82,7 @@ _USE_MEDIUM_SPAN_PLOT = TRUE
 
     ; \\ Select row fn (row = Y DIV 8)
     ; \\ Add offset into fn based on #columns to plot
-	ldx poly_y
+	ldx span_y
 	ldy y_to_row,x
 	
     tax                                     ; 2c
@@ -102,10 +102,17 @@ _USE_MEDIUM_SPAN_PLOT = TRUE
     ldy #0                            ; 3c
 
     \\ A=screen byte
+    .do_unrolled_span
     lda span_colour                         ; 3c
     .jump_to_unrolled_span_row
     jmp &ffff                               ; _DOUBLE_PLOT_Y ?
     .return_here_from_unrolled_span_loop
+    IF _DOUBLE_PLOT_Y
+    tya:and #1:bne done_double_plot         ; 6c
+    iny:bne do_unrolled_span                ; 5c
+    .done_double_plot
+    dey                                     ; 2c
+    ENDIF
 
     \\ Increment to last column
     tya:adc long_span_tables+1,X:tay     
@@ -359,7 +366,7 @@ ENDIF
     bcc plot_short_span     ; [1-5] ; 2/3c
 
     IF _HALF_VERTICAL_RES
-    tya:asl a:tay               ; 6c
+    tya:asl a:tay:sty span_y        ; 6c
     ENDIF
 
     ;jsr plot_span

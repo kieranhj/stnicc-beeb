@@ -228,9 +228,15 @@ Pre-dividing the vertices saves another 10 vsyncs.
 
 12/11/2019 - full run now &7A4D = 31309!
 First 100 frames = &67F = 1663 vsyncs.
-
-lda (writeptr), Y
-lda &5800, Y
-lda &5800, (col*8) + sl
-
 After row unrolling = &79AA = 31146
+
+14/11/2019
+After short + medium span merge = &7701!
+
+15/11/2019
+After TomS updates = &7590!
+First 100 full res = &63D!
+Half res = 1096 vsyncs = 4.5fps!
+Double res = 1167 vsyncs = 4.28fps!
+
+Full run at double res = &5200 = 4.29fps!

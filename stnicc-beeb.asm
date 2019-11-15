@@ -14,7 +14,7 @@ _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
 
 _PREPROCESSED_VERTS = TRUE
-_HALF_VERTICAL_RES = FALSE	; <== currently broken!
+_HALF_VERTICAL_RES = FALSE
 _DOUBLE_PLOT_Y = _HALF_VERTICAL_RES AND TRUE
 _STREAMING = TRUE
 
@@ -115,7 +115,6 @@ GUARD &9F
 .span_start         skip 1
 ;.span_end           skip 1
 .span_width         skip 1
-;.span_y             skip 1
 .span_colour        skip 1
 .shortptr			skip 2
 
@@ -135,7 +134,13 @@ GUARD &9F
 .poly_num_verts     skip 1
 .poly_colour        skip 1
 .poly_index         skip 1
+IF _HALF_VERTICAL_RES
+.span_y             skip 1
+ELSE
+.span_y		\\ alias for poly_y
+ENDIF
 .poly_y             skip 1
+
 .poly_verts_x       skip MAX_VERTS_PER_POLY+1
 .poly_verts_y       skip MAX_VERTS_PER_POLY+1
 
