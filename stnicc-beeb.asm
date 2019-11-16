@@ -3,6 +3,11 @@
 \ *	STNICC BEEB
 \ ******************************************************************
 
+; 0 = LOW quality (128 x 100 scanline skipped)
+; 1 = MEDIUM quality (128 x 100 scanline doubled)
+; 2 = HIGH quality (128 x 200)
+_QUALITY = 2
+
 _DEBUG = TRUE
 _TESTS = FALSE
 
@@ -10,13 +15,15 @@ _TESTS = FALSE
 ; last frame. Intended for use in conjunction with _STOP_AT_FRAME.
 _SHOW_TOTAL_VSYNC_COUNTER = TRUE
 _STOP_AT_FRAME = 0
+; Debug defines
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
-
+; Data stream defines
 _PREPROCESSED_VERTS = TRUE
-_HALF_VERTICAL_RES = FALSE
-_DOUBLE_PLOT_Y = _HALF_VERTICAL_RES AND TRUE
 _STREAMING = TRUE
+; Rendering defines
+_HALF_VERTICAL_RES = (_QUALITY < 2)
+_DOUBLE_PLOT_Y = (_QUALITY = 1)
 
 \ ******************************************************************
 \ *	OS defines
