@@ -491,7 +491,7 @@ ENDIF
 \ ******************************************************************
 
 .load_next_track
-\\{
+{
 	\\ Track &FF indicates no more reading
 	LDA track_no
 	BMI TRACK_LOAD_return
@@ -579,7 +579,7 @@ ENDIF
 
 	.TRACK_LOAD_return
 	RTS
-\\}
+}
 
 .irq_handler
 {

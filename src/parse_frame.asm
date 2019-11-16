@@ -13,7 +13,7 @@ MACRO GET_BYTE
 ENDMACRO
 
 .parse_frame
-\{
+{
     ldy #0
     GET_BYTE
     sta frame_flags
@@ -189,7 +189,7 @@ IF _PLOT_WIREFRAME
 ELSE
     jmp plot_poly_span      ; JSR/RTS => JMP/JMP
 ENDIF
-    .return_here_from_plot_poly
+    .^return_here_from_plot_poly
 
     jmp read_poly_data
 
@@ -201,4 +201,4 @@ ENDIF
     .no_carry
 
     rts
-\}
+}

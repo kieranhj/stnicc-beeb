@@ -20,14 +20,14 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
 
 ; This fn is called 3 million times across the entire sequence so every cycle counts!
 .plot_span
-\{
+{
     ; X=span_start
     ; Y=span_y / poly_y
     ; span_width already computed
 
     \\ Compute address screen row for writeptr
     \\ NB. writeptr_LO = 0 then indexed by Y
-    .plot_long_span_set_screen
+    .^plot_long_span_set_screen
     lda screen1_row_HI, Y           ; 4c
     sta writeptr+1                  ; 3c
 
@@ -90,11 +90,11 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
 	ldy y_to_row,x                          ; 4c
 	tax                                     ; 2c
 
-    .plot_span_set_row_table_LO
+    .^plot_span_set_row_table_LO
     lda span_row_table_screen1_LO, Y        ; 4c
     adc long_span_tables+0,X				; 4c
     sta jump_to_unrolled_span_row+1         ; 4c
-    .plot_span_set_row_table_HI
+    .^plot_span_set_row_table_HI
     lda span_row_table_screen1_HI, Y        ; 4c
     adc #0                                  ; 2c
     sta jump_to_unrolled_span_row+2         ; 4c
@@ -109,7 +109,7 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     lda span_colour                         ; 3c
     .jump_to_unrolled_span_row
     jmp &ffff                               ; _DOUBLE_PLOT_Y ?
-    .return_here_from_unrolled_span_loop
+    .^return_here_from_unrolled_span_loop
     IF _DOUBLE_PLOT_Y
     tya:and #1:bne done_double_plot         ; 6c
     iny:bne do_unrolled_span                ; 5c
@@ -149,14 +149,14 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     .plot_span_return
     jmp return_here_from_plot_span
     ;rts
-\}
+}
 
 \ ******************************************************************
 \ *	POLYGON PLOT FUNCTIONS
 \ ******************************************************************
 
 .plot_poly_span
-\{
+{
     \\ Reset our min/max tracking
     lda #255
     sta span_buffer_min_y
@@ -186,7 +186,7 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     sta endy
 
     jmp drawline_into_span_buffer       ; JSR/RTS => JMP/JMP
-    .return_here_from_drawline
+    .^return_here_from_drawline
 
     ldx poly_index
     dex
@@ -235,7 +235,7 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     ENDIF
 
     jmp plot_span               ; eventually inline entire fn to save 6c
-    .return_here_from_plot_span
+    .^return_here_from_plot_span
 
     .skip_span
     ldy poly_y                  ; 3c
@@ -252,7 +252,7 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     bcc span_loop               ; 3c
 
     jmp return_here_from_plot_poly
-\}
+}
 
 .plot_short_span
 {
