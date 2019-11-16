@@ -94,24 +94,25 @@ FOUR_BYTE_MASK_SHIFTS &E000, e, table_index
 FOUR_BYTE_MASK_SHIFTS &F000, e, table_index
 FOUR_BYTE_MASK_SHIFTS &F800, e, table_index
 
-IF _USE_MEDIUM_SPAN_PLOT
+IF _SHORT_SPAN_MAX_PIXELS > 5
 \\ 6, 7, 8, 9 pixels = 3 bytes max
 FOUR_BYTE_MASK_SHIFTS &FC00, e, table_index      ; 4 bytes
 FOUR_BYTE_MASK_SHIFTS &FE00, e, table_index
 FOUR_BYTE_MASK_SHIFTS &FF00, e, table_index
 FOUR_BYTE_MASK_SHIFTS &FF80, e, table_index
+ENDIF
 
+IF _SHORT_SPAN_MAX_PIXELS > 9
 \\ 10, 11, 12, 13 pixels = 4 bytes max
-FOUR_BYTE_MASK_SHIFTS &FFC0, e, table_index
+FOUR_BYTE_MASK_SHIFTS &FFC0, e, table_index      ; 4 bytes
 FOUR_BYTE_MASK_SHIFTS &FFE0, e, table_index
 FOUR_BYTE_MASK_SHIFTS &FFF0, e, table_index
 FOUR_BYTE_MASK_SHIFTS &FFF8, e, table_index
 ENDIF
 ENDMACRO
 
-.colour_mask_short_0:SHORT_MASK_TABLE 0,0        ; 20+16+16 =36 bytes
-.colour_mask_short_1:SHORT_MASK_TABLE 0,1
-.colour_mask_short_2:SHORT_MASK_TABLE 0,2
+.colour_mask_short_0:SHORT_MASK_TABLE 0,0        ; 20+16+16 = 52 bytes max
+.screen_mask_short_0:SHORT_MASK_TABLE $ff,0
 
 \ ******************************************************************
 \ *	PALETTE DATA - MUST BE PAGE ALIGNED DUE TO SMC
@@ -139,11 +140,16 @@ PAGE_ALIGN  ; lazy
 }
 
 \\\
-
-.screen_mask_short_0:SHORT_MASK_TABLE $ff,0
+.colour_mask_short_1:SHORT_MASK_TABLE 0,1
 .screen_mask_short_1:SHORT_MASK_TABLE $ff,1
+
+IF _SHORT_SPAN_MAX_PIXELS > 5
+.colour_mask_short_2:SHORT_MASK_TABLE 0,2
 .screen_mask_short_2:SHORT_MASK_TABLE $ff,2
+ENDIF
 
 ; tables to 4 bytes
+IF _SHORT_SPAN_MAX_PIXELS > 9
 .colour_mask_short_3:SHORT_MASK_TABLE 0,3
 .screen_mask_short_3:SHORT_MASK_TABLE $ff,3
+ENDIF

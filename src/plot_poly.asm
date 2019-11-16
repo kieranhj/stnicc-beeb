@@ -3,7 +3,11 @@
 \ *	SPAN BUFFER POLYGON FILL ROUTINES
 \ ******************************************************************
 
-_USE_MEDIUM_SPAN_PLOT = TRUE
+\\ 1 pixel = 1 byte max
+\\ 5 pixels = 2 bytes max
+\\ 9 pixels = 3 bytes max
+\\ 13 pixels = 4 bytes max
+_SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
 
 \ ******************************************************************
 \ *	SPAN PLOTTING FUNCTIONS
@@ -223,11 +227,7 @@ _USE_MEDIUM_SPAN_PLOT = TRUE
     \\ Shouldn't have blank spans now we have min/max Y
 
     \\ Check if the span is short...
-IF _USE_MEDIUM_SPAN_PLOT
-    cmp #14 ;10                         ; 2c
-ELSE
-    cmp #6                          ; 2c
-ENDIF
+    cmp #(_SHORT_SPAN_MAX_PIXELS+1)     ; 2c
     bcc plot_short_span     ; [1-5] ; 2/3c
 
     IF _HALF_VERTICAL_RES
@@ -315,7 +315,7 @@ ENDIF
     iny:sta (shortptr), Y           ; 8c
     ENDIF
 
-IF _USE_MEDIUM_SPAN_PLOT
+IF _SHORT_SPAN_MAX_PIXELS > 5
     \\ Byte 3
     lda colour_mask_short_2, X       ; 4c
     beq done                        ; 2/3c
@@ -332,7 +332,9 @@ IF _USE_MEDIUM_SPAN_PLOT
     IF _DOUBLE_PLOT_Y
     iny:sta (shortptr), Y           ; 8c
     ENDIF
+ENDIF
 
+IF _SHORT_SPAN_MAX_PIXELS > 9
     \\ Byte 4
     lda colour_mask_short_3, X       ; 4c
     beq done                        ; 2/3c
