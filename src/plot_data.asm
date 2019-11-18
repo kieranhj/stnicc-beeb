@@ -23,22 +23,6 @@
     EQUB %00010001
 }
 
-.screen_mask_pixel
-{
-    EQUB %01110111
-    EQUB %10111011
-    EQUB %11011101
-    EQUB %11101110
-}
-
-.colour_mask_pixel
-{
-    EQUB %10001000
-    EQUB %01000100
-    EQUB %00100010
-    EQUB %00010001
-}
-
 .four_minus
 EQUB 4,3,2,1
 

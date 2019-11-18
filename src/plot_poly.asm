@@ -180,8 +180,8 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     lda poly_verts_y+1, X
     sta endy
 
-    lda poly_verts_x, X
     ldy poly_verts_y, X     ; starty
+    lda poly_verts_x, X
     tax                     ; startx
 
     jmp drawline_into_span_buffer       ; JSR/RTS => JMP/JMP
@@ -427,7 +427,8 @@ ENDMACRO
 
 	; calc dx = ABS(startx - endx)
 	SEC
-    txa
+    ; actually already in A as well.
+    ;txa
 	SBC endx
 	BCS posdx
 	EOR #255
