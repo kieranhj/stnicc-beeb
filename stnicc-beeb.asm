@@ -73,6 +73,12 @@ ALIGN &100
 PRINT "Lost ", P%-H%, "bytes"
 ENDMACRO
 
+MACRO CHECK_SAME_PAGE_AS base
+IF HI(P%-1) <> HI(base)
+PRINT "WARNING! Table or branch base address",~base, "may cross page boundary at",~P%
+ENDIF
+ENDMACRO
+
 \ ******************************************************************
 \ *	GLOBAL constants
 \ ******************************************************************
@@ -205,6 +211,9 @@ skip &100
 skip &100
 .y_to_row
 skip &100
+PAGE_ALIGN  ; lazy
+.poly_palette
+skip &40
 .screen_col_LO
 skip &80
 .reloc_to_end
@@ -483,6 +492,20 @@ ELSE
 
 ENDIF
 
+    IF _STOP_AT_FRAME > 0
+    {
+        lda frame_no+1
+        cmp #HI(_STOP_AT_FRAME)
+        bcc continue
+        lda frame_no
+        cmp #LO(_STOP_AT_FRAME)
+        bcc continue
+
+		lda #&ff:sta pause_lock
+		.continue
+    }
+	ENDIF
+
 	rts
 }
 ENDIF
@@ -655,20 +678,6 @@ ENDIF
 		SEI
 	}
 	ENDIF
-
-    IF _DEBUG AND _STOP_AT_FRAME > 0
-    {
-        lda frame_no+1
-        cmp #HI(_STOP_AT_FRAME)
-        bcc continue
-        lda frame_no
-        cmp #LO(_STOP_AT_FRAME)
-        bcc continue
-
-		lda #&ff:sta pause_lock
-		.continue
-    }
-    ENDIF
 
 	\\ Restore registers
 	PLA:TAY:PLA:TAX
@@ -876,6 +885,7 @@ row=n DIV 8:sl=n MOD 8
 addr = row * SCREEN_ROW_BYTES + sl
 EQUB LO(screen1_addr + addr)
 NEXT
+CHECK_SAME_PAGE_AS reloc_screen_row_LO
 
 .reloc_screen1_row_HI
 FOR n,0,255,1
@@ -883,6 +893,7 @@ row=n DIV 8:sl=n MOD 8
 addr = row * SCREEN_ROW_BYTES + sl
 EQUB HI(screen1_addr + addr)
 NEXT
+CHECK_SAME_PAGE_AS reloc_screen1_row_HI
 
 .reloc_screen2_row_HI
 FOR n,0,255,1
@@ -890,18 +901,46 @@ row=n DIV 8:sl=n MOD 8
 addr = row * SCREEN_ROW_BYTES + sl
 EQUB HI(screen2_addr + addr)
 NEXT
+CHECK_SAME_PAGE_AS reloc_screen2_row_HI
 
 .reloc_y_to_row		; div_8
 FOR n,0,255,1
 row=n DIV 8
 EQUB row
 NEXT
+CHECK_SAME_PAGE_AS reloc_y_to_row
+
+\ ******************************************************************
+\ *	PALETTE DATA - MUST BE PAGE ALIGNED DUE TO SMC
+\ ******************************************************************
+
+PAGE_ALIGN  ; lazy
+.reloc_poly_palette
+{
+    EQUB &00,&00,&00,&00        ; black
+    EQUB &0F,&0F,&0F,&0F        ; colour 1
+    EQUB &F0,&F0,&F0,&F0        ; colour 2
+    EQUB &FF,&FF,&FF,&FF        ; colour 3
+    EQUB &05,&00,&0A,&00        ; colour 1.1
+    EQUB &05,&0A,&05,&0A        ; colour 1.2
+    EQUB &05,&0F,&0A,&0F        ; colour 1.3
+    EQUB &0F,&00,&0F,&00        ; stripe 1
+    EQUB &50,&00,&A0,&00        ; colour 2.1
+    EQUB &50,&A0,&50,&A0        ; colour 2.2
+    EQUB &50,&F0,&A0,&F0        ; colour 2.3
+    EQUB &F0,&00,&F0,&00        ; stripe 2
+    EQUB &55,&00,&AA,&00        ; colour 3.1
+    EQUB &55,&AA,&55,&AA        ; colour 3.2
+    EQUB &55,&FF,&AA,&FF        ; colour 3.3
+    EQUB &FF,&00,&FF,&00        ; stripe 3
+}
 
 .reloc_screen_col_LO
 FOR n,0,127,1
 col=n DIV 4
 EQUB LO(col*8)
 NEXT
+CHECK_SAME_PAGE_AS reloc_screen_col_LO
 
 .reloc_from_end
 

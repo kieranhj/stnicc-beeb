@@ -19,7 +19,7 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
 ; having to recalculate each time etc.
 
 ; This fn is called 3 million times across the entire sequence so every cycle counts!
-.plot_span
+.plot_long_span
 {
     ; X=span_start
     ; Y=span_y / poly_y
@@ -37,7 +37,6 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     adc screen_col_LO, X            ; 4c        ; column * 8
     tay
 
-    .plot_long_span
     \\ First byte
     \\ X=span_start
     txa                                     ; 2c
@@ -79,6 +78,7 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     \\ Main body of span; bytes to plot = span_width DIV 4
     lda span_width                          ; 3c
 	and #%11111100							; 2c
+    .branch_to_skip_span_loop
     beq skip_span_loop                      ; 2/3c
 
     \\ X=width in columns
@@ -112,7 +112,11 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     .^return_here_from_unrolled_span_loop
     IF _DOUBLE_PLOT_Y
     tya:and #1:bne done_double_plot         ; 6c
+    CHECK_SAME_PAGE_AS done_double_plot
+
     iny:bne do_unrolled_span                ; 5c
+    CHECK_SAME_PAGE_AS do_unrolled_span
+
     .done_double_plot
     dey                                     ; 2c
     ENDIF
@@ -121,9 +125,12 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     tya:adc long_span_tables+1,X:tay     
 
     .skip_span_loop
+    CHECK_SAME_PAGE_AS branch_to_skip_span_loop
+
     \\ Last byte?
     lda span_width                              ; 3c
     and #3                                      ; 2c
+    .branch_to_skip_last_byte
     beq skip_last_byte                          ; 2/3c
     tax                                         ; 2c
 
@@ -145,10 +152,9 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     iny:sta (writeptr), Y                       ; 8c
     ENDIF
     .skip_last_byte
+    CHECK_SAME_PAGE_AS branch_to_skip_last_byte
 
-    .plot_span_return
     jmp return_here_from_plot_span
-    ;rts
 }
 
 \ ******************************************************************
@@ -190,6 +196,7 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     ldx poly_index
     dex
     bpl line_loop
+    CHECK_SAME_PAGE_AS line_loop
 
     \\ Set our palette lookup
     lda poly_colour
@@ -228,12 +235,13 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     \\ Check if the span is short...
     cmp #(_SHORT_SPAN_MAX_PIXELS+1)     ; 2c
     bcc plot_short_span     ; [1-5] ; 2/3c
+    .^branch_to_short_span
 
     IF _HALF_VERTICAL_RES
-    tya:asl a:tay:sty span_y        ; 6c
+    tya:asl a:tay:sty span_y    ; 6c
     ENDIF
 
-    jmp plot_span               ; eventually inline entire fn to save 6c
+    jmp plot_long_span          ; eventually inline entire fn to save 6c
     .^return_here_from_plot_span
 
     .skip_span
@@ -249,12 +257,15 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     .span_loop_max_y
     cpy #0                      ; 2c
     bcc span_loop               ; 3c
+    CHECK_SAME_PAGE_AS span_loop
 
     jmp return_here_from_plot_poly
 }
 
 .plot_short_span
 {
+    CHECK_SAME_PAGE_AS branch_to_short_span
+
     IF _HALF_VERTICAL_RES
     tya:asl a:tay                   ; 6c
     ENDIF
@@ -282,7 +293,7 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     tax                             ; 2c
 
     \\ Byte 1
-    lda colour_mask_short_0, X       ; 2c
+    lda colour_mask_short_0, X      ; 2c
     and span_colour                 ; 3c
     sta ora_byte1+1                 ; 4c
 
@@ -298,8 +309,10 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     ENDIF
 
     \\ Byte 2
-    lda colour_mask_short_1, X       ; 4c
-    beq done                        ; 2/3c
+    lda colour_mask_short_1, X      ; 4c
+    beq return_here_from_plot_span                        ; 2/3c
+    CHECK_SAME_PAGE_AS return_here_from_plot_span
+    
     and span_colour                 ; 3c
     sta ora_byte2+1                 ; 4c
 
@@ -316,8 +329,10 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
 
 IF _SHORT_SPAN_MAX_PIXELS > 5
     \\ Byte 3
-    lda colour_mask_short_2, X       ; 4c
-    beq done                        ; 2/3c
+    lda colour_mask_short_2, X      ; 4c
+    beq return_here_from_plot_span                        ; 2/3c
+    CHECK_SAME_PAGE_AS return_here_from_plot_span
+
     and span_colour                 ; 3c
     sta ora_byte3+1                 ; 4c
 
@@ -335,14 +350,16 @@ ENDIF
 
 IF _SHORT_SPAN_MAX_PIXELS > 9
     \\ Byte 4
-    lda colour_mask_short_3, X       ; 4c
-    beq done                        ; 2/3c
+    lda colour_mask_short_3, X      ; 4c
+    beq return_here_from_plot_span                        ; 2/3c
+    CHECK_SAME_PAGE_AS return_here_from_plot_span
+
     and span_colour                 ; 3c
     sta ora_byte4+1                 ; 4c
 
     ldy #24                         ; 2c
     lda (shortptr), Y               ; 5c
-    and screen_mask_short_3, X       ; 4c
+    and screen_mask_short_3, X      ; 4c
     .ora_byte4
     ora #0                          ; 2c
     sta (shortptr), Y               ; 6c
@@ -371,6 +388,7 @@ ENDIF
     iny
     cpy #SCREEN_HEIGHT_PIXELS
     bne loop
+    CHECK_SAME_PAGE_AS loop
 
     rts
 }
@@ -501,7 +519,8 @@ ENDMACRO
 
 	; check if done
 	dex
-    beq exitline
+    .branch_to_exitline
+    beq exitline        ; <= can this branch directly to return_here_from_drawline?
 
 	.branchupdown
 	; move up to next line
@@ -514,17 +533,20 @@ ENDMACRO
 	LDA accum
 	SBC dx
 	BCS steeplineloop
+    CHECK_SAME_PAGE_AS steeplineloop
 	ADC dy
 	
 	.branchleftright
-	inc count			   ; inc/dec - self-modified to goingright or
-						   ; goingleft
-	JMP steeplineloop		; always taken
+	inc count			    ; inc/dec - self-modified to goingright or
+						    ; goingleft
+	JMP steeplineloop	    ; always taken
+    CHECK_SAME_PAGE_AS steeplineloop
 	
     .exit_early
     PLP:PLP
 
-	.exitline
+    .exitline
+    CHECK_SAME_PAGE_AS branch_to_exitline
     jmp return_here_from_drawline
 
 
@@ -575,7 +597,8 @@ ENDMACRO
 	
 	; check if done
 	DEC count
-    beq exitline2
+    .branch_to_exitline2
+    beq exitline2       ; <= can this branch directly to return_here_from_drawline?
 
 	.branchleftright2
 	nop 					; inx/dex - self-modified to goingleft2 or
@@ -584,6 +607,7 @@ ENDMACRO
 	; check whether we move to the next line
 	SBC dy
 	BCS shallowlineloop_2
+    CHECK_SAME_PAGE_AS shallowlineloop_2
 
 	; move down to next line
 	.movetonextline
@@ -606,6 +630,7 @@ ENDMACRO
 	JMP shallowlineloop_1		; always taken
 
 	.exitline2
+    CHECK_SAME_PAGE_AS branch_to_exitline2
     ; Plot last 'pixel' into span buffer
     ;jmp plot_pixel_into_span_buffer
     UPDATE_SPAN_BUFFER_WITH_X FALSE

@@ -14,6 +14,7 @@
     EQUB %11001100
     EQUB %11101110
 }
+CHECK_SAME_PAGE_AS screen_mask_starting_at_pixel
 
 .colour_mask_starting_at_pixel
 {
@@ -22,12 +23,15 @@
     EQUB %00110011
     EQUB %00010001
 }
+CHECK_SAME_PAGE_AS colour_mask_starting_at_pixel
 
 .four_minus
 EQUB 4,3,2,1
+CHECK_SAME_PAGE_AS four_minus
 
 .minus_1_times_4
 EQUB 0, 0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48
+CHECK_SAME_PAGE_AS four_minus
 
 \ ******************************************************************
 \ *	PRE-SHIFTED DATA FOR SHORT/MEDIUM SPANS
@@ -95,45 +99,37 @@ FOUR_BYTE_MASK_SHIFTS &FFF8, e, table_index
 ENDIF
 ENDMACRO
 
-.colour_mask_short_0:SHORT_MASK_TABLE 0,0        ; 20+16+16 = 52 bytes max
-.screen_mask_short_0:SHORT_MASK_TABLE $ff,0
+.colour_mask_short_0
+SHORT_MASK_TABLE 0,0        ; 20+16+16 = 52 bytes max
+CHECK_SAME_PAGE_AS colour_mask_short_0
+.screen_mask_short_0
+SHORT_MASK_TABLE $ff,0
+CHECK_SAME_PAGE_AS screen_mask_short_0
 
-\ ******************************************************************
-\ *	PALETTE DATA - MUST BE PAGE ALIGNED DUE TO SMC
-\ ******************************************************************
+.colour_mask_short_1
+SHORT_MASK_TABLE 0,1
+CHECK_SAME_PAGE_AS colour_mask_short_1
+.screen_mask_short_1
+SHORT_MASK_TABLE $ff,1
+CHECK_SAME_PAGE_AS screen_mask_short_1
 
-PAGE_ALIGN  ; lazy
-.poly_palette
-{
-    EQUB &00,&00,&00,&00        ; black
-    EQUB &0F,&0F,&0F,&0F        ; colour 1
-    EQUB &F0,&F0,&F0,&F0        ; colour 2
-    EQUB &FF,&FF,&FF,&FF        ; colour 3
-    EQUB &05,&00,&0A,&00        ; colour 1.1
-    EQUB &05,&0A,&05,&0A        ; colour 1.2
-    EQUB &05,&0F,&0A,&0F        ; colour 1.3
-    EQUB &0F,&00,&0F,&00        ; stripe 1
-    EQUB &50,&00,&A0,&00        ; colour 2.1
-    EQUB &50,&A0,&50,&A0        ; colour 2.2
-    EQUB &50,&F0,&A0,&F0        ; colour 2.3
-    EQUB &F0,&00,&F0,&00        ; stripe 2
-    EQUB &55,&00,&AA,&00        ; colour 3.1
-    EQUB &55,&AA,&55,&AA        ; colour 3.2
-    EQUB &55,&FF,&AA,&FF        ; colour 3.3
-    EQUB &FF,&00,&FF,&00        ; stripe 3
-}
-
-\\\
-.colour_mask_short_1:SHORT_MASK_TABLE 0,1
-.screen_mask_short_1:SHORT_MASK_TABLE $ff,1
-
+; tables to 3 bytes
 IF _SHORT_SPAN_MAX_PIXELS > 5
-.colour_mask_short_2:SHORT_MASK_TABLE 0,2
-.screen_mask_short_2:SHORT_MASK_TABLE $ff,2
+.colour_mask_short_2
+SHORT_MASK_TABLE 0,2
+CHECK_SAME_PAGE_AS colour_mask_short_2
+.screen_mask_short_2
+SHORT_MASK_TABLE $ff,2
+CHECK_SAME_PAGE_AS screen_mask_short_2
 ENDIF
 
 ; tables to 4 bytes
 IF _SHORT_SPAN_MAX_PIXELS > 9
-.colour_mask_short_3:SHORT_MASK_TABLE 0,3
-.screen_mask_short_3:SHORT_MASK_TABLE $ff,3
+.colour_mask_short_3
+SHORT_MASK_TABLE 0,3
+CHECK_SAME_PAGE_AS colour_mask_short_3
+
+.screen_mask_short_3
+SHORT_MASK_TABLE $ff,3
+CHECK_SAME_PAGE_AS screen_mask_short_3
 ENDIF

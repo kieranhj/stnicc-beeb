@@ -251,5 +251,7 @@ So can do `and span_colour, X` directly rather than lda:and:sta ?
 
 18/11/2019
 ~~~
-Remove a couple of redundant stores in line_loop: &74B0 @ highQ
+Remove a couple of redundant stores in line_loop: &74B0 Master@HQ
 BBC Model B: &73AE @ HighQ?!
+
+Check page alignment for tables and branches: &7470 Master@HQ
