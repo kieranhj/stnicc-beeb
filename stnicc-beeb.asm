@@ -132,8 +132,11 @@ GUARD &9F
 .shortptr			skip 2
 
 ; vars for drawline
+; loaded directly into X&Y
+IF _DEBUG
 .startx             skip 1
 .starty             skip 1
+ENDIF
 .endx               skip 1
 .endy               skip 1
 .count              skip 1
@@ -203,8 +206,6 @@ skip &100
 .y_to_row
 skip &100
 .screen_col_LO
-skip &80
-.long_span_tables
 skip &80
 .reloc_to_end
 
@@ -842,6 +843,14 @@ EQUB 2,3,1,0
 
 include "src/plot_data.asm"
 
+.long_span_tables
+FOR col,0,32,1
+EQUB (32-col)*3					; +0,x for span_column_offset
+EQUB (col*8) AND 255			; +1,x for mult_8
+EQUB 0							; +2,x spare
+EQUB 0							; +3,x spare
+NEXT
+
 .data_end
 
 \ ******************************************************************
@@ -892,14 +901,6 @@ NEXT
 FOR n,0,127,1
 col=n DIV 4
 EQUB LO(col*8)
-NEXT
-
-.reloc_long_span_tables	; <= is value 32 actually needed? (NOT CURENTLY RELOC'D!)
-FOR col,0,32,1
-EQUB (32-col)*3					; +0,x for span_column_offset
-EQUB (col*8) AND 255			; +1,x for mult_8
-EQUB 0							; +2,x spare
-EQUB 0							; +3,x spare
 NEXT
 
 .reloc_from_end

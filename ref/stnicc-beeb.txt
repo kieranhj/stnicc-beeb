@@ -248,3 +248,8 @@ Check all tables and branches for PAGE crossing
 What about unrolling medium span for 4 bytes?
 Can we expand span_colour to include pixel and screen masks?
 So can do `and span_colour, X` directly rather than lda:and:sta ?
+
+18/11/2019
+~~~
+Remove a couple of redundant stores in line_loop: &74B0 @ highQ
+BBC Model B: &73AE @ HighQ?!

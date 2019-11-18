@@ -175,15 +175,14 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     .line_loop
     stx poly_index
 
-    lda poly_verts_x, X
-    sta startx
-    lda poly_verts_y, X
-    sta starty
-
     lda poly_verts_x+1, X
     sta endx
     lda poly_verts_y+1, X
     sta endy
+
+    lda poly_verts_x, X
+    ldy poly_verts_y, X     ; starty
+    tax                     ; startx
 
     jmp drawline_into_span_buffer       ; JSR/RTS => JMP/JMP
     .^return_here_from_drawline
@@ -408,7 +407,7 @@ ENDMACRO
 .drawline_into_span_buffer
 {
 	; calc screen row of starty
-	LDY starty
+    ; Y=starty
 
     \\ Keep track of our min/max Y for span plot
     {
@@ -424,11 +423,11 @@ ENDMACRO
     \\ Don't need to do this for endy as we know tris are convex
 
 	; calc pixel within byte of startx
-	LDX startx
+    ; X=startx
 
 	; calc dx = ABS(startx - endx)
 	SEC
-	LDA startx
+    txa
 	SBC endx
 	BCS posdx
 	EOR #255
@@ -441,7 +440,7 @@ ENDMACRO
 	
 	; calc dy = ABS(starty - endy)
 	SEC
-	LDA starty
+    tya
 	SBC endy
 	BCS posdy
 	EOR #255
