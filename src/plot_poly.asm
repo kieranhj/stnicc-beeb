@@ -165,12 +165,6 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
 
 .plot_poly_span
 {
-    \\ Reset our min/max tracking
-    lda #255
-    sta span_buffer_min_y
-    lda #0
-    sta span_buffer_max_y
-
     \\ Duplicate first vertex to end
     ldx poly_num_verts
     lda poly_verts_x
@@ -181,23 +175,25 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     \\ 'Draw' lines into our span buffer
     dex
     .line_loop
-    stx poly_index
+    stx poly_index              ; 3c
 
-    lda poly_verts_x+1, X
-    sta endx
-    lda poly_verts_y+1, X
-    sta endy
+    lda poly_verts_x+1, X       ; 4c
+    sta endx                    ; 3c
+    lda poly_verts_y+1, X       ; 4c
+    sta endy                    ; 4c
 
-    ldy poly_verts_y, X     ; starty
-    lda poly_verts_x, X
-    tax                     ; startx
+    ; starty
+    ldy poly_verts_y, X         ; 4c
+    ; startx
+    lda poly_verts_x, X         ; 4c
+    tax                         ; 2c
 
     jmp drawline_into_span_buffer       ; JSR/RTS => JMP/JMP
     .^return_here_from_drawline
 
-    ldx poly_index
-    dex
-    bpl line_loop
+    ldx poly_index              ; 3c
+    dex                         ; 2c
+    bpl line_loop               ; 3c
     CHECK_SAME_PAGE_AS line_loop
 
     \\ Palette lookup set during frame_parse

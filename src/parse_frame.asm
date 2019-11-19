@@ -61,9 +61,10 @@ ENDIF
     GET_BYTE
     sta indexed_num_verts
 
-IF _PREPROCESSED_VERTS
+    \\ Next comes our array of vertices_x
     GET_BYTE
     
+    \\ calculate a ptr to the array
     clc
     lda STREAM_ptr_LO
     sta read_verts_x+1
@@ -74,20 +75,11 @@ IF _PREPROCESSED_VERTS
     sta read_verts_x+2
     adc #0
     sta STREAM_ptr_HI
-ELSE
-    ldx #0
-    .read_verts_loop_x
-    GET_BYTE
-    lsr a
-    sta vertices_x, X
-    inx
-    cpx indexed_num_verts
-    bcc read_verts_loop_x
-ENDIF
 
-IF _PREPROCESSED_VERTS
+    \\ Next comes our array of vertices_y
     dec indexed_num_verts
 
+    \\ calculate a ptr to the array
     clc
     lda STREAM_ptr_LO
     sta read_verts_y+1
@@ -100,22 +92,16 @@ IF _PREPROCESSED_VERTS
     sta STREAM_ptr_HI
 
     inc indexed_num_verts
-ELSE
-    ldx #0
-    .read_verts_loop_y
-    GET_BYTE
-    IF _HALF_VERTICAL_RES
-    lsr a
-    ENDIF
-    sta vertices_y, X
-    inx
-    cpx indexed_num_verts
-    bcc read_verts_loop_y
-ENDIF
 
     \\ Read polygon data
     .read_poly_data
     ldy #0
+
+    \\ Reset our min/max tracking
+    sty span_buffer_max_y
+    lda #255
+    sta span_buffer_min_y
+
     GET_BYTE
     tax ; poly_descriptor
     cmp #POLY_DESC_END_OF_STREAM
@@ -132,13 +118,14 @@ ENDIF
     and #FLAG_INDEXED_DATA
     beq non_indexed_data
 
+    \\ Read first vertex from the array
+
     ldx #0
     .read_poly_loop
     ldy #0
     GET_BYTE
     tay
 
-IF _PREPROCESSED_VERTS
     \\ Read the vertices directly from the stream data
     .read_verts_x
     lda &ffff, Y
@@ -149,12 +136,6 @@ IF _PREPROCESSED_VERTS
     lsr a
     ENDIF
     sta poly_verts_y, X
-ELSE
-    lda vertices_x, Y
-    sta poly_verts_x, X
-    lda vertices_y, Y
-    sta poly_verts_y, X
-ENDIF
 
     \\ Next step would be to inline the poly loop here.
 

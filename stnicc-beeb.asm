@@ -21,8 +21,6 @@ _STOP_AT_FRAME = 0
 ; Debug defines
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
-; Data stream defines
-_PREPROCESSED_VERTS = TRUE
 ; Rendering defines
 _HALF_VERTICAL_RES = (_QUALITY < 2)
 _DOUBLE_PLOT_Y = (_QUALITY = 1)
@@ -227,12 +225,6 @@ skip &80
 
 ORG &A00
 GUARD &D00
-IF _PREPROCESSED_VERTS = FALSE
-.vertices_x
-skip &100
-.vertices_y
-skip &100
-ENDIF
 .span_buffer_start
 skip &100
 .span_buffer_end
