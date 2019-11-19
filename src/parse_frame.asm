@@ -95,6 +95,7 @@ ENDIF
 
     \\ Read polygon data
     .read_poly_data
+    .^return_here_from_plot_poly
     ldy #0
 
     \\ Reset our min/max tracking
@@ -167,12 +168,10 @@ ENDIF
     .parse_do_plot
 IF _PLOT_WIREFRAME
     jsr plot_poly_line
+    jmp read_poly_data
 ELSE
     jmp plot_poly_span      ; JSR/RTS => JMP/JMP
 ENDIF
-    .^return_here_from_plot_poly
-
-    jmp read_poly_data
 
     .parse_end_of_frame
 
