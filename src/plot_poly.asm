@@ -111,13 +111,15 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     jmp &ffff                               ; _DOUBLE_PLOT_Y ?
     .^return_here_from_unrolled_span_loop
     IF _DOUBLE_PLOT_Y
-    tya:and #1:bne done_double_plot         ; 6c
-    CHECK_SAME_PAGE_AS done_double_plot
+    tya:and #1
+    .branch_to_done_double_plot
+    bne done_double_plot         ; 6c
 
     iny:bne do_unrolled_span                ; 5c
     CHECK_SAME_PAGE_AS do_unrolled_span
 
     .done_double_plot
+    CHECK_SAME_PAGE_AS branch_to_done_double_plot
     dey                                     ; 2c
     ENDIF
 
@@ -312,7 +314,7 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     lda colour_mask_short_1, X      ; 4c
     beq return_here_from_plot_span                        ; 2/3c
     CHECK_SAME_PAGE_AS return_here_from_plot_span
-    
+
     and span_colour                 ; 3c
     sta ora_byte2+1                 ; 4c
 

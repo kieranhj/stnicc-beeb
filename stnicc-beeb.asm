@@ -116,16 +116,18 @@ POLY_DESC_END_OF_FRAME = &FF
 ; Exact time for a 50Hz frame less latch load time
 FramePeriod = 312*64-2
 
-; Calculate here the timer value to interrupt at the desired line
-TimerValue = (32+100)*64 - 2*64
+; This is when we trigger the next frame draw during the frame
+; Essentially how much time we give the main loop to stream the next track
+TimerValue = (32+12)*64 - 2*64
 
 \ ******************************************************************
 \ *	ZERO PAGE
 \ ******************************************************************
 
 ORG &00
-GUARD &9F
+GUARD &A0
 
+.zp_start
 .STREAM_ptr_LO      skip 1
 .STREAM_ptr_HI      skip 1
 
@@ -195,6 +197,7 @@ IF _DEBUG
 .last_vsync         skip 1
 .debug_writeptr		skip 2
 ENDIF
+.zp_end
 
 \ ******************************************************************
 \ *	BSS DATA IN LOWER RAM
@@ -980,6 +983,7 @@ SKIP STREAM_buffer_size
 PRINT "------"
 PRINT "STNICC-BEEB"
 PRINT "------"
+PRINT "ZP size =", ~zp_end-zp_start, "(",~&C0-zp_end,"free)"
 PRINT "MAIN size =", ~main_end-main_start
 PRINT "FX size = ", ~fx_end-fx_start
 PRINT "DATA size =",~data_end-data_start
