@@ -181,7 +181,7 @@ ENDIF
 .frame_flags        skip 1
 .frame_bitmask      skip 2
 .indexed_num_verts  skip 1
-.poly_descriptor    skip 1
+;.poly_descriptor    skip 1
 .eof_flag			skip 1
 
 ; system vars
