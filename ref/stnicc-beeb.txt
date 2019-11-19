@@ -256,3 +256,6 @@ BBC Model B: &73AE @ HighQ?!
 
 Check page alignment for tables and branches: &7470 Master@HQ
 BBCB@HQ = &736F.
+
+Moving Timer 1: Master@HQ = &7280
+Master@LQ = 4.94 fps but runs out of data switching to disc 3!

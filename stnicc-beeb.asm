@@ -11,6 +11,9 @@ _QUALITY = 2
 _DEBUG = TRUE
 _TESTS = FALSE
 
+; Display <drive no | sector no> <track no> <load to HI> <stream ptr HI>
+_SHOW_STREAMING_INFO = FALSE
+
 ; If set, show total vsync count, rather than just the count for the
 ; last frame. Intended for use in conjunction with _STOP_AT_FRAME.
 _SHOW_TOTAL_VSYNC_COUNTER = TRUE
@@ -20,7 +23,6 @@ _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
 ; Data stream defines
 _PREPROCESSED_VERTS = TRUE
-_STREAMING = TRUE
 ; Rendering defines
 _HALF_VERTICAL_RES = (_QUALITY < 2)
 _DOUBLE_PLOT_Y = (_QUALITY = 1)
@@ -52,7 +54,6 @@ PAL_white	= (7 EOR 7)
 
 DFS_sector_size = 256
 DFS_sectors_per_track = 10
-DFS_sectors_to_load = 10
 DFS_track_size = (DFS_sectors_per_track * DFS_sector_size)
 
 \ ******************************************************************
@@ -83,8 +84,7 @@ ENDMACRO
 \ *	GLOBAL constants
 \ ******************************************************************
 
-MAX_VERTS_PER_POLY = 7
-
+; SCREEN constants
 SCREEN_ROW_BYTES = 256
 SCREEN_WIDTH_PIXELS = 128
 SCREEN_HEIGHT_PIXELS = 200
@@ -93,17 +93,21 @@ SCREEN_SIZE_BYTES = (SCREEN_WIDTH_PIXELS * SCREEN_HEIGHT_PIXELS) / 4
 screen1_addr = &8000 - SCREEN_SIZE_BYTES
 screen2_addr = screen1_addr - SCREEN_SIZE_BYTES
 
-TRACKS_per_disk = 75
+; STREAMING constants
+STREAMING_tracks_per_disk = 75
+STREAMING_sectors_to_load = 10
 
-DISK1_drive_no = 0			; for loop!
-DISK1_first_track = 5		; the track at which the video file is located on side 0; all tracks prior to this are reserved for code
-DISK1_last_track = DISK1_first_track + TRACKS_per_disk
+DISK1_drive_no = 0
+DISK1_first_track = 5
+DISK1_last_track = DISK1_first_track + STREAMING_tracks_per_disk
 
-DISK2_drive_no = 2			; should be 2
 DISK2_first_track = 1
-DISK2_last_track = DISK2_first_track + TRACKS_per_disk
+DISK2_last_track = DISK2_first_track + STREAMING_tracks_per_disk
 
 STREAM_buffer_size = 3 * DFS_track_size
+
+; STNICCC scene1.bin constants
+MAX_VERTS_PER_POLY = 7
 
 FLAG_CLEAR_SCREEN = 1
 FLAG_CONTAINS_PALETTE = 2
@@ -372,10 +376,6 @@ GUARD screen2_addr
 	DEC decode_lock
 
     .loop
-    \\ Wait vsync
-	lda #19
-	jsr osbyte
-
     \\ Debug
     IF _DEBUG AND _STOP_AT_FRAME > 0
     {
@@ -388,42 +388,9 @@ GUARD screen2_addr
     }
     ENDIF
 
-	IF _STREAMING = FALSE
-	{
-		lda pause_lock
-		bne stream_ok
-
-		\\ Parse and draw the next frame
-		jsr parse_frame
-		sta eof_flag
-
-		cmp #POLY_DESC_SKIP_TO_64K
-		bne stream_ok
-		
-		\\ Align to next page
-		lda #LO(STREAM_buffer_start-1)
-		sta STREAM_ptr_LO
-		lda #HI(STREAM_buffer_start-1)
-		sta STREAM_ptr_HI
-		.stream_ok
-	}
-	ENDIF
-
 	lda eof_flag
 	cmp #POLY_DESC_END_OF_STREAM
-    bne not_eof
-	jmp track_load_error
-	.not_eof
-
-	IF _STREAMING=FALSE
-
-	IF _DEBUG
-	jsr show_vsync_counter
-	ENDIF
-	jmp swap_frame_buffers
-	.^return_here_from_swap_frame_buffers
-
-	ENDIF
+    beq track_load_error
 
 	\\ Which page are we reading crunched data from?
 	sec
@@ -435,7 +402,7 @@ GUARD screen2_addr
 	EOR #255
 	ADC #1
 	.sectors_to_load_1
-	CMP #DFS_sectors_to_load
+	CMP #STREAMING_sectors_to_load
 	BCC not_ready_to_load
 
 	\\ If so, load a track's worth of data into our buffer
@@ -481,17 +448,36 @@ IF _SHOW_TOTAL_VSYNC_COUNTER
 	jsr debug_write_A
 
 	lda vsync_counter+0
-	jsr debug_write_A
+	jsr debug_write_A_spc
 
 ELSE
 
     sec
     lda vsync_counter
     sbc last_vsync
-    jsr debug_write_A
+    jsr debug_write_A_spc
 
     lda vsync_counter
     sta last_vsync
+
+ENDIF
+
+IF _SHOW_STREAMING_INFO
+
+	lda osword_params_drive
+	asl a:asl a:asl a:asl a
+	ora osword_params_sector
+
+	jsr debug_write_A_spc
+
+	lda osword_params_track
+	jsr debug_write_A_spc
+
+	lda load_to_HI
+	jsr debug_write_A_spc
+
+	lda STREAM_ptr_HI
+	jsr debug_write_A_spc
 
 ENDIF
 
@@ -547,7 +533,7 @@ ENDIF
 	CLC
 	LDA sector_no
 	.sectors_to_load_2
-	ADC #DFS_sectors_to_load
+	ADC #STREAMING_sectors_to_load
 	CMP #DFS_sectors_per_track
 	BCC same_track
 	SBC #DFS_sectors_per_track
@@ -592,7 +578,7 @@ ENDIF
 	CLC
 	LDA load_to_HI
 	.sectors_to_load_3
-	ADC #DFS_sectors_to_load
+	ADC #STREAMING_sectors_to_load
 
 	\\ Have we fallen off the end of the buffer?
 	CMP #HI(STREAM_buffer_end)
@@ -654,7 +640,6 @@ ENDIF
 	TXA:PHA:TYA:PHA
 
 	\\ Do the slow bit!
-	IF _STREAMING
 	{
 		\\ Decode the frame with interrupts off!
 		CLI
@@ -666,21 +651,20 @@ ENDIF
 		cmp #POLY_DESC_SKIP_TO_64K
 		bne stream_ok
 		
-		\\ Align to next page
+		\\ Align to start of streaming buffer (track size)
 		lda #LO(STREAM_buffer_start-1)
 		sta STREAM_ptr_LO
 		lda #HI(STREAM_buffer_start-1)
 		sta STREAM_ptr_HI
 		.stream_ok
 
-	IF _DEBUG
+		IF _DEBUG
 		jsr show_vsync_counter
-	ENDIF
+		ENDIF
 
 		\\ Disable interrupts again!
 		SEI
 	}
-	ENDIF
 
 	\\ Restore registers
 	PLA:TAY:PLA:TAX
@@ -691,10 +675,9 @@ ENDIF
 	\\ Set our screen lock until frame swap
 	lda #&ff:sta screen_lock
 
-	IF _STREAMING
+	\\ Swap frame buffers
 	jmp swap_frame_buffers
 	.^return_here_from_swap_frame_buffers
-	ENDIF
 
 	\\ Pass on to OS IRQ handler
 	.return_to_os
@@ -846,7 +829,7 @@ EQUB 0				; logical track
 .osword_params_sector
 EQUB 0				; logical sector
 .osword_params_size_sectors
-EQUB &20 + DFS_sectors_to_load		; sector size / number sectors = 256 / 10
+EQUB &20 + STREAMING_sectors_to_load		; sector size / number sectors = 256 / 10
 .osword_params_return
 EQUB 0				; returned error value
 
