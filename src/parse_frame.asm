@@ -125,8 +125,8 @@ ENDIF
     sta poly_num_verts
 
     lda poly_descriptor
-    lsr a:lsr a:lsr a:lsr a
-    sta poly_colour
+    and #&f0:lsr a:lsr a
+    sta load_palette+1      ; poly_colour
 
     lda frame_flags
     and #FLAG_INDEXED_DATA

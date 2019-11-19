@@ -200,10 +200,7 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     bpl line_loop
     CHECK_SAME_PAGE_AS line_loop
 
-    \\ Set our palette lookup
-    lda poly_colour
-    asl a:asl a
-    sta load_palette+1
+    \\ Palette lookup set during frame_parse
 
     \\ Plot the spans
     ldy span_buffer_max_y
@@ -216,7 +213,7 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
 
     \\ v= on Master would happily burn a PAGE per palette to save 6c!
     tya:and #3:tax              ; 6c
-    .load_palette
+    .^load_palette
     lda poly_palette, X         ; 4c
     sta span_colour             ; 3c    <= where is this used?
 

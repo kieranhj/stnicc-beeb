@@ -160,7 +160,7 @@ ENDIF
 
 ; vars for plot_poly
 .poly_num_verts     skip 1
-.poly_colour        skip 1
+;.poly_colour        skip 1
 .poly_index         skip 1
 IF _HALF_VERTICAL_RES
 .span_y             skip 1
