@@ -288,8 +288,7 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     ; no carry!
     sta shortptr+1                  ; 3c
 
-    \\ w = [1,5] x = [0,3]
-    \\ index= ((w-1)*4+(xAND3))*2
+    \\ w = [1,N] x = [0,3]
     txa                             ; 2c
     and #3                          ; 2c
 

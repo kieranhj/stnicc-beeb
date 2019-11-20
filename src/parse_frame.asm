@@ -91,7 +91,7 @@ ENDIF
     adc #0
     sta STREAM_ptr_HI
 
-    inc indexed_num_verts
+    ; note indexed_num_verts is actually one less than it should be but no longer used.
 
     \\ Read polygon data
     .read_poly_data
@@ -111,6 +111,8 @@ ENDIF
     and #&f
     sta poly_num_verts
 
+    \\ Could be a table: lda poly_descriptor_to_palette_offset, X
+    \\ To save 4c per poly at the expense of 1 page.
     txa ; poly_descriptor
     and #&f0:lsr a:lsr a
     sta load_palette+1      ; poly_colour * 4
