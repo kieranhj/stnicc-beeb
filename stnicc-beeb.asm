@@ -316,7 +316,7 @@ GUARD screen2_addr
 
     \\ Resolution 256x200 => 128x200
     lda #1:sta &fe00:lda #32:sta &fe01
-    lda #6:sta &fe00:lda #24:sta &fe01
+    lda #6:sta &fe00:lda #25:sta &fe01
     lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
 
     lda #12:sta &fe00
