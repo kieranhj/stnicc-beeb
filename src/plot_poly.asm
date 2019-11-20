@@ -28,22 +28,22 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     \\ Compute address screen row for writeptr
     \\ NB. writeptr_LO = 0 then indexed by Y
     .^plot_long_span_set_screen
-    lda screen1_row_HI, Y           ; 4c
-    sta writeptr+1                  ; 3c
+    lda screen1_row_HI, Y                   ; 4c
+    sta writeptr+1                          ; 3c
 
     \\ Calculate offset into screen row for Y
-    clc
-    lda screen_row_LO, Y            ; 4c        ; scanline
-    adc screen_col_LO, X            ; 4c        ; column * 8
-    tay
+    clc                                     ; 2c
+    lda screen_row_LO, Y                    ; 4c        ; scanline
+    adc screen_col_LO, X                    ; 4c        ; column * 8
+    tay                                     ; 2c
 
-    \\ First byte
     \\ X=span_start
     txa                                     ; 2c
     and #3                                  ; 2c
     beq skip_first_byte                     ; 2/3c
-    tax
 
+    \\ First byte starts X pixels in
+    tax                                     ; 2c
     lda span_colour                         ; 3c
     and colour_mask_starting_at_pixel, X    ; 4c
     sta ora_left_hand_byte+1                ; 4c
@@ -59,7 +59,7 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     sta (writeptr), Y                       ; 6c
 
     IF _DOUBLE_PLOT_Y
-    iny:sta (writeptr), Y:dey               ; 8c
+    iny:sta (writeptr), Y:dey               ; 10c
     ENDIF
 
     \\ Subtract pixels from width
@@ -70,7 +70,7 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     \\ C=1
 
     \\ Increment column - can't overflow row
-    tya:adc #7:tay
+    tya:adc #7:tay                          ; 6c
 	\\ C=0
 
     .skip_first_byte
@@ -78,18 +78,25 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     \\ Main body of span; bytes to plot = span_width DIV 4
     lda span_width                          ; 3c
 	and #%11111100							; 2c
+
+    \\ Can't skip the inner span loop if we have a separate fn for short spans
+    IF _SHORT_SPAN_MAX_PIXELS < 9
     .branch_to_skip_span_loop
     beq skip_span_loop                      ; 2/3c
+    ENDIF
 
-    \\ X=width in columns
+    \\ Y=writeptr_LO
 	sty load_y_offset+1                     ; 4c
 
-    ; \\ Select row fn (row = Y DIV 8)
-    ; \\ Add offset into fn based on #columns to plot
+    \\ Calculate row from span_y DIV 8
 	ldx span_y                              ; 3c
 	ldy y_to_row,x                          ; 4c
+
+    ; A=(span_width DIV 4) << 2
 	tax                                     ; 2c
 
+    \\ Select row fn
+    \\ Add offset into fn based on #columns to plot
     .^plot_span_set_row_table_LO
     lda span_row_table_screen1_LO, Y        ; 4c
     adc long_span_tables+0,X				; 4c
@@ -102,7 +109,7 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
 	
     \\ Y=column offset from start of row + scanline = writeptr_LO
     .load_y_offset
-    ldy #0                            ; 3c
+    ldy #0                                  ; 2c
 
     \\ A=screen byte
     .do_unrolled_span
@@ -111,9 +118,9 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     jmp &ffff                               ; _DOUBLE_PLOT_Y ?
     .^return_here_from_unrolled_span_loop
     IF _DOUBLE_PLOT_Y
-    tya:and #1
+    tya:and #1                              ; 4c
     .branch_to_done_double_plot
-    bne done_double_plot         ; 6c
+    bne done_double_plot                    ; 6c
 
     iny:bne do_unrolled_span                ; 5c
     CHECK_SAME_PAGE_AS do_unrolled_span
@@ -124,39 +131,41 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     ENDIF
 
     \\ Increment to last column
-    tya:adc long_span_tables+1,X:tay     
+    tya:adc long_span_tables+1,X:tay        ; 8c  
 
+    IF _SHORT_SPAN_MAX_PIXELS < 9
     .skip_span_loop
     CHECK_SAME_PAGE_AS branch_to_skip_span_loop
+    ENDIF
 
     \\ Last byte?
-    lda span_width                              ; 3c
-    and #3                                      ; 2c
+    lda span_width                          ; 3c
+    and #3                                  ; 2c
     .branch_to_skip_last_byte
-    beq skip_last_byte                          ; 2/3c
-    tax                                         ; 2c
+    beq return_here_from_plot_span          ; 2/3c
+    tax                                     ; 2c
 
-    lda span_colour                             ; 3c
-    and screen_mask_starting_at_pixel, x        ; 4c
-    sta ora_right_hand_byte+1                   ; 4c
+    lda span_colour                         ; 3c
+    and screen_mask_starting_at_pixel, x    ; 4c
+    sta ora_right_hand_byte+1               ; 4c
 
     \\ Read screen byte
-    lda (writeptr), Y                           ; 5c
+    lda (writeptr), Y                       ; 5c
     \\ Mask out pixels to be drawn
-    and colour_mask_starting_at_pixel, X        ; 4c
+    and colour_mask_starting_at_pixel, X    ; 4c
     \\ Mask in our colour pixels
     .ora_right_hand_byte
-    ora #0                                      ; 2c
+    ora #0                                  ; 2c
     \\ Write to screen
-    sta (writeptr), Y                           ; 6c
+    sta (writeptr), Y                       ; 6c
 
     IF _DOUBLE_PLOT_Y
-    iny:sta (writeptr), Y                       ; 8c
+    iny:sta (writeptr), Y                   ; 8c
     ENDIF
     .skip_last_byte
     CHECK_SAME_PAGE_AS branch_to_skip_last_byte
 
-    jmp return_here_from_plot_span
+    jmp return_here_from_plot_span          ; 3c
 }
 
 \ ******************************************************************

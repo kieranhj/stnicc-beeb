@@ -259,3 +259,6 @@ BBCB@HQ = &736F.
 
 Moving Timer 1: Master@HQ = &7280
 Master@LQ = 4.94 fps but runs out of data switching to disc 3!
+
+20/11
+Maste@HQ = &71D9

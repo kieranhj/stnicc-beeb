@@ -24,6 +24,7 @@ _PLOT_WIREFRAME = FALSE
 ; Rendering defines
 _HALF_VERTICAL_RES = (_QUALITY < 2)
 _DOUBLE_PLOT_Y = (_QUALITY = 1)
+_PROTECT_BUFFER = (_QUALITY = 0)
 
 \ ******************************************************************
 \ *	OS defines
@@ -192,10 +193,13 @@ ENDIF
 .error_flag			skip 1
 .decode_lock		skip 1
 .screen_lock		skip 1
-.pause_lock			skip 1
+IF _PROTECT_BUFFER
+.buffer_lock		skip 1
+ENDIF
 
 ; debug vars
 IF _DEBUG
+.pause_lock			skip 1
 .last_vsync         skip 1
 .debug_writeptr		skip 2
 ENDIF
@@ -399,6 +403,12 @@ GUARD screen2_addr
 
 	\\ If so, load a track's worth of data into our buffer
 	JSR load_next_track
+
+	\\ Unlock the buffer - there is some data!
+	IF _PROTECT_BUFFER
+	lda #0:sta buffer_lock
+	ENDIF
+
 	.not_ready_to_load
 
 	\\ Check for errors
@@ -619,6 +629,10 @@ ENDIF
 	\\ Can't start rendering as our frame buffer hasn't flipped
 	\\ Could start parse then block before touching the screen buffer
 	ora screen_lock
+	IF _PROTECT_BUFFER
+	\\ Waiting for buffer fill
+	ora buffer_lock
+	ENDIF
 	IF _DEBUG
 	\\ Waiting for keypress
 	ora pause_lock
@@ -648,6 +662,16 @@ ENDIF
 		sta STREAM_ptr_LO
 		lda #HI(STREAM_buffer_start-1)
 		sta STREAM_ptr_HI
+
+		IF _PROTECT_BUFFER
+		\\ Check whether we're still loading into the start of the streaming buffer
+		lda load_to_HI
+		cmp #HI(STREAM_buffer_start)
+		bne stream_ok
+		\\ We've caught our tail...
+		lda #&ff:sta buffer_lock
+		ENDIF
+
 		.stream_ok
 
 		IF _DEBUG
