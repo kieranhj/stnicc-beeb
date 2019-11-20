@@ -5,6 +5,41 @@
 
 IF _DEBUG
 
+.plot_poly_line
+{
+    ; X=poly_num_verts
+
+    \\ Duplicate first vertex to end
+    lda poly_verts_x
+    sta poly_verts_x, X
+    lda poly_verts_y
+    sta poly_verts_y, X
+
+    \\ 'Draw' lines into our span buffer
+    dex
+    .line_loop
+    stx poly_index              ; 3c
+
+    lda poly_verts_x+1, X       ; 4c
+    sta endx                    ; 3c
+    lda poly_verts_y+1, X       ; 4c
+    sta endy                    ; 4c
+
+    ; starty
+    lda poly_verts_y, X         ; 4c
+	sta starty
+
+    lda poly_verts_x, X         ; 4c
+    sta startx
+
+	jsr drawline
+
+    ldx poly_index              ; 3c
+    dex                         ; 2c
+    bpl line_loop               ; 3c
+	rts
+}
+
 \\ Technically this is a debug feature!
 .drawline
 {

@@ -143,7 +143,13 @@ ENDIF
     inx
     cpx poly_num_verts
     bcc read_poly_loop
-    bcs parse_do_plot
+
+IF _PLOT_WIREFRAME
+    jsr plot_poly_line
+    jmp read_poly_data
+ELSE
+    jmp plot_poly_span      ; JSR/RTS => JMP/JMP
+ENDIF
 
     .non_indexed_data
     ldx #0
@@ -165,7 +171,6 @@ ENDIF
     cpx poly_num_verts
     bcc read_poly_ni_loop
 
-    .parse_do_plot
 IF _PLOT_WIREFRAME
     jsr plot_poly_line
     jmp read_poly_data

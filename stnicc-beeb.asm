@@ -17,14 +17,14 @@ _SHOW_STREAMING_INFO = FALSE
 ; If set, show total vsync count, rather than just the count for the
 ; last frame. Intended for use in conjunction with _STOP_AT_FRAME.
 _SHOW_TOTAL_VSYNC_COUNTER = TRUE
-_STOP_AT_FRAME = 0
+_STOP_AT_FRAME = -1
 ; Debug defines
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
 ; Rendering defines
 _HALF_VERTICAL_RES = (_QUALITY < 2)
 _DOUBLE_PLOT_Y = (_QUALITY = 1)
-_PROTECT_BUFFER = (_QUALITY = 0)
+_PROTECT_BUFFER = (_QUALITY = 0) OR _PLOT_WIREFRAME
 
 \ ******************************************************************
 \ *	OS defines
@@ -373,7 +373,7 @@ GUARD screen2_addr
 
     .loop
     \\ Debug
-    IF _DEBUG AND _STOP_AT_FRAME > 0
+    IF _DEBUG
     {
 		lda pause_lock
 		beq continue
@@ -483,7 +483,6 @@ IF _SHOW_STREAMING_INFO
 
 ENDIF
 
-    IF _STOP_AT_FRAME > 0
     {
         lda frame_no+1
         cmp #HI(_STOP_AT_FRAME)
@@ -495,7 +494,6 @@ ENDIF
 		lda #&ff:sta pause_lock
 		.continue
     }
-	ENDIF
 
 	rts
 }
@@ -673,6 +671,15 @@ ENDIF
 		ENDIF
 
 		.stream_ok
+		IF _PLOT_WIREFRAME
+		{
+			lda STREAM_ptr_HI
+			cmp load_to_HI
+			bne wire_ok
+			lda #&ff:sta buffer_lock
+			.wire_ok
+		}
+		ENDIF
 
 		IF _DEBUG
 		jsr show_vsync_counter

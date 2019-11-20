@@ -174,8 +174,9 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
 
 .plot_poly_span
 {
+    ; X=poly_num_verts
+
     \\ Duplicate first vertex to end
-    ldx poly_num_verts
     lda poly_verts_x
     sta poly_verts_x, X
     lda poly_verts_y
