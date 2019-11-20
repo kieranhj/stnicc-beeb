@@ -318,6 +318,8 @@ GUARD screen2_addr
     lda #1:sta &fe00:lda #32:sta &fe01
     lda #6:sta &fe00:lda #25:sta &fe01
     lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
+	lda #2:sta $fe00:lda #45:sta $fe01
+	lda #7:sta $fe00:lda #31:sta $fe01
 
     lda #12:sta &fe00
     lda #HI(screen2_addr/8):sta &fe01
