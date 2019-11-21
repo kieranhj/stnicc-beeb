@@ -17,6 +17,10 @@ _SHOW_STREAMING_INFO = FALSE
 ; If set, show total vsync count, rather than just the count for the
 ; last frame. Intended for use in conjunction with _STOP_AT_FRAME.
 _SHOW_TOTAL_VSYNC_COUNTER = TRUE
+
+; If set, show a clock rather than vsync counter.
+_SHOW_CLOCK = FALSE
+
 _STOP_AT_FRAME = -1
 ; Debug defines
 _DOUBLE_BUFFER = TRUE
@@ -195,6 +199,12 @@ ENDIF
 .screen_lock		skip 1
 IF _PROTECT_BUFFER
 .buffer_lock		skip 1
+ENDIF
+
+IF _SHOW_CLOCK
+.clock_cs:skip 1
+.clock_sec:skip 1
+.clock_min:skip 1
 ENDIF
 
 ; debug vars
@@ -435,7 +445,24 @@ GUARD screen2_addr
 	RTS
 }
 
+IF _SHOW_CLOCK
+.show_clock
+{
+jsr debug_reset_writeptr
+
+lda clock_min:jsr debug_write_A
+lda #16:jsr debug_plot_glyph ; '
+lda clock_sec:jsr debug_write_A
+lda #17:jsr debug_plot_glyph ; .
+lda clock_cs:jsr debug_write_A
+lda #18:jsr debug_plot_glyph ; "
+
+rts
+}
+ENDIF
+
 IF _DEBUG
+IF NOT(_SHOW_CLOCK)
 .show_vsync_counter
 {
 	jsr debug_reset_writeptr
@@ -485,20 +512,9 @@ IF _SHOW_STREAMING_INFO
 
 ENDIF
 
-    {
-        lda frame_no+1
-        cmp #HI(_STOP_AT_FRAME)
-        bcc continue
-        lda frame_no
-        cmp #LO(_STOP_AT_FRAME)
-        bcc continue
-
-		lda #&ff:sta pause_lock
-		.continue
-    }
-
 	rts
 }
+ENDIF
 ENDIF
 
 \ ******************************************************************
@@ -596,6 +612,36 @@ ENDIF
 	RTS
 }
 
+IF _SHOW_CLOCK
+.update_clock
+{
+clc
+lda clock_cs
+adc #$02
+sta clock_cs
+bcs next_second
+rts
+
+.next_second
+; C=1
+lda clock_sec
+adc #$00
+cmp #$60
+beq next_minute
+sta clock_sec
+rts
+
+.next_minute
+; C=1
+lda #0
+sta clock_sec
+lda clock_min
+adc #$00
+sta clock_min
+rts
+}
+ENDIF
+
 .irq_handler
 {
 	LDA &FC
@@ -613,6 +659,11 @@ ENDIF
     BNE no_carry
     INC vsync_counter+1
     .no_carry
+
+IF _SHOW_CLOCK
+    sed:jsr update_clock:cld
+ENDIF
+
 	JMP return_to_os
 
 	.not_vsync
@@ -683,9 +734,25 @@ ENDIF
 		}
 		ENDIF
 
+		IF _SHOW_CLOCK
+		jsr show_clock
+		ELSE
 		IF _DEBUG
 		jsr show_vsync_counter
 		ENDIF
+		ENDIF
+		
+        {
+            lda frame_no+1
+            cmp #HI(_STOP_AT_FRAME)
+            bcc continue
+            lda frame_no
+            cmp #LO(_STOP_AT_FRAME)
+            bcc continue
+    
+    		lda #&ff:sta pause_lock
+    		.continue
+        }
 
 		\\ Disable interrupts again!
 		SEI
