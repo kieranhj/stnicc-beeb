@@ -211,9 +211,33 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     \\ Plot the spans
     ldy span_buffer_max_y
     iny
-    sty span_loop_max_y+1
 
+    IF _WIDESCREEN
+    {
+        \\ max_y < top of screen
+        cpy #WIDESCREEN_TOP+1
+        bcc skip_span_loop
+        \\ clamp max_y to bottom of screen
+        cpy #WIDESCREEN_BOTTOM
+        bcc bottom_ok
+        ldy #WIDESCREEN_BOTTOM
+        .bottom_ok
+        sty span_loop_max_y+1
+
+        ldy span_buffer_min_y
+        \\ min_y > bottom of screen
+        cpy #WIDESCREEN_BOTTOM+1
+        bcs skip_span_loop
+        cpy #WIDESCREEN_TOP
+        bcs top_ok
+        ldy #WIDESCREEN_TOP
+        .top_ok
+    }
+    ELSE
+    sty span_loop_max_y+1
     ldy span_buffer_min_y
+    ENDIF
+
     .span_loop
     sty poly_y                  ; 3c
 
@@ -264,6 +288,7 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     bcc span_loop               ; 3c
     CHECK_SAME_PAGE_AS span_loop
 
+    .skip_span_loop
     jmp return_here_from_plot_poly
 }
 
