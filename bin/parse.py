@@ -99,13 +99,13 @@ if __name__ == '__main__':
 
             # Read palette data
 
-            for b in xrange(0,15):
+            for b in xrange(15,-1,-1):
                 if palette_bitmask & (1<<b):
                     palette_word = get_byte(my_file) << 8 | get_byte(my_file)
                     palette_colour = colour_word_to_rgb(palette_word)
 
                     if verbose:
-                        print "      Palette {0} colour = ".format(15-b,), palette_colour
+                        print "      Palette {0} colour = ".format(15-b), palette_colour
 
         indexed = False
 
