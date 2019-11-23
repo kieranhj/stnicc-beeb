@@ -58,19 +58,43 @@ ENDIF
     sta frame_bitmask
 
     \\ Read palette words
-    ldx #16
+    ldx #15
     .parse_palette_loop
-    lsr frame_bitmask+1
-    ror frame_bitmask
+    asl frame_bitmask+0
+    rol frame_bitmask+1
+
     bcc not_this_bit
 
     \\ Discard our palette for now
+if _NULA
+
+	txa
+	eor #$0f
+	asl a
+	asl a
+	asl a
+	asl a
+	sta ora_index+1
+
+	GET_BYTE					; 00000rrr
+	asl a						; 0000rrr0
+	.ora_index:ora #$ff
+	sta $fe23
+
+	GET_BYTE					; 0ggg0bbb
+	asl a						; ggg0bbb0
+	sta $fe23
+
+else
+
     GET_BYTE
     GET_BYTE
 
+endif
+
     .not_this_bit
     dex
-    bne parse_palette_loop
+    bpl parse_palette_loop
     .no_palette
 
     \\ Check whether we have indexed data

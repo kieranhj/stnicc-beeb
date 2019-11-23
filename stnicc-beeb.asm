@@ -310,6 +310,10 @@ if _NULA
 	adc #$11
 	bcc reset_palette_loop
 
+; ; disable NuLA auxiliary palette
+; 	lda #$10
+; 	sta $fe22
+
 endif
 
 	\\ Relocate data to lower RAM
