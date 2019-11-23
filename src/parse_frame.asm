@@ -31,6 +31,11 @@ equb %11110000
 equb %11110011
 equb %11111100
 equb %11111111
+
+.ste_palette
+for i,0,15,1
+equb ((i>>3) or (i<<1)) and 15
+next
 endif
 
 .parse_frame
@@ -83,16 +88,33 @@ if _NULA
 ; bits left to get a 4-bit value for the NuLA palette. This isn't
 ; ideal, but it's not obviously noticeable.
 
+    stx ldx_x+1
+
 	GET_BYTE					; xxxxxrrr
-	and #%00000111				; 00000rrr
-	asl a						; 0000rrr0
+	and #%00001111
+	tax
+	lda ste_palette,x
 	.ora_index:ora #$ff
 	sta $fe23
 
-	GET_BYTE					; xgggxbbb
-	and #%01110111				; 0ggg0bbb
-	asl a						; ggg0bbb0
+	GET_BYTE					; ggggbbbb
+
+	sta lda_ggggbbbb+1
+
+	lsr a:lsr a:lsr a:lsr a
+	tax
+	lda ste_palette,x
+	asl a:asl a:asl a:asl a
+	sta ora_gggg0000+1
+
+	.lda_ggggbbbb:lda #$ff
+	and #$0f
+	tax
+	lda ste_palette,x
+	.ora_gggg0000:ora #$ff
 	sta $fe23
+
+	.ldx_x:ldx #$ff
 
 else
 
