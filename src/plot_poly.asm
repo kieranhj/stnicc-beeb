@@ -7,7 +7,11 @@
 \\ 5 pixels = 2 bytes max
 \\ 9 pixels = 3 bytes max
 \\ 13 pixels = 4 bytes max
+if _NULA
 _SHORT_SPAN_MAX_PIXELS = 0; 13 ; up to this many pixels considered a short span
+else
+_SHORT_SPAN_MAX_PIXELS = 13
+endif
 
 \ ******************************************************************
 \ *	SPAN PLOTTING FUNCTIONS
