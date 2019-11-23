@@ -299,6 +299,36 @@ IF _DEBUG
 
 .debug_plot_glyph
 {
+if _NULA
+
+    asl a:asl a:asl a:asl a
+	clc
+	adc #lo(debug_font_data)
+	sta read_glyph_data+1
+	lda #hi(debug_font_data)
+	adc #0
+	sta read_glyph_data+2
+
+	ldy #7
+	ldx #14
+	jsr loop
+
+	ldy #7
+	ldx #15
+.loop
+	.read_glyph_data
+	lda $ffff,x
+	.write_glyph_data
+	sta (debug_writeptr),y
+
+	dex
+	dex
+	dey
+	bpl loop
+
+else
+
+
     asl a:asl a:asl a
     clc
     adc #LO(debug_font_data)
@@ -317,6 +347,8 @@ IF _DEBUG
 
     dey
     bpl loop
+
+endif
 
 	lda debug_writeptr+0
 	adc #8

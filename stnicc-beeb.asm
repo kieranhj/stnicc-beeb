@@ -12,7 +12,7 @@ _DEBUG = TRUE
 _TESTS = FALSE
 
 ; Display <drive no | sector no> <track no> <load to HI> <stream ptr HI>
-_SHOW_STREAMING_INFO = TRUE
+_SHOW_STREAMING_INFO = FALSE
 
 ; If set, show total vsync count, rather than just the count for the
 ; last frame. Intended for use in conjunction with _STOP_AT_FRAME.
@@ -26,7 +26,7 @@ _HALF_VERTICAL_RES = (_QUALITY < 2)
 _DOUBLE_PLOT_Y = (_QUALITY = 1)
 _WIDESCREEN = (_QUALITY = 2) AND FALSE
 
-_NULA=FALSE
+_NULA=TRUE
 
 \ ******************************************************************
 \ *	OS defines
@@ -65,8 +65,19 @@ MACRO SWRAM_SELECT bank
 LDA #bank: sta &f4: sta &fe30
 ENDMACRO
 
+if _NULA
+MACRO MODE2_PIXELS a,b
+equb ((-(a!=0))*%10101010) or ((-(b!=0))*%01010101)
+ENDMACRO
+endif
+
 MACRO MODE5_PIXELS a,b,c,d
+if _NULA
+    MODE2_PIXELS a,b
+	MODE2_PIXELS c,d
+else
     EQUB (a AND 2) * &40 OR (a AND 1) * &08 OR (b AND 2) * &20 OR (b AND 1) * &04 OR (c AND 2) * &10 OR (c AND 1) * &02 OR (d AND 2) * &08 OR (d AND 1) * &01
+endif
 ENDMACRO
 
 MACRO PAGE_ALIGN
@@ -225,12 +236,10 @@ skip &100
 .y_to_row
 skip &100
 PAGE_ALIGN  ; lazy
-if _NULA
-.poly_palette_unused
-else
+if not(_NULA)
 .poly_palette
-endif
 skip &40
+endif
 .screen_col_LO
 skip &80
 .reloc_to_end
@@ -957,6 +966,7 @@ CHECK_SAME_PAGE_AS reloc_y_to_row
 \ ******************************************************************
 
 PAGE_ALIGN  ; lazy
+if not(_NULA)
 .reloc_poly_palette
 {
     EQUB &00,&00,&00,&00        ; black
@@ -976,7 +986,7 @@ PAGE_ALIGN  ; lazy
     EQUB &55,&FF,&AA,&FF        ; colour 3.3
     EQUB &FF,&00,&FF,&00        ; stripe 3
 }
-
+endif
 .reloc_screen_col_LO
 FOR n,0,127,1
 if _NULA
