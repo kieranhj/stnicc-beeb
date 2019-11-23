@@ -310,9 +310,15 @@ if _NULA
 	adc #$11
 	bcc reset_palette_loop
 
-; ; disable NuLA auxiliary palette
-; 	lda #$10
-; 	sta $fe22
+; disable NuLA auxiliary palette
+	lda #$10
+	sta $fe22
+
+; set colour 0 to black
+
+    lda #$00
+	sta $fe23
+	sta $fe23
 
 endif
 

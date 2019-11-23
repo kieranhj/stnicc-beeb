@@ -76,12 +76,21 @@ if _NULA
 	asl a
 	sta ora_index+1
 
-	GET_BYTE					; 00000rrr
+; The colour palette values sometimes have bit 3 set - presumably
+; these are STe-style palette values?
+;
+; The Beeb version just strips out this bit, and shifts the bottom 3
+; bits left to get a 4-bit value for the NuLA palette. This isn't
+; ideal, but it's not obviously noticeable.
+
+	GET_BYTE					; xxxxxrrr
+	and #%00000111				; 00000rrr
 	asl a						; 0000rrr0
 	.ora_index:ora #$ff
 	sta $fe23
 
-	GET_BYTE					; 0ggg0bbb
+	GET_BYTE					; xgggxbbb
+	and #%01110111				; 0ggg0bbb
 	asl a						; ggg0bbb0
 	sta $fe23
 
