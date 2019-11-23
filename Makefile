@@ -81,3 +81,5 @@ tom_emacs:
 tom_beeblink:
 	cp $(BUILD)/stnicc-A.dsd ~/beeb/beeb-files/stuff/ssds/0/d.stnicca
 	cp $(BUILD)/stnicc-B.dsd ~/beeb/beeb-files/stuff/ssds/0/d.stniccb
+	ssd_extract $(BUILD)/stnicc-A.dsd -o $(BUILD)
+	cp $(BUILD)/stnicc-A/0/$$.STNICC $(BUILD)/stnicc-A/0/$$.STNICC.inf ~/beeb/beeb-files/stuff/STNICCC/0/

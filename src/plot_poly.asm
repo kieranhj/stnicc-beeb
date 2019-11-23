@@ -7,7 +7,7 @@
 \\ 5 pixels = 2 bytes max
 \\ 9 pixels = 3 bytes max
 \\ 13 pixels = 4 bytes max
-_SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
+_SHORT_SPAN_MAX_PIXELS = 0; 13 ; up to this many pixels considered a short span
 
 \ ******************************************************************
 \ *	SPAN PLOTTING FUNCTIONS
@@ -38,6 +38,23 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     tay                                     ; 2c
 
     \\ X=span_start
+if _NULA
+
+txa:and #1:beq skip_first_byte
+
+lda span_colour:and #%01010101:sta ora_left_hand_byte+1
+lda (writeptr),y:and #%10101010:.ora_left_hand_byte:ora #$ff:sta (writeptr),y
+if _DOUBLE_PLOT_Y:iny:sta (writeptr),y:dey:endif
+
+dec span_width
+
+clc\\todo - what's the actual state of carry here?
+
+tya:adc #8:tay
+\\C=0
+
+else
+
     txa                                     ; 2c
     and #3                                  ; 2c
     beq skip_first_byte                     ; 2/3c
@@ -73,11 +90,16 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     tya:adc #7:tay                          ; 6c
 	\\ C=0
 
-    .skip_first_byte
+endif
 
+    .skip_first_byte
     \\ Main body of span; bytes to plot = span_width DIV 4
     lda span_width                          ; 3c
+if _NULA
+    and #%01111110
+else
 	and #%11111100							; 2c
+endif
 
     \\ Can't skip the inner span loop if we have a separate fn for short spans
     IF _SHORT_SPAN_MAX_PIXELS < 9
@@ -128,7 +150,7 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     .done_double_plot
     CHECK_SAME_PAGE_AS branch_to_done_double_plot
     dey                                     ; 2c
-    ENDIF
+	ENDIF
 
     \\ Increment to last column
     tya:adc long_span_tables+1,X:tay        ; 8c  
@@ -137,6 +159,16 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     .skip_span_loop
     CHECK_SAME_PAGE_AS branch_to_skip_span_loop
     ENDIF
+
+if _NULA
+
+lda span_width:and #1:.branch_to_skip_last_byte:beq return_here_from_plot_span
+
+lda span_colour:and #%10101010:sta ora_right_hand_byte+1
+
+lda (writeptr),y:and #%01010101:.ora_right_hand_byte:ora #$ff:sta (writeptr),y
+
+else
 
     \\ Last byte?
     lda span_width                          ; 3c
@@ -158,6 +190,8 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     ora #0                                  ; 2c
     \\ Write to screen
     sta (writeptr), Y                       ; 6c
+
+endif
 
     IF _DOUBLE_PLOT_Y
     iny:sta (writeptr), Y                   ; 8c
@@ -188,6 +222,9 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     stx poly_index              ; 3c
 
     lda poly_verts_x+1, X       ; 4c
+if _NULA
+	lsr a
+endif
     sta endx                    ; 3c
     lda poly_verts_y+1, X       ; 4c
     sta endy                    ; 4c
@@ -196,6 +233,9 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     ldy poly_verts_y, X         ; 4c
     ; startx
     lda poly_verts_x, X         ; 4c
+if _NULA
+	lsr a
+endif
     tax                         ; 2c
 
     jmp drawline_into_span_buffer       ; JSR/RTS => JMP/JMP
@@ -242,10 +282,12 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     sty poly_y                  ; 3c
 
     \\ v= on Master would happily burn a PAGE per palette to save 6c!
+if not(_NULA)
     tya:and #3:tax              ; 6c
     .^load_palette
     lda poly_palette, X         ; 4c
     sta span_colour             ; 3c    <= where is this used?
+endif
 
     lda span_buffer_start, Y    ; 4c
     tax                         ; 2c    X=span_start

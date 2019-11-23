@@ -12,7 +12,7 @@ _DEBUG = TRUE
 _TESTS = FALSE
 
 ; Display <drive no | sector no> <track no> <load to HI> <stream ptr HI>
-_SHOW_STREAMING_INFO = FALSE
+_SHOW_STREAMING_INFO = TRUE
 
 ; If set, show total vsync count, rather than just the count for the
 ; last frame. Intended for use in conjunction with _STOP_AT_FRAME.
@@ -25,6 +25,8 @@ _PLOT_WIREFRAME = FALSE
 _HALF_VERTICAL_RES = (_QUALITY < 2)
 _DOUBLE_PLOT_Y = (_QUALITY = 1)
 _WIDESCREEN = (_QUALITY = 2) AND FALSE
+
+_NULA=TRUE
 
 \ ******************************************************************
 \ *	OS defines
@@ -223,7 +225,11 @@ skip &100
 .y_to_row
 skip &100
 PAGE_ALIGN  ; lazy
+if _NULA
+.poly_palette_unused
+else
 .poly_palette
+endif
 skip &40
 .screen_col_LO
 skip &80
@@ -288,6 +294,23 @@ GUARD screen2_addr
     jsr oswrch
     lda #5
     jsr oswrch
+
+if _NULA
+
+    lda #9:ldx #0:jsr osbyte
+	lda #10:ldx #0:jsr osbyte
+	lda #154:ldx #0:jsr osbyte
+
+	lda #$00
+	clc
+	.reset_palette_loop
+	pha
+	eor #$07:sta $fe21
+	pla
+	adc #$11
+	bcc reset_palette_loop
+
+endif
 
 	\\ Relocate data to lower RAM
 	\\ Might want to do this before clearing the screen if data overlaps!
@@ -863,8 +886,10 @@ include "src/plot_data.asm"
 FOR col,0,32,1
 EQUB (32-col)*3					; +0,x for span_column_offset
 EQUB (col*8) AND 255			; +1,x for mult_8
+if not(_NULA)
 EQUB 0							; +2,x spare
 EQUB 0							; +3,x spare
+endif
 NEXT
 
 .data_end
@@ -944,7 +969,11 @@ PAGE_ALIGN  ; lazy
 
 .reloc_screen_col_LO
 FOR n,0,127,1
+if _NULA
+col=n DIV 2
+else
 col=n DIV 4
+endif
 EQUB LO(col*8)
 NEXT
 CHECK_SAME_PAGE_AS reloc_screen_col_LO

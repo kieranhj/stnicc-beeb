@@ -1,3 +1,4 @@
+\ -*- mode:beebasm -*-
 \ ******************************************************************
 \ *	PARSE A FRAME OF DATA FROM STNICCC STREAM
 \ ******************************************************************
@@ -11,6 +12,26 @@ MACRO GET_BYTE
     lda (STREAM_ptr_LO), y
 }
 ENDMACRO
+
+if _NULA
+.mode2_pixels
+equb %00000000
+equb %00000011
+equb %00001100
+equb %00001111
+equb %00110000
+equb %00110011
+equb %00111100
+equb %00111111
+equb %11000000
+equb %11000011
+equb %11001100
+equb %11001111
+equb %11110000
+equb %11110011
+equb %11111100
+equb %11111111
+endif
 
 .parse_frame
 {
@@ -114,8 +135,20 @@ ENDIF
     \\ Could be a table: lda poly_descriptor_to_palette_offset, X
     \\ To save 4c per poly at the expense of 1 page.
     txa ; poly_descriptor
+
+if _NULA
+
+    lsr a:lsr a:lsr a:lsr a
+	tax
+	lda mode2_pixels,x
+	sta span_colour
+
+else
+	
     and #&f0:lsr a:lsr a
     sta load_palette+1      ; poly_colour * 4
+
+endif
 
     lda frame_flags
     and #FLAG_INDEXED_DATA
