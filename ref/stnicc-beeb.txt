@@ -262,3 +262,29 @@ Master@LQ = 4.94 fps but runs out of data switching to disc 3!
 
 20/11
 Maste@HQ = &71D9
+
+Palette pondersing
+~~~
+
+ST is a 9-bit palette = 512 colours
+If we shift down to a 6-bit palette = 64 colour patterns
+3 actual colours + black
+Stipple pattern of 4x4 pixels - trivially get 4 shades of dither
+
+Palette problem:
+1. Closest two Beeb colours to the desired colour
+2. Blend value => dither pattern between those two colours
+3. Which actual colours are available?
+4. When and how do we update the actual colours available?
+5. Palette entry then becomes 4x bytes corresponding to the dither pattern between 'best' two actual colours available
+
+See pal.txt
+108 frames with palette changes.
+Only 149 actual palette changes.
+Many redundant or minor changes that could be removed.
+Looks like <= 32 main segments of palette in the sequence.
+
+Keep the motif colours, like the yellow throughout.
+Identify the colour theme for the segment.
+Transitions between segments may have to suffer.
+Better to have a contrasting palette than blurred into a pixely mess.

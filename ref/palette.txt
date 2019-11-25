@@ -1,0 +1,201 @@
+Oxygene
+[1]      Palette 1 colour =  [5, 2, 0]
+[1]      Palette 2 colour =  [7, 7, 0]
+[1]      Palette 3 colour =  [6, 3, 0]
+[1]      Palette 4 colour =  [4, 1, 0]
+[1]      Palette 5 colour =  [7, 5, 0]
+[1]      Palette 6 colour =  [7, 4, 0]
+[1]      Palette 7 colour =  [3, 0, 0]
+[1]      Palette 8 colour =  [7, 7, 7]
+
+Orange tunnel
+[77]      Palette 7 colour =  [4, 2, 0]
+[77]      Palette 8 colour =  [3, 1, 0]
+[80]      Palette 9 colour =  [2, 0, 0]
+[88]      Palette 1 colour =  [5, 3, 1]
+[89]      Palette 3 colour =  [6, 4, 2]
+
+Brown trench
+[90]      Palette 2 colour =  [7, 5, 3]
+[90]      Palette 4 colour =  [7, 6, 4]
+[98]      Palette 5 colour =  [4, 1, 0]
+[143]      Palette 4 colour =  [5, 5, 4]
+[143]      Palette 5 colour =  [6, 6, 5]
+[143]      Palette 6 colour =  [4, 4, 3]
+[143]      Palette 10 colour =  [1, 1, 0]
+
+First blue appears
+[144]      Palette 4 colour =  [0, 3, 5]
+[144]      Palette 5 colour =  [1, 4, 6]
+[145]      Palette 10 colour =  [0, 1, 3]
+[151]      Palette 2 colour =  [2, 5, 7]
+[152]      Palette 6 colour =  [7, 5, 3]
+[152]      Palette 11 colour =  [7, 6, 4]
+[152]      Palette 12 colour =  [2, 2, 2]
+[152]      Palette 13 colour =  [1, 1, 1]
+[154]      Palette 2 colour =  [6, 6, 6]
+[155]      Palette 10 colour =  [3, 3, 3]
+[161]      Palette 13 colour =  [0, 1, 3]
+[162]      Palette 14 colour =  [1, 1, 1]
+[162]      Palette 15 colour =  [0, 2, 4]
+[166]      Palette 5 colour =  [4, 4, 4]
+[167]      Palette 2 colour =  [0, 0, 2]
+
+50:50 trench and blue/grey interior
+[171]      Palette 9 colour =  [5, 5, 5]
+[173]      Palette 15 colour =  [6, 6, 6]
+[176]      Palette 8 colour =  [1, 4, 6]
+[178]      Palette 3 colour =  [0, 2, 4]
+[178]      Palette 6 colour =  [2, 5, 7]
+
+Yellow motif appears again
+[190]      Palette 1 colour =  [7, 7, 0]
+
+The blue tunnel beomes grey with yellow stripes
+[225]      Palette 2 colour =  [3, 2, 2]
+[229]      Palette 5 colour =  [6, 5, 5]
+[231]      Palette 7 colour =  [2, 1, 1]
+[231]      Palette 9 colour =  [5, 4, 4]
+[231]      Palette 10 colour =  [5, 5, 4]
+[231]      Palette 11 colour =  [4, 4, 3]
+[231]      Palette 12 colour =  [6, 6, 5]
+[232]      Palette 12 colour =  [7, 6, 6]
+[233]      Palette 14 colour =  [4, 3, 3]
+[235]      Palette 15 colour =  [6, 6, 5]
+[237]      Palette 7 colour =  [3, 3, 2]
+[238]      Palette 7 colour =  [2, 1, 1]
+[238]      Palette 15 colour =  [1, 1, 0]
+[239]      Palette 2 colour =  [6, 6, 5]
+
+[249]      Palette 2 colour =  [0, 0, 2]
+
+[269]      Palette 2 colour =  [3, 2, 2]
+[269]      Palette 13 colour =  [6, 6, 5]
+[272]      Palette 13 colour =  [3, 3, 2]
+[273]      Palette 3 colour =  [6, 6, 5]
+[274]      Palette 8 colour =  [2, 2, 1]
+
+In the spinning room
+[519]      Palette 2 colour =  [1, 2, 1]
+[520]      Palette 4 colour =  [2, 3, 2]
+[520]      Palette 5 colour =  [0, 1, 0]
+[523]      Palette 6 colour =  [5, 6, 5]
+[523]      Palette 7 colour =  [4, 5, 4]
+
+In the twisty tunnel, first brown appears
+[676]      Palette 3 colour =  [6, 4, 2]
+
+[684]      Palette 8 colour =  [7, 5, 3]
+[685]      Palette 9 colour =  [2, 0, 0]
+[686]      Palette 10 colour =  [5, 3, 1]
+
+[693]      Palette 11 colour =  [3, 1, 0]
+[696]      Palette 12 colour =  [7, 5, 4]
+[699]      Palette 13 colour =  [7, 6, 5]
+[703]      Palette 14 colour =  [6, 4, 3]
+[705]      Palette 15 colour =  [3, 4, 3]
+[709]      Palette 15 colour =  [4, 2, 1]
+
+Transition into brown pentagon tunnel
+[715]      Palette 5 colour =  [3, 4, 3]
+[717]      Palette 5 colour =  [5, 3, 2]
+[718]      Palette 7 colour =  [3, 4, 3]
+[719]      Palette 7 colour =  [4, 2, 0]
+[721]      Palette 1 colour =  [3, 4, 3]
+
+Fully in pentagon tunnel
+[745]      Palette 8 colour =  [4, 5, 4]
+
+Round corner into green square tunnel
+[804]      Palette 3 colour =  [4, 6, 5]
+[804]      Palette 5 colour =  [5, 7, 6]
+[804]      Palette 7 colour =  [3, 5, 3]
+[804]      Palette 9 colour =  [5, 7, 5]
+[805]      Palette 10 colour =  [1, 3, 2]
+[805]      Palette 11 colour =  [2, 4, 3]
+[805]      Palette 12 colour =  [3, 5, 4]
+[806]      Palette 13 colour =  [0, 1, 0]
+
+Still in green tunnel
+[915]      Palette 1 colour =  [4, 6, 4]
+[916]      Palette 1 colour =  [2, 4, 2]
+[917]      Palette 1 colour =  [4, 6, 4]
+[918]      Palette 1 colour =  [2, 4, 2]
+[919]      Palette 6 colour =  [4, 6, 4]
+[927]      Palette 14 colour =  [0, 2, 1]
+[927]      Palette 15 colour =  [6, 7, 6]
+[935]      Palette 13 colour =  [1, 3, 1]
+
+Lighter six-sided green tunnel - yellow motif appears!
+[1080]      Palette 2 colour =  [7, 7, 0]
+
+Lots of palette fighting over 4, 8, 9, 15
+[1080]      Palette 4 colour =  [4, 5, 6]
+[1080]      Palette 8 colour =  [3, 4, 5]
+[1081]      Palette 8 colour =  [1, 2, 3]
+[1082]      Palette 8 colour =  [3, 4, 5]
+[1084]      Palette 4 colour =  [2, 3, 4]
+[1085]      Palette 4 colour =  [4, 5, 6]
+[1087]      Palette 4 colour =  [0, 0, 1]
+[1088]      Palette 15 colour =  [4, 5, 6]
+[1089]      Palette 4 colour =  [6, 7, 6]
+[1090]      Palette 15 colour =  [0, 0, 1]
+[1091]      Palette 15 colour =  [0, 1, 2]
+[1092]      Palette 1 colour =  [0, 0, 1]
+[1092]      Palette 8 colour =  [1, 2, 3]
+[1093]      Palette 8 colour =  [3, 4, 5]
+[1094]      Palette 1 colour =  [4, 5, 6]
+[1095]      Palette 1 colour =  [0, 0, 1]
+[1095]      Palette 4 colour =  [1, 2, 3]
+[1096]      Palette 4 colour =  [4, 5, 6]
+[1097]      Palette 15 colour =  [2, 4, 2]
+[1098]      Palette 4 colour =  [1, 2, 3]
+[1099]      Palette 4 colour =  [4, 5, 6]
+[1100]      Palette 4 colour =  [0, 1, 2]
+[1101]      Palette 4 colour =  [1, 2, 3]
+[1102]      Palette 4 colour =  [4, 5, 6]
+[1102]      Palette 9 colour =  [0, 1, 2]
+[1103]      Palette 4 colour =  [1, 2, 3]
+[1105]      Palette 4 colour =  [4, 5, 6]
+[1106]      Palette 4 colour =  [1, 2, 3]
+[1106]      Palette 9 colour =  [2, 3, 4]
+[1114]      Palette 4 colour =  [0, 1, 2]
+[1115]      Palette 4 colour =  [1, 2, 3]
+
+Transitioning to blue bendy downwards tunnel
+[1139]      Palette 14 colour =  [0, 1, 2]
+
+[1184]      Palette 3 colour =  [4, 5, 6]
+
+First dark red appears
+[1247]      Palette 5 colour =  [5, 1, 0]
+[1247]      Palette 6 colour =  [4, 0, 0]
+[1248]      Palette 7 colour =  [7, 3, 0]
+[1248]      Palette 10 colour =  [6, 2, 0]
+[1249]      Palette 11 colour =  [2, 0, 0]
+[1249]      Palette 12 colour =  [7, 4, 0]
+[1251]      Palette 13 colour =  [7, 7, 0]
+
+Sliding downwards into dark red tunnel
+[1333]      Palette 1 colour =  [3, 0, 0]
+
+[1343]      Palette 2 colour =  [6, 3, 3]
+
+First purple appears for outside cubes
+[1344]      Palette 3 colour =  [7, 4, 3]
+[1345]      Palette 7 colour =  [3, 0, 3]
+
+[1352]      Palette 2 colour =  [7, 3, 0]
+
+[1447]      Palette 3 colour =  [6, 3, 3]
+
+[1459]      Palette 4 colour =  [7, 5, 3]
+
+Fully inside the pod
+[1513]      Palette 8 colour =  [7, 4, 3]
+
+View through the slit
+[1617]      Palette 2 colour =  [5, 2, 3]
+
+Purple cubes
+[1654]      Palette 1 colour =  [4, 1, 3]

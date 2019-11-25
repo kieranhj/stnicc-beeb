@@ -37,10 +37,10 @@ ENDIF
     sta frame_bitmask
 
     \\ Read palette words
-    ldx #16
+    ldx #15
     .parse_palette_loop
-    lsr frame_bitmask+1
-    ror frame_bitmask
+    asl frame_bitmask
+    rol frame_bitmask+1
     bcc not_this_bit
 
     \\ Discard our palette for now
@@ -49,7 +49,7 @@ ENDIF
 
     .not_this_bit
     dex
-    bne parse_palette_loop
+    bpl parse_palette_loop
     .no_palette
 
     \\ Check whether we have indexed data

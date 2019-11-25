@@ -296,6 +296,13 @@ GUARD screen2_addr
 	ldx #HI(reloc_to_end - reloc_to_start + &ff)
 	jsr copy_pages
 
+	ldx #15
+	.pal_loop
+	lda mode5_palette, X
+	sta &fe21
+	dex
+	bpl pal_loop
+
 	\\ Clear the extra bit!
 	jsr screen2_cls
 
@@ -835,6 +842,26 @@ IF 0
 }
 ENDIF
 
+.mode5_palette
+{
+	EQUB &00 + PAL_black
+	EQUB &10 + PAL_black
+	EQUB &20 + PAL_red
+	EQUB &30 + PAL_red
+	EQUB &40 + PAL_black
+	EQUB &50 + PAL_black
+	EQUB &60 + PAL_red
+	EQUB &70 + PAL_red
+	EQUB &80 + PAL_yellow
+	EQUB &90 + PAL_yellow
+	EQUB &A0 + PAL_white
+	EQUB &B0 + PAL_white
+	EQUB &C0 + PAL_yellow
+	EQUB &D0 + PAL_yellow
+	EQUB &E0 + PAL_white
+	EQUB &F0 + PAL_white
+}
+
 ;.filename0
 ;EQUS "00", 13
 
@@ -917,30 +944,7 @@ EQUB row
 NEXT
 CHECK_SAME_PAGE_AS reloc_y_to_row
 
-\ ******************************************************************
-\ *	PALETTE DATA - MUST BE PAGE ALIGNED DUE TO SMC
-\ ******************************************************************
-
-PAGE_ALIGN  ; lazy
-.reloc_poly_palette
-{
-    EQUB &00,&00,&00,&00        ; black
-    EQUB &0F,&0F,&0F,&0F        ; colour 1
-    EQUB &F0,&F0,&F0,&F0        ; colour 2
-    EQUB &FF,&FF,&FF,&FF        ; colour 3
-    EQUB &05,&00,&0A,&00        ; colour 1.1
-    EQUB &05,&0A,&05,&0A        ; colour 1.2
-    EQUB &05,&0F,&0A,&0F        ; colour 1.3
-    EQUB &0F,&00,&0F,&00        ; stripe 1
-    EQUB &50,&00,&A0,&00        ; colour 2.1
-    EQUB &50,&A0,&50,&A0        ; colour 2.2
-    EQUB &50,&F0,&A0,&F0        ; colour 2.3
-    EQUB &F0,&00,&F0,&00        ; stripe 2
-    EQUB &55,&00,&AA,&00        ; colour 3.1
-    EQUB &55,&AA,&55,&AA        ; colour 3.2
-    EQUB &55,&FF,&AA,&FF        ; colour 3.3
-    EQUB &FF,&00,&FF,&00        ; stripe 3
-}
+include "src/palette.asm"
 
 .reloc_screen_col_LO
 FOR n,0,127,1
