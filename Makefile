@@ -81,5 +81,39 @@ tom_emacs:
 tom_beeblink:
 	cp $(BUILD)/stnicc-A.dsd ~/beeb/beeb-files/stuff/ssds/0/d.stnicca
 	cp $(BUILD)/stnicc-B.dsd ~/beeb/beeb-files/stuff/ssds/0/d.stniccb
-	ssd_extract $(BUILD)/stnicc-A.dsd -o $(BUILD)
-	cp $(BUILD)/stnicc-A/0/$$.STNICC $(BUILD)/stnicc-A/0/$$.STNICC.inf ~/beeb/beeb-files/stuff/STNICCC/0/
+
+##########################################################################
+##########################################################################
+
+# where your local copy of the jsbeeb repo is held.
+JSBEEB?=../jsbeeb
+
+ifeq ($(OS),Windows_NT)
+
+# TODO - Windows
+
+else
+
+# Unix
+
+UNAME:=$(shell uname -s)
+
+ifeq ($(UNAME),Darwin)
+
+# Unix (macOS)
+
+.PHONY:jsbeeb_test
+jsbeeb_test:
+	cp $(BUILD)/stnicc-A.dsd $(JSBEEB)/discs/
+	cp $(BUILD)/stnicc-B.dsd $(JSBEEB)/discs/
+	open -a '/Applications/Google Chrome.app' 'http://localhost:8000/?&model=Master&disc1=stnicc-A.dsd&disc2=stnicc-B.dsd&autoboot'
+
+endif
+
+ifeq ($(UNAME),Linux)
+
+# TODO - Unix (Linux)
+
+endif
+
+endif
