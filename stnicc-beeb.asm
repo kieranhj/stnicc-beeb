@@ -17,7 +17,7 @@ _SHOW_STREAMING_INFO = FALSE
 ; If set, show total vsync count, rather than just the count for the
 ; last frame. Intended for use in conjunction with _STOP_AT_FRAME.
 _SHOW_TOTAL_VSYNC_COUNTER = TRUE
-_STOP_AT_FRAME = -1
+_STOP_AT_FRAME = 190
 ; Debug defines
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
@@ -241,12 +241,14 @@ skip &80
 
 ORG &A00
 GUARD &D00
+.palette_stream_buffer ; or use &E00?
+skip &300
+
+ORG &E00
+GUARD &1000
 .span_buffer_start
 skip &100
 .span_buffer_end
-skip &100
-
-.palette_stream_buffer ; or use &E00?
 skip &100
 
 \ ******************************************************************
@@ -392,9 +394,9 @@ GUARD screen2_addr
     lda #HI(screen1_addr)
     sta draw_buffer_HI
 
-	lda #LO(palette_stream_buffer)
+	lda #LO(palette_stream_buffer-1)
 	sta pal_ptr_LO
-	lda #HI(palette_stream_buffer)
+	lda #HI(palette_stream_buffer-1)
 	sta pal_ptr_HI
 
     \\ Clear screen
@@ -983,6 +985,7 @@ CHECK_SAME_PAGE_AS reloc_screen_col_LO
 .reloc_from_end
 
 PAGE_ALIGN
+GUARD P%+&300
 include "src/palette_stream.asm"
 
 \ ******************************************************************
@@ -1027,6 +1030,7 @@ PRINT "FX size = ", ~fx_end-fx_start
 PRINT "DATA size =",~data_end-data_start
 PRINT "ADDITIONAL size =",~additional_end-additional_start
 PRINT "RELOC size =",~reloc_from_end-reloc_from_start
+PRINT "PALETTE STREAM size =",~palette_stream_end-palette_stream_start
 PRINT "BSS size =",~bss_end-bss_start
 PRINT "------"
 PRINT "HIGH WATERMARK =", ~P%

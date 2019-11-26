@@ -12,6 +12,7 @@ Yellow motif!
 Orange tunnel
 [77]      Palette 7 colour =  [4, 2, 0]
 [77]      Palette 8 colour =  [3, 1, 0]
+
 [80]      Palette 9 colour =  [2, 0, 0]
 [88]      Palette 1 colour =  [5, 3, 1]
 [89]      Palette 3 colour =  [6, 4, 2]
@@ -20,6 +21,7 @@ Brown trench
 [90]      Palette 2 colour =  [7, 5, 3]
 [90]      Palette 4 colour =  [7, 6, 4]
 [98]      Palette 5 colour =  [4, 1, 0]
+
 [143]      Palette 4 colour =  [5, 5, 4]
 [143]      Palette 5 colour =  [6, 6, 5]
 [143]      Palette 6 colour =  [4, 4, 3]
@@ -36,6 +38,7 @@ First blue appears
 [152]      Palette 13 colour =  [1, 1, 1]
 [154]      Palette 2 colour =  [6, 6, 6]
 [155]      Palette 10 colour =  [3, 3, 3]
+
 [161]      Palette 13 colour =  [0, 1, 3]
 [162]      Palette 14 colour =  [1, 1, 1]
 [162]      Palette 15 colour =  [0, 2, 4]

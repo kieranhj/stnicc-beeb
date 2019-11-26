@@ -70,6 +70,10 @@ ENDIF
 
 ENDMACRO
 
+MACRO DITHER_INVALID
+    EQUB &88, &88, &88, &FF     ; L - will make a cross
+ENDMACRO
+
 PAGE_ALIGN  ; lazy
 .reloc_poly_palette
 IF 0
@@ -106,14 +110,21 @@ DITHER4 0, 1, 12        ; [6] = [7, 4, 0]
 DITHER4 0, 1, 4         ; [7] = [3, 0, 0]
 DITHER4 0, 3, 16        ; [8] = [7, 7, 7]
 
-DITHER4 0, 1, 2         ; [9] = [2, 0, 0]
+DITHER_INVALID          ; 9
+DITHER_INVALID          ; 10
+DITHER_INVALID          ; 11
+DITHER_INVALID          ; 12
+DITHER_INVALID          ; 13
+DITHER_INVALID          ; 14
+DITHER_INVALID          ; 15
 
-DITHER4 1, 2, 2         ; [10] = [1, 1, 0]
-DITHER4 2, 3, 8         ; [11] = [7, 6, 4]
-DITHER4 0, 3, 4         ; [12] = [2, 2, 2]
-DITHER4 0, 3, 2         ; [13] = [1, 1, 1]
-DITHER4 0, 3, 1         ; [14] = [1, 1, 1]
-DITHER4 0, 1, 6         ; [15] = [0, 2, 4]
+;DITHER4 0, 1, 2         ; [9] = [2, 0, 0]
+;DITHER4 1, 2, 2         ; [10] = [1, 1, 0]
+;DITHER4 2, 3, 8         ; [11] = [7, 6, 4]
+;DITHER4 0, 3, 4         ; [12] = [2, 2, 2]
+;DITHER4 0, 3, 2         ; [13] = [1, 1, 1]
+;DITHER4 0, 3, 1         ; [14] = [1, 1, 1]
+;DITHER4 0, 1, 6         ; [15] = [0, 2, 4]
 ENDIF
 
 .reloc_dither_table
