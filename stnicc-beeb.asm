@@ -187,6 +187,14 @@ ENDIF
 ;.poly_descriptor    skip 1
 .eof_flag			skip 1
 
+; palette vars
+.pal_ptr_LO			skip 1
+.pal_ptr_HI			skip 1
+.pal_descriptor		skip 1
+.pal_byte1			skip 1
+.pal_byte2			skip 1
+.pal_dither_idx		skip 1
+
 ; system vars
 .rom_bank           skip 1
 .vsync_counter      skip 2
@@ -225,6 +233,8 @@ skip &100
 PAGE_ALIGN  ; lazy
 .poly_palette
 skip &40
+.dither_table
+skip &40
 .screen_col_LO
 skip &80
 .reloc_to_end
@@ -234,6 +244,9 @@ GUARD &D00
 .span_buffer_start
 skip &100
 .span_buffer_end
+skip &100
+
+.palette_stream_buffer ; or use &E00?
 skip &100
 
 \ ******************************************************************
@@ -294,6 +307,11 @@ GUARD screen2_addr
 	lda #HI(reloc_from_start)
 	ldy #HI(reloc_to_start)
 	ldx #HI(reloc_to_end - reloc_to_start + &ff)
+	jsr copy_pages
+
+	lda #HI(palette_stream_start)
+	ldy #HI(palette_stream_buffer)
+	ldx #HI(palette_stream_end - palette_stream_start + &ff)
 	jsr copy_pages
 
 	ldx #15
@@ -373,6 +391,11 @@ GUARD screen2_addr
     \\ Init system
     lda #HI(screen1_addr)
     sta draw_buffer_HI
+
+	lda #LO(palette_stream_buffer)
+	sta pal_ptr_LO
+	lda #HI(palette_stream_buffer)
+	sta pal_ptr_HI
 
     \\ Clear screen
     jsr screen_cls
@@ -884,6 +907,9 @@ EQUB 0				; returned error value
 .drive_order
 EQUB 2,3,1,0
 
+.colour_table
+EQUB &00, &0F, &F0, &FF
+
 include "src/plot_data.asm"
 
 .long_span_tables
@@ -893,6 +919,7 @@ EQUB (col*8) AND 255			; +1,x for mult_8
 EQUB 0							; +2,x spare
 EQUB 0							; +3,x spare
 NEXT
+CHECK_SAME_PAGE_AS long_span_tables
 
 .data_end
 
@@ -954,6 +981,9 @@ NEXT
 CHECK_SAME_PAGE_AS reloc_screen_col_LO
 
 .reloc_from_end
+
+PAGE_ALIGN
+include "src/palette_stream.asm"
 
 \ ******************************************************************
 \ *	End address to be saved

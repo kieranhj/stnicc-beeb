@@ -115,3 +115,10 @@ DITHER4 0, 3, 2         ; [13] = [1, 1, 1]
 DITHER4 0, 3, 1         ; [14] = [1, 1, 1]
 DITHER4 0, 1, 6         ; [15] = [0, 2, 4]
 ENDIF
+
+.reloc_dither_table
+{
+    FOR d,1,16,1
+    DITHER4 0, 3, d
+    NEXT
+}

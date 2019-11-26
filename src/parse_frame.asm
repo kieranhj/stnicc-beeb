@@ -12,6 +12,16 @@ MACRO GET_BYTE
 }
 ENDMACRO
 
+MACRO GET_PAL_BYTE
+{
+    inc pal_ptr_LO
+    bne no_carry
+    inc pal_ptr_HI
+    .no_carry
+    lda (pal_ptr_LO), y
+}
+ENDMACRO
+
 .parse_frame
 {
     ldy #0
@@ -50,6 +60,12 @@ ENDIF
     .not_this_bit
     dex
     bpl parse_palette_loop
+
+    GET_PAL_BYTE
+    beq no_palette
+
+    jmp handle_beeb_palette
+    .^return_here_from_handle_beeb_palette
     .no_palette
 
     \\ Check whether we have indexed data
@@ -188,4 +204,112 @@ ENDIF
     .no_carry
 
     rts
+}
+
+.handle_beeb_palette
+{
+    sta pal_descriptor
+
+    \\ Process the ULA palette changes first
+    and #&0f
+    beq skip_colours
+    tax
+    .colour_loop
+    GET_PAL_BYTE
+    sta &fe21
+    GET_PAL_BYTE
+    sta &fe21
+    GET_PAL_BYTE
+    sta &fe21
+    GET_PAL_BYTE
+    sta &fe21
+    dex
+    bne colour_loop
+    .skip_colours
+
+    \\ Process any poly_palette dither changes
+    lda pal_descriptor
+    and #&f0
+    bne do_dithers
+    jmp return_here_from_handle_beeb_palette
+
+    .do_dithers
+    lsr a:lsr a:lsr a:lsr a
+    tax
+    .dither_loop
+    stx pal_dither_idx
+
+    GET_PAL_BYTE
+    sta pal_byte1
+
+    GET_PAL_BYTE
+    sta pal_byte2
+
+    GET_PAL_BYTE
+    tax     ; dither index
+
+    GET_PAL_BYTE
+    tay     ; poly_palette index
+
+    lda dither_table, X
+    and pal_byte2
+    sta ora_bytes1+1
+
+    lda dither_table, X
+    eor #&ff
+    and pal_byte1
+    .ora_bytes1
+    ora #0
+    sta poly_palette, Y
+
+    inx
+    iny
+
+    lda dither_table, X
+    and pal_byte2
+    sta ora_bytes2+1
+
+    lda dither_table, X
+    eor #&ff
+    and pal_byte1
+    .ora_bytes2
+    ora #0
+    sta poly_palette, Y
+
+    inx
+    iny
+
+    lda dither_table, X
+    and pal_byte2
+    sta ora_bytes3+1
+
+    lda dither_table, X
+    eor #&ff
+    and pal_byte1
+    .ora_bytes3
+    ora #0
+    sta poly_palette, Y
+
+    inx
+    iny
+
+    lda dither_table, X
+    and pal_byte2
+    sta ora_bytes4+1
+
+    lda dither_table, X
+    eor #&ff
+    and pal_byte1
+    .ora_bytes4
+    ora #0
+    sta poly_palette, Y
+
+    ldy #0
+    ldx pal_dither_idx
+    dex
+    beq done_dither_loop
+    jmp dither_loop
+
+    .done_dither_loop
+    jmp return_here_from_handle_beeb_palette
 }

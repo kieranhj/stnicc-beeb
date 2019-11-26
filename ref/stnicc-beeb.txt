@@ -288,3 +288,29 @@ Keep the motif colours, like the yellow throughout.
 Identify the colour theme for the segment.
 Transitions between segments may have to suffer.
 Better to have a contrasting palette than blurred into a pixely mess.
+
+149 palette changes x 4 bytes
+Could just have a stream of dither bytes to copy into palette array
+Perhaps move palette array to ZP?
+
+How to trigger colour palette changes?
+Have a palette data stream.
+For each palette containing frame have a descriptor
+#colour changes << 4 | #palette updates
+
+Colour bytes first: 4x colour values ready to send to ULA
+
+We might want to change more or less of the palette entries
+But do we need to?
+Only if there is a palette entry using a colour that will be redefined
+
+Do the colour changes first then worry about palette updates
+
+Each palette update is:
+Entry # [0-15]
+Dither [1-16] (can skip all 0)
+Colour 1 [0-7]
+Colour 2 [0-7]
+
+Palette change relatively expensive to compute at run-time but is a
+cost proportional to the #frames

@@ -1,5 +1,6 @@
 Oxygene
 [1]      Palette 1 colour =  [5, 2, 0]
+Yellow motif!
 [1]      Palette 2 colour =  [7, 7, 0]
 [1]      Palette 3 colour =  [6, 3, 0]
 [1]      Palette 4 colour =  [4, 1, 0]
@@ -174,6 +175,7 @@ First dark red appears
 [1248]      Palette 10 colour =  [6, 2, 0]
 [1249]      Palette 11 colour =  [2, 0, 0]
 [1249]      Palette 12 colour =  [7, 4, 0]
+Yellow motif!
 [1251]      Palette 13 colour =  [7, 7, 0]
 
 Sliding downwards into dark red tunnel
