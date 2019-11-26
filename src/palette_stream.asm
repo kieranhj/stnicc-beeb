@@ -100,8 +100,8 @@ ENDMACRO
     PALETTE_FRAME_JUST_UPDATES 1                                        ; [98]
     PALETTE_UPDATE 5, 0, 1, 8       ; [5] = [4, 1, 0]          -C2=0
 
-    PALETTE_FRAME %0010, PAL_black, PAL_red, PAL_blue, PAL_white, 2   ; [143]
-    ; ^== UPDATE ANY PALETTE ENTRY STILL CONTAINING COLOUR 2
+    PALETTE_FRAME %0010, PAL_black, PAL_red, PAL_cyan, PAL_white, 2   ; [143]
+    ; ^== UPDATE ANY PALETTE ENTRY STILL CONTAINING COLOUR 2 ==v
 
     ; Grey appears
     ;PALETTE_UPDATE 4, 0, 3, 12      ; [4] = [5, 5, 4]
@@ -118,7 +118,7 @@ ENDMACRO
     PALETTE_UPDATE 10, 0, 2, 2      ; [10] = [0, 1, 3]
 
     PALETTE_FRAME_JUST_UPDATES 1                                        ; [151]
-    PALETTE_UPDATE 2, 0, 2, 10      ; [2] = [2, 5, 7]          -Y
+    PALETTE_UPDATE 2, 0, 2, 10      ; [2] = [2, 5, 7]
 
     PALETTE_FRAME_JUST_UPDATES 4                                        ; [152]
     PALETTE_UPDATE 6, 1, 3, 10      ; [6] = [7, 5, 3]
@@ -143,7 +143,7 @@ ENDMACRO
     PALETTE_UPDATE 5, 0, 3, 8      ; [5] = [4, 4, 4]
 
     PALETTE_FRAME_JUST_UPDATES 1                                        ; [167]
-    PALETTE_UPDATE 2, 0, 2, 2      ; [2] = [0, 0, 2]
+    PALETTE_UPDATE 2, 0, 2, 1      ; [2] = [0, 0, 2]
 
     PALETTE_FRAME_JUST_UPDATES 1                                        ; [171]
     PALETTE_UPDATE 9, 0, 3, 10     ; [9] = [5, 5, 5]
@@ -156,12 +156,12 @@ ENDMACRO
 
     ; At this frame there is no more red on the screen and we don't need yellow yet!
     PALETTE_FRAME_JUST_UPDATES 2                                        ; [178]
-    PALETTE_UPDATE 3, 0, 2, 6    ; [3] = [0, 2, 4]
-    PALETTE_UPDATE 6, 0, 2, 10    ; [6] = [2, 5, 7]
+    PALETTE_UPDATE 3, 0, 2, 4    ; [3] = [0, 2, 4]
+    PALETTE_UPDATE 6, 0, 2, 14   ; [6] = [2, 5, 7]
 
     ; Yellow motif appears again
-    PALETTE_FRAME %0100, PAL_black, PAL_yellow, PAL_blue, PAL_white, 1  ; [190]
-    ; ^== UPDATE ANY PALETTE ENTRY STILL CONTAINING COLOUR 1
+    PALETTE_FRAME %0100, PAL_black, PAL_yellow, PAL_cyan, PAL_white, 1  ; [190]
+    ; ^== UPDATE ANY PALETTE ENTRY STILL CONTAINING COLOUR 1 ==v
     PALETTE_UPDATE 1, 0, 1, 16      ; [1] = [7, 7, 7]
 
     PALETTE_FRAME_NO_CHANGE                                             ; [225]
