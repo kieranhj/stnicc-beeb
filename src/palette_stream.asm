@@ -177,8 +177,8 @@ ENDMACRO
     PALETTE_FRAME_JUST_UPDATES 4                                        ; [231]
     PALETTE_UPDATE 7, 0, 0, 16       ; [7] = [2, 1, 1]
     ; ^= more striking as black?
-    PALETTE_UPDATE 9, 0, 3, 9       ; [9] = [5, 4, 4]
-    PALETTE_UPDATE 10, 0, 3, 10       ; [10] = [5, 5, 4]
+    PALETTE_UPDATE 9, 0, 3, 9        ; [9] = [5, 4, 4]
+    PALETTE_UPDATE 10, 0, 3, 10      ; [10] = [5, 5, 4]
     PALETTE_UPDATE 11, 0, 3, 8       ; [11] = [4, 4, 3]
 
     PALETTE_FRAME_JUST_UPDATES 1                                        ; [232]
@@ -214,34 +214,62 @@ ENDMACRO
 
     ; In the spinning room
     ; First green tint appears, can replace cyan?
-    PALETTE_UPDATE_JUST_1 2, 0, 2, 2 ; [2] = [1, 2, 1]                   ; [519]
+    PALETTE_FRAME %0010, PAL_black, PAL_yellow, PAL_green, PAL_white, 1  ; [519]
+    ; ^== UPDATE ANY PALETTE ENTRY STILL CONTAINING COLOUR 2 ==v
+
+    PALETTE_UPDATE 2, 0, 2, 2        ; [2] = [1, 2, 1]                   ; [519]
     PALETTE_FRAME_JUST_UPDATES 2                                         ; [520]
-    PALETTE_UPDATE 4, 0, 3, 4        ; [4] = [2, 3, 2]
-    PALETTE_UPDATE 5, 0, 3, 1        ; [5] = [0, 1, 0]
+    PALETTE_UPDATE 4, 0, 2, 4        ; [4] = [2, 3, 2]
+    PALETTE_UPDATE 5, 0, 2, 1        ; [5] = [0, 1, 0]
+    ; ^= more striking as black?
 
     PALETTE_FRAME_JUST_UPDATES 2                                         ; [523]
-    PALETTE_UPDATE 6, 0, 3, 10       ; [6] = [5, 6, 5]
-    PALETTE_UPDATE 7, 0, 3, 9        ; [7] = [4, 5, 4]
+    PALETTE_UPDATE 6, 0, 2, 11       ; [6] = [5, 6, 5]
+    PALETTE_UPDATE 7, 0, 2, 9        ; [7] = [4, 5, 4]
+    ; add some yellow to the light ones? no - goes lime!
 
-    PALETTE_FRAME_NO_CHANGE                                             ; [676]
-    PALETTE_FRAME_NO_CHANGE                                             ; [684]
-    PALETTE_FRAME_NO_CHANGE                                             ; [685]
-    PALETTE_FRAME_NO_CHANGE                                             ; [686]
-    PALETTE_FRAME_NO_CHANGE                                             ; [693]
-    PALETTE_FRAME_NO_CHANGE                                             ; [696]
-    PALETTE_FRAME_NO_CHANGE                                             ; [699]
-    PALETTE_FRAME_NO_CHANGE                                             ; [703]
-    PALETTE_FRAME_NO_CHANGE                                             ; [705]
-    PALETTE_FRAME_NO_CHANGE                                             ; [709]
-    PALETTE_FRAME_NO_CHANGE                                             ; [715]
-    PALETTE_FRAME_NO_CHANGE                                             ; [717]
-    PALETTE_FRAME_NO_CHANGE                                             ; [718]
-    PALETTE_FRAME_NO_CHANGE                                             ; [719]
-    PALETTE_FRAME_NO_CHANGE                                             ; [721]
-    PALETTE_FRAME_NO_CHANGE                                             ; [745]
-    PALETTE_FRAME_NO_CHANGE                                             ; [804]
-    PALETTE_FRAME_NO_CHANGE                                             ; [805]
-    PALETTE_FRAME_NO_CHANGE                                             ; [806]
+    ; In the twisty tunnel, first brown appears
+    ; Dump white for red?!
+    PALETTE_FRAME %0001, PAL_black, PAL_yellow, PAL_green, PAL_red, 1   ; [676]
+    PALETTE_UPDATE 3, 3, 1, 8          ; [13] = [6, 4, 2]
+
+    PALETTE_UPDATE_JUST_1 8, 3, 1, 10  ; [8] = [7, 5, 3]                ; [684]
+    PALETTE_UPDATE_JUST_1 9, 0, 3, 4   ; [9] = [2, 0, 0]                ; [685]
+    PALETTE_UPDATE_JUST_1 10, 3, 1, 6  ; [10] = [5, 3, 1]               ; [686]
+    PALETTE_UPDATE_JUST_1 11, 0, 3, 6  ; [11] = [3, 1, 0]               ; [693]
+    PALETTE_UPDATE_JUST_1 12, 3, 1, 12 ; [12] = [7, 5, 4]               ; [696]
+    PALETTE_UPDATE_JUST_1 13, 0, 3, 14 ; [13] = [7, 6, 5]               ; [699]
+    PALETTE_UPDATE_JUST_1 14, 0, 3, 9  ; [14] = [6, 4, 3]               ; [703]
+    PALETTE_UPDATE_JUST_1 15, 0, 2, 6  ; [15] = [3, 4, 3]               ; [705]
+    PALETTE_UPDATE_JUST_1 15, 0, 3, 8  ; [15] = [4, 2, 1]               ; [709]
+
+    ; Transition into brown pentagon tunnel
+    PALETTE_UPDATE_JUST_1 5, 0, 2, 6   ; [5] = [3, 4, 3]               ; [715]
+    PALETTE_UPDATE_JUST_1 5, 3, 1, 7   ; [5] = [5, 3, 2]               ; [717]
+    PALETTE_UPDATE_JUST_1 7, 0, 2, 6   ; [7] = [3, 4, 3]               ; [718]
+    PALETTE_UPDATE_JUST_1 7, 0, 3, 7   ; [7] = [4, 2, 0]               ; [719]
+    PALETTE_UPDATE_JUST_1 1, 0, 2, 6   ; [1] = [3, 4, 3]               ; [721]
+
+    ; Fully in pentagon tunnel
+    PALETTE_UPDATE_JUST_1 8, 0, 2, 9   ; [8] = [4, 5, 4]               ; [745]
+
+    ; Round corner into green square tunnel
+    PALETTE_FRAME %0001, PAL_black, PAL_yellow, PAL_green, PAL_cyan, 4  ; [804]
+    PALETTE_UPDATE 3, 0, 2, 12        ; [3] = [4, 6, 5]
+    PALETTE_UPDATE 5, 0, 2, 14         ; [5] = [5, 7, 6]
+    PALETTE_UPDATE 7, 0, 2, 8         ; [7] = [3, 5, 3]
+    PALETTE_UPDATE 9, 0, 2, 10         ; [9] = [5, 7, 5]
+    ; add some yellow to the light ones?
+
+    PALETTE_FRAME_JUST_UPDATES 3                                        ; [805]
+    PALETTE_UPDATE 10, 0, 2, 6        ; [10] = [1, 3, 2]
+    PALETTE_UPDATE 11, 0, 2, 7        ; [11] = [2, 4, 3]
+    PALETTE_UPDATE 12, 0, 2, 8        ; [12] = [3, 5, 4]
+
+    PALETTE_FRAME_JUST_UPDATES 1                                        ; [806]
+    PALETTE_UPDATE 13, 0, 2, 2        ; [13] = [0, 1, 0]
+
+    ; Still in green tunnel
     PALETTE_FRAME_NO_CHANGE                                             ; [915]
     PALETTE_FRAME_NO_CHANGE                                             ; [916]
     PALETTE_FRAME_NO_CHANGE                                             ; [917]
@@ -249,6 +277,9 @@ ENDMACRO
     PALETTE_FRAME_NO_CHANGE                                             ; [919]
     PALETTE_FRAME_NO_CHANGE                                             ; [927]
     PALETTE_FRAME_NO_CHANGE                                             ; [935]
+
+    ; Lighter six-sided green tunnel - yellow motif appears!
+    ; Lots of palette fighting over 4, 8, 9, 15
     PALETTE_FRAME_NO_CHANGE                                             ; [1080]
     PALETTE_FRAME_NO_CHANGE                                             ; [1081]
     PALETTE_FRAME_NO_CHANGE                                             ; [1082]
@@ -275,20 +306,37 @@ ENDMACRO
     PALETTE_FRAME_NO_CHANGE                                             ; [1106]
     PALETTE_FRAME_NO_CHANGE                                             ; [1114]
     PALETTE_FRAME_NO_CHANGE                                             ; [1115]
+
+    ; Transitioning to blue bendy downwards tunnel
     PALETTE_FRAME_NO_CHANGE                                             ; [1139]
     PALETTE_FRAME_NO_CHANGE                                             ; [1184]
+
+    ; First dark red appears
     PALETTE_FRAME_NO_CHANGE                                             ; [1247]
     PALETTE_FRAME_NO_CHANGE                                             ; [1248]
     PALETTE_FRAME_NO_CHANGE                                             ; [1249]
+
+    ; Yellow motif!
     PALETTE_FRAME_NO_CHANGE                                             ; [1251]
+
+    ; Sliding downwards into dark red tunnel
     PALETTE_FRAME_NO_CHANGE                                             ; [1333]
     PALETTE_FRAME_NO_CHANGE                                             ; [1343]
+
+    ; First purple appears for outside cubes
+    PALETTE_FRAME_NO_CHANGE                                             ; [1344]
     PALETTE_FRAME_NO_CHANGE                                             ; [1345]
     PALETTE_FRAME_NO_CHANGE                                             ; [1352]
     PALETTE_FRAME_NO_CHANGE                                             ; [1447]
     PALETTE_FRAME_NO_CHANGE                                             ; [1459]
+
+    ; Fully inside the pod
     PALETTE_FRAME_NO_CHANGE                                             ; [1513]
+
+    ; View through the slit
     PALETTE_FRAME_NO_CHANGE                                             ; [1617]
+
+    ; Purple cubes
     PALETTE_FRAME_NO_CHANGE                                             ; [1654]
 }
 .palette_stream_end
