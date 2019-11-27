@@ -60,6 +60,11 @@ MACRO PALETTE_FRAME_JUST_UPDATES pal_updates
     EQUB (pal_updates << 4)
 ENDMACRO
 
+MACRO PALETTE_UPDATE_JUST_1 index, colour1, colour2, dither
+    EQUB (1 << 4)
+    PALETTE_UPDATE index, colour1, colour2, dither
+ENDMACRO
+
 .palette_stream_start
 {
     ; Oxygene
@@ -162,25 +167,62 @@ ENDMACRO
     ; Yellow motif appears again
     PALETTE_FRAME %0100, PAL_black, PAL_yellow, PAL_cyan, PAL_white, 1  ; [190]
     ; ^== UPDATE ANY PALETTE ENTRY STILL CONTAINING COLOUR 1 ==v
+    ;PALETTE_UPDATE 7, 0, 3, 3       ; [7] = [4, 2, 0]
     PALETTE_UPDATE 1, 0, 1, 16      ; [1] = [7, 7, 7]
 
-    PALETTE_FRAME_NO_CHANGE                                             ; [225]
-    PALETTE_FRAME_NO_CHANGE                                             ; [229]
-    PALETTE_FRAME_NO_CHANGE                                             ; [231]
-    PALETTE_FRAME_NO_CHANGE                                             ; [232]
-    PALETTE_FRAME_NO_CHANGE                                             ; [233]
-    PALETTE_FRAME_NO_CHANGE                                             ; [235]
+    ; The blue tunnel beomes grey with yellow stripes
+    PALETTE_UPDATE_JUST_1 2, 0, 3, 4  ; [2] = [3, 2, 2]                 ; [225]
+    PALETTE_UPDATE_JUST_1 5, 0, 3, 12 ; [5] = [6, 5, 5]                 ; [229]
+
+    PALETTE_FRAME_JUST_UPDATES 4                                        ; [231]
+    PALETTE_UPDATE 7, 0, 0, 16       ; [7] = [2, 1, 1]
+    ; ^= more striking as black?
+    PALETTE_UPDATE 9, 0, 3, 9       ; [9] = [5, 4, 4]
+    PALETTE_UPDATE 10, 0, 3, 10       ; [10] = [5, 5, 4]
+    PALETTE_UPDATE 11, 0, 3, 8       ; [11] = [4, 4, 3]
+
+    PALETTE_FRAME_JUST_UPDATES 1                                        ; [232]
+    PALETTE_UPDATE 12, 0, 3, 16      ; [12] = [7, 6, 6]
+
+    PALETTE_FRAME_JUST_UPDATES 1                                        ; [233]
+    PALETTE_UPDATE 14, 0, 3, 6       ; [14] = [4, 3, 3]
+
+    PALETTE_FRAME_JUST_UPDATES 1                                        ; [235]
+    PALETTE_UPDATE 15, 0, 3, 12      ; [15] = [6, 6, 5]
+
     PALETTE_FRAME_NO_CHANGE                                             ; [237]
-    PALETTE_FRAME_NO_CHANGE                                             ; [238]
-    PALETTE_FRAME_NO_CHANGE                                             ; [239]
-    PALETTE_FRAME_NO_CHANGE                                             ; [249]
-    PALETTE_FRAME_NO_CHANGE                                             ; [269]
-    PALETTE_FRAME_NO_CHANGE                                             ; [272]
-    PALETTE_FRAME_NO_CHANGE                                             ; [272]
-    PALETTE_FRAME_NO_CHANGE                                             ; [274]
-    PALETTE_FRAME_NO_CHANGE                                             ; [519]
-    PALETTE_FRAME_NO_CHANGE                                             ; [520]
-    PALETTE_FRAME_NO_CHANGE                                             ; [523]
+
+    PALETTE_FRAME_JUST_UPDATES 1                                        ; [238]
+    PALETTE_UPDATE 15, 0, 0, 16      ; [15] = [1, 1, 0]
+    ; ^= more striking as black?
+
+    PALETTE_UPDATE_JUST_1 2, 0, 3, 12; [2] = [6, 6, 5]                  ; [239]
+    PALETTE_UPDATE_JUST_1 2, 0, 2, 1 ; [2] = [0, 0, 2]                  ; [249]
+
+    PALETTE_FRAME_JUST_UPDATES 2                                        ; [269]
+    PALETTE_UPDATE 2, 0, 3, 4        ; [2] = [3, 2, 2]
+    PALETTE_UPDATE 13, 0, 3, 12      ; [13] = [6, 6, 5]
+
+    PALETTE_FRAME_JUST_UPDATES 1                                        ; [272]
+    PALETTE_UPDATE 13, 0, 3, 5       ; [13] = [3, 3, 2]
+
+    PALETTE_FRAME_JUST_UPDATES 1                                        ; [273]
+    PALETTE_UPDATE 3, 0, 3, 12      ; [13] = [6, 6, 5]
+
+    PALETTE_FRAME_JUST_UPDATES 1                                        ; [274]
+    PALETTE_UPDATE 8, 0, 3, 3       ; [8] = [2, 2, 1]
+
+    ; In the spinning room
+    ; First green tint appears, can replace cyan?
+    PALETTE_UPDATE_JUST_1 2, 0, 2, 2 ; [2] = [1, 2, 1]                   ; [519]
+    PALETTE_FRAME_JUST_UPDATES 2                                         ; [520]
+    PALETTE_UPDATE 4, 0, 3, 4        ; [4] = [2, 3, 2]
+    PALETTE_UPDATE 5, 0, 3, 1        ; [5] = [0, 1, 0]
+
+    PALETTE_FRAME_JUST_UPDATES 2                                         ; [523]
+    PALETTE_UPDATE 6, 0, 3, 10       ; [6] = [5, 6, 5]
+    PALETTE_UPDATE 7, 0, 3, 9        ; [7] = [4, 5, 4]
+
     PALETTE_FRAME_NO_CHANGE                                             ; [676]
     PALETTE_FRAME_NO_CHANGE                                             ; [684]
     PALETTE_FRAME_NO_CHANGE                                             ; [685]
