@@ -17,7 +17,7 @@ _SHOW_STREAMING_INFO = FALSE
 ; If set, show total vsync count, rather than just the count for the
 ; last frame. Intended for use in conjunction with _STOP_AT_FRAME.
 _SHOW_TOTAL_VSYNC_COUNTER = TRUE
-_STOP_AT_FRAME = 676
+_STOP_AT_FRAME = 1139
 ; Debug defines
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
@@ -519,12 +519,16 @@ ENDIF
 
     {
         lda frame_no+1
+		IF _STOP_AT_FRAME > -1
+        cmp #HI(_STOP_AT_FRAME)+1
+		bcs lock_me
+		ENDIF
         cmp #HI(_STOP_AT_FRAME)
         bcc continue
         lda frame_no
         cmp #LO(_STOP_AT_FRAME)
         bcc continue
-
+		.lock_me
 		lda #&ff:sta pause_lock
 		.continue
     }

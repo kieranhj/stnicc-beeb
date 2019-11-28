@@ -254,7 +254,7 @@ ENDMACRO
     PALETTE_UPDATE_JUST_1 8, 0, 2, 9   ; [8] = [4, 5, 4]               ; [745]
 
     ; Round corner into green square tunnel
-    PALETTE_FRAME %0001, PAL_black, PAL_yellow, PAL_green, PAL_cyan, 4  ; [804]
+    PALETTE_FRAME %0001, PAL_black, PAL_yellow, PAL_green, PAL_blue, 4 ; [804]
     PALETTE_UPDATE 3, 0, 2, 12        ; [3] = [4, 6, 5]
     PALETTE_UPDATE 5, 0, 2, 14         ; [5] = [5, 7, 6]
     PALETTE_UPDATE 7, 0, 2, 8         ; [7] = [3, 5, 3]
@@ -275,12 +275,20 @@ ENDMACRO
     PALETTE_FRAME_NO_CHANGE                                             ; [917]
     PALETTE_FRAME_NO_CHANGE                                             ; [918]
     PALETTE_FRAME_NO_CHANGE                                             ; [919]
-    PALETTE_FRAME_NO_CHANGE                                             ; [927]
-    PALETTE_FRAME_NO_CHANGE                                             ; [935]
+    PALETTE_FRAME_JUST_UPDATES 2                                        ; [927]
+    PALETTE_UPDATE 14, 0, 3, 2       ; [14] = [0, 2, 1]
+    PALETTE_UPDATE 15, 0, 3, 16      ; [15] = [6, 7, 6]
+
+    PALETTE_FRAME_JUST_UPDATES 1                                        ; [935]
+    PALETTE_UPDATE 13, 0, 2, 5       ; [13] = [1, 3, 1]
 
     ; Lighter six-sided green tunnel - yellow motif appears!
-    ; Lots of palette fighting over 4, 8, 9, 15
-    PALETTE_FRAME_NO_CHANGE                                             ; [1080]
+    PALETTE_FRAME_JUST_UPDATES 3                                        ; [1080]
+    PALETTE_UPDATE 2, 0, 1, 16       ; [2] = [7, 7, 0]
+    PALETTE_UPDATE 4, 0, 3, 12        ; [4] = [4, 5, 6]
+    PALETTE_UPDATE 8, 0, 3, 10        ; [13] = [3, 4, 5]
+
+    ; Lots of palette fighting over 1, 4, 8, 9, 15 - ignore for now?
     PALETTE_FRAME_NO_CHANGE                                             ; [1081]
     PALETTE_FRAME_NO_CHANGE                                             ; [1082]
     PALETTE_FRAME_NO_CHANGE                                             ; [1084]
@@ -293,9 +301,9 @@ ENDMACRO
     PALETTE_FRAME_NO_CHANGE                                             ; [1092]
     PALETTE_FRAME_NO_CHANGE                                             ; [1093]
     PALETTE_FRAME_NO_CHANGE                                             ; [1094]
-    PALETTE_FRAME_NO_CHANGE                                             ; [1095]
+    PALETTE_UPDATE_JUST_1 1, 0, 3, 2      ; [1] = [0, 0, 1]             ; [1095]
     PALETTE_FRAME_NO_CHANGE                                             ; [1096]
-    PALETTE_FRAME_NO_CHANGE                                             ; [1097]
+    PALETTE_UPDATE_JUST_1 15, 0, 2, 6     ; [15] = [2, 4, 2]            ; [1097]
     PALETTE_FRAME_NO_CHANGE                                             ; [1098]
     PALETTE_FRAME_NO_CHANGE                                             ; [1099]
     PALETTE_FRAME_NO_CHANGE                                             ; [1100]
@@ -303,40 +311,49 @@ ENDMACRO
     PALETTE_FRAME_NO_CHANGE                                             ; [1102]
     PALETTE_FRAME_NO_CHANGE                                             ; [1103]
     PALETTE_FRAME_NO_CHANGE                                             ; [1105]
-    PALETTE_FRAME_NO_CHANGE                                             ; [1106]
+    PALETTE_UPDATE_JUST_1 9, 0, 3, 8     ; [9] = [2, 3, 4]              ; [1106]
     PALETTE_FRAME_NO_CHANGE                                             ; [1114]
-    PALETTE_FRAME_NO_CHANGE                                             ; [1115]
+    PALETTE_UPDATE_JUST_1 4, 0, 3, 6     ; [4] = [1, 2, 3]              ; [1115]
 
     ; Transitioning to blue bendy downwards tunnel
-    PALETTE_FRAME_NO_CHANGE                                             ; [1139]
-    PALETTE_FRAME_NO_CHANGE                                             ; [1184]
+    PALETTE_UPDATE_JUST_1 14, 0, 3, 4  ; [14] = [0, 1, 2]               ; [1139]
+    PALETTE_UPDATE_JUST_1 3, 0, 3, 12   ; [5] = [4, 5, 6]               ; [1184]
 
     ; First dark red appears
-    PALETTE_FRAME_NO_CHANGE                                             ; [1247]
-    PALETTE_FRAME_NO_CHANGE                                             ; [1248]
-    PALETTE_FRAME_NO_CHANGE                                             ; [1249]
+    PALETTE_FRAME %0010, PAL_black, PAL_yellow, PAL_red, PAL_blue, 2    ; [1247]
+    PALETTE_UPDATE 5, 0, 2, 10          ; [6] = [5, 1, 0]
+    PALETTE_UPDATE 6, 0, 2, 8           ; [7] = [4, 0, 0]
+
+    PALETTE_FRAME_JUST_UPDATES 2                                        ; [1248]
+    PALETTE_UPDATE 7, 2, 1, 10           ; [7] = [7, 3, 0]
+    PALETTE_UPDATE 10, 2, 1, 6          ; [10] = [6, 2, 0]
+
+    PALETTE_FRAME_JUST_UPDATES 2                                        ; [1249]
+    PALETTE_UPDATE 11, 0, 2, 2          ; [11] = [2, 0, 0]
+    PALETTE_UPDATE 12, 2, 1, 12         ; [12] = [7, 4, 0]
 
     ; Yellow motif!
-    PALETTE_FRAME_NO_CHANGE                                             ; [1251]
+    PALETTE_UPDATE_JUST_1 13, 0, 1, 16  ; [13] = [7, 7, 0]              ; [1251]
 
     ; Sliding downwards into dark red tunnel
-    PALETTE_FRAME_NO_CHANGE                                             ; [1333]
-    PALETTE_FRAME_NO_CHANGE                                             ; [1343]
+    PALETTE_UPDATE_JUST_1 1, 0, 2, 4     ; [1] = [3, 0, 0]              ; [1333]
+    PALETTE_UPDATE_JUST_1 2, 2, 1, 8     ; [2] = [6, 3, 3]              ; [1343]
+
+    PALETTE_UPDATE_JUST_1 3, 2, 1, 10    ; [3] = [7, 4, 3]              ; [1344]
 
     ; First purple appears for outside cubes
-    PALETTE_FRAME_NO_CHANGE                                             ; [1344]
-    PALETTE_FRAME_NO_CHANGE                                             ; [1345]
-    PALETTE_FRAME_NO_CHANGE                                             ; [1352]
-    PALETTE_FRAME_NO_CHANGE                                             ; [1447]
-    PALETTE_FRAME_NO_CHANGE                                             ; [1459]
+    PALETTE_UPDATE_JUST_1 7, 2, 3, 8     ; [7] = [3, 0, 3]              ; [1345]
+    PALETTE_UPDATE_JUST_1 2, 2, 1, 10    ; [2] = [7, 3, 0]              ; [1352]
+    PALETTE_UPDATE_JUST_1 3, 2, 1, 8     ; [3] = [6, 3, 3]              ; [1447]
+    PALETTE_UPDATE_JUST_1 4, 2, 1, 14    ; [4] = [7, 5, 3]              ; [1459]
 
     ; Fully inside the pod
-    PALETTE_FRAME_NO_CHANGE                                             ; [1513]
+    PALETTE_UPDATE_JUST_1 8, 2, 1, 10    ; [8] = [7, 4, 3]              ; [1513]
 
     ; View through the slit
-    PALETTE_FRAME_NO_CHANGE                                             ; [1617]
+    PALETTE_UPDATE_JUST_1 2, 2, 3, 10    ; [2] = [5, 2, 3]              ; [1617]
 
     ; Purple cubes
-    PALETTE_FRAME_NO_CHANGE                                             ; [1654]
+    PALETTE_UPDATE_JUST_1 1, 2, 3, 6     ; [1] = [4, 1, 3]              ; [1654]
 }
 .palette_stream_end
