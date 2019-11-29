@@ -137,6 +137,7 @@ Lighter six-sided green tunnel - yellow motif appears!
 Lots of palette fighting over 4, 8, 9, 15
 [1080]      Palette 4 colour =  [4, 5, 6]
 [1080]      Palette 8 colour =  [3, 4, 5]
+
 [1081]      Palette 8 colour =  [1, 2, 3]
 [1082]      Palette 8 colour =  [3, 4, 5]
 [1084]      Palette 4 colour =  [2, 3, 4]
