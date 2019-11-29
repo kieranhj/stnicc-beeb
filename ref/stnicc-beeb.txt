@@ -261,7 +261,7 @@ Moving Timer 1: Master@HQ = &7280
 Master@LQ = 4.94 fps but runs out of data switching to disc 3!
 
 20/11
-Maste@HQ = &71D9
+Master@HQ = &71D9
 
 Palette pondersing
 ~~~
@@ -316,3 +316,8 @@ Palette change relatively expensive to compute at run-time but is a
 cost proportional to the #frames
 
 HQ w/ palette jsbeeb Master = &72D0
+Now &7299 => extra &C0 frames for palette changes.
+192 frames when there are ~ 100 instances?! Odd!
+After removing all page crossing = &7233 => 90 frames more for palette :\
+Hmmm, still &7233 without palette switch!
+Not sure how this has changed from previous measurement of &71D9?!

@@ -29,9 +29,10 @@ CHECK_SAME_PAGE_AS colour_mask_starting_at_pixel
 EQUB 4,3,2,1
 CHECK_SAME_PAGE_AS four_minus
 
+PAGE_ALIGN
 .minus_1_times_4
 EQUB 0, 0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48
-CHECK_SAME_PAGE_AS four_minus
+CHECK_SAME_PAGE_AS minus_1_times_4
 
 \ ******************************************************************
 \ *	PRE-SHIFTED DATA FOR SHORT/MEDIUM SPANS
@@ -115,6 +116,7 @@ CHECK_SAME_PAGE_AS screen_mask_short_1
 
 ; tables to 3 bytes
 IF _SHORT_SPAN_MAX_PIXELS > 5
+PAGE_ALIGN
 .colour_mask_short_2
 SHORT_MASK_TABLE 0,2
 CHECK_SAME_PAGE_AS colour_mask_short_2

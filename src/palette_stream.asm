@@ -29,6 +29,8 @@ ENDMACRO
 
 MACRO PALETTE_UPDATE index, colour1, colour2, dither
 
+IF 0
+
 IF colour1=0
     byte1=&00
 ELIF colour1=1
@@ -50,6 +52,13 @@ ELSE
 ENDIF
 
     EQUB byte1, byte2, (dither-1) * 4, index * 4
+
+ELSE
+
+    EQUB index * 4
+    DITHER4 colour1, colour2, dither
+
+ENDIF
 
 ENDMACRO
 

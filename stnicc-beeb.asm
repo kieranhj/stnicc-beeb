@@ -839,9 +839,9 @@ old_irqv = P%-2
 .fx_start
 
 ;INCLUDE "lib/disksys.asm"
-INCLUDE "src/screen.asm"
 INCLUDE "src/parse_frame.asm"
 INCLUDE "src/plot_poly.asm"
+INCLUDE "src/screen.asm"
 
 .fx_end
 
@@ -918,6 +918,9 @@ EQUB &00, &0F, &F0, &FF
 
 include "src/plot_data.asm"
 
+IF HI(P%+&84) <> HI(P%)
+	PAGE_ALIGN
+ENDIF
 .long_span_tables
 FOR col,0,32,1
 EQUB (32-col)*3					; +0,x for span_column_offset
