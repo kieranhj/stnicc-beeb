@@ -230,7 +230,7 @@ skip &100
 skip &100
 .y_to_row
 skip &100
-PAGE_ALIGN  ; lazy
+PAGE_ALIGN
 .poly_palette
 skip &40
 .dither_table

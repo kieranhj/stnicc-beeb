@@ -211,8 +211,9 @@ ENDIF
     sta pal_descriptor
 
     \\ Process the ULA palette changes first
-    and #&0f
+    and #&f0
     beq skip_colours
+    lsr a:lsr a:lsr a:lsr a
     tax
     .colour_loop
     GET_PAL_BYTE
@@ -229,12 +230,11 @@ ENDIF
 
     \\ Process any poly_palette dither changes
     lda pal_descriptor
-    and #&f0
+    and #&0f
     bne do_dithers
     jmp return_here_from_handle_beeb_palette
 
     .do_dithers
-    lsr a:lsr a:lsr a:lsr a
     tax
     .dither_loop
     stx pal_dither_idx

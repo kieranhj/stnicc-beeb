@@ -6,7 +6,8 @@ MACRO PALETTE_FRAME pm, c0, c1, c2, c3, pal_updates
 
 num_colours = (pm AND 8)>>3 + (pm AND 4)>>2 + (pm AND 2)>>1 + (pm AND 1)
 
-EQUB (pal_updates << 4) OR num_colours
+; Fewer colour changes than dither changes...
+EQUB (num_colours << 4) OR pal_updates
 
 IF pm AND 8
     EQUB &00+c0, &10+c0, &40+c0, &50+c0
@@ -57,11 +58,11 @@ MACRO PALETTE_FRAME_NO_CHANGE
 ENDMACRO
 
 MACRO PALETTE_FRAME_JUST_UPDATES pal_updates
-    EQUB (pal_updates << 4)
+    EQUB pal_updates
 ENDMACRO
 
 MACRO PALETTE_UPDATE_JUST_1 index, colour1, colour2, dither
-    EQUB (1 << 4)
+    PALETTE_FRAME_JUST_UPDATES 1
     PALETTE_UPDATE index, colour1, colour2, dither
 ENDMACRO
 
@@ -73,10 +74,10 @@ ENDMACRO
     ;PALETTE_UPDATE 0, 0, 0, 0       ; [0] = [0, 0, 0]
     ;PALETTE_UPDATE 1, 0, 1, 10      ; [1] = [5, 2, 0]
     ; Yellow motif!
-    ;PALETTE_UPDATE 2, 0, 2, 16      ; [2] = [7, 7, 0]          +C2=1
-    ;PALETTE_UPDATE 3, 1, 2, 4       ; [3] = [6, 3, 0]          +C2=2
+    ;PALETTE_UPDATE 2, 0, 2, 16      ; [2] = [7, 7, 0]
+    ;PALETTE_UPDATE 3, 1, 2, 4       ; [3] = [6, 3, 0]
     ;PALETTE_UPDATE 4, 0, 1, 8       ; [4] = [4, 1, 0]
-    ;PALETTE_UPDATE 5, 1, 2, 8       ; [5] = [7, 5, 0]          +C2=3
+    ;PALETTE_UPDATE 5, 1, 2, 8       ; [5] = [7, 5, 0]
     ;PALETTE_UPDATE 6, 0, 1, 12      ; [6] = [7, 4, 0]
     ;PALETTE_UPDATE 7, 0, 1, 4       ; [7] = [3, 0, 0]
     ;PALETTE_UPDATE 8, 0, 3, 16      ; [8] = [7, 7, 7]
@@ -93,17 +94,17 @@ ENDMACRO
     PALETTE_UPDATE 1, 0, 1, 11      ; [1] = [5, 3, 1]
 
     PALETTE_FRAME_JUST_UPDATES 1                                        ; [89]
-    PALETTE_UPDATE 3, 1, 3, 8       ; [3] = [6, 4, 2]          -C2=2
-    \\ ^-- REMOVE THE YELLOW FROM HERE?
+    PALETTE_UPDATE 3, 1, 3, 8       ; [3] = [6, 4, 2]
+    \\ ^-- Use white not yellow as colour needs to be swapped
 
     ; Brown trench
     PALETTE_FRAME_JUST_UPDATES 2                                        ; [90]
     ; Pure Yellow disappears
-    PALETTE_UPDATE 2, 1, 3, 10      ; [2] = [7, 5, 3]          -C2=1
+    PALETTE_UPDATE 2, 1, 3, 10      ; [2] = [7, 5, 3]
     PALETTE_UPDATE 4, 1, 3, 12      ; [4] = [7, 6, 4]          
 
     PALETTE_FRAME_JUST_UPDATES 1                                        ; [98]
-    PALETTE_UPDATE 5, 0, 1, 8       ; [5] = [4, 1, 0]          -C2=0
+    PALETTE_UPDATE 5, 0, 1, 8       ; [5] = [4, 1, 0]
 
     PALETTE_FRAME %0010, PAL_black, PAL_red, PAL_cyan, PAL_white, 2   ; [143]
     ; ^== UPDATE ANY PALETTE ENTRY STILL CONTAINING COLOUR 2 ==v
