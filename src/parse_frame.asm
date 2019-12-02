@@ -12,6 +12,16 @@ MACRO GET_BYTE
 }
 ENDMACRO
 
+MACRO GET_PAL_BYTE
+{
+    inc pal_ptr_LO
+    bne no_carry
+    inc pal_ptr_HI
+    .no_carry
+    lda (pal_ptr_LO), y
+}
+ENDMACRO
+
 .parse_frame
 {
     ldy #0
@@ -50,6 +60,12 @@ ENDIF
     .not_this_bit
     dex
     bpl parse_palette_loop
+
+    GET_PAL_BYTE
+    beq no_palette
+
+    jmp handle_beeb_palette
+    .^return_here_from_handle_beeb_palette
     .no_palette
 
     \\ Check whether we have indexed data

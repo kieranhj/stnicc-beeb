@@ -666,6 +666,68 @@ ENDMACRO
     jmp return_here_from_drawline
 }
 
+\ ******************************************************************
+\ *	UPDATE PALETTE
+\ ******************************************************************
+
+.handle_beeb_palette
+{
+    sta pal_descriptor
+
+    \\ Process the ULA palette changes first
+    and #&f0
+    beq skip_colours
+    lsr a:lsr a:lsr a:lsr a
+    tax
+    .colour_loop
+    GET_PAL_BYTE
+    sta &fe21
+    GET_PAL_BYTE
+    sta &fe21
+    GET_PAL_BYTE
+    sta &fe21
+    GET_PAL_BYTE
+    sta &fe21
+    dex
+    bne colour_loop
+    .skip_colours
+
+    \\ Process any poly_palette dither changes
+    lda pal_descriptor
+    and #&0f
+    beq done_dither_loop
+
+    tax
+    .dither_loop
+    stx pal_dither_idx
+
+    GET_PAL_BYTE
+    tax
+
+    GET_PAL_BYTE                ; best case 5c+5c+3c = 13c
+    sta poly_palette+0, X
+
+    GET_PAL_BYTE
+    sta poly_palette+1, X
+
+    GET_PAL_BYTE
+    sta poly_palette+2, X
+
+    GET_PAL_BYTE                ; total=52c
+    sta poly_palette+3, X
+
+    ldx pal_dither_idx
+    dex
+    bne dither_loop
+
+    .done_dither_loop
+    jmp return_here_from_handle_beeb_palette
+}
+
+\ ******************************************************************
+\ *	UNROLLED SPAN PLOT ROUTINES
+\ ******************************************************************
+
 MACRO UNROLL_SPAN_ROW screen, row
     IF screen = 1
     row_addr = screen1_addr + row * SCREEN_ROW_BYTES
@@ -681,29 +743,37 @@ ENDMACRO
 
 UNROLLED_ROW_SIZE = 33 * 3
 
+PAGE_ALIGN_FOR_SIZE 25
 .span_row_table_screen1_LO
 FOR row,0,24,1    ;SCREEN_HEIGHT_PIXELS-1,1
 ;row = y DIV 8
 EQUB LO(span_screen1_row0_unrolled + row * UNROLLED_ROW_SIZE)
 NEXT
+CHECK_SAME_PAGE_AS span_row_table_screen1_LO
 
+PAGE_ALIGN_FOR_SIZE 25
 .span_row_table_screen1_HI
 FOR row,0,24,1    ;SCREEN_HEIGHT_PIXELS-1,1
 ;row = y DIV 8
 EQUB HI(span_screen1_row0_unrolled + row * UNROLLED_ROW_SIZE)
 NEXT
+CHECK_SAME_PAGE_AS span_row_table_screen1_HI
 
+PAGE_ALIGN_FOR_SIZE 25
 .span_row_table_screen2_LO
 FOR row,0,24,1    ;SCREEN_HEIGHT_PIXELS-1,1
 ;row = y DIV 8
 EQUB LO(span_screen2_row0_unrolled + row * UNROLLED_ROW_SIZE)
 NEXT
+CHECK_SAME_PAGE_AS span_row_table_screen2_LO
 
+PAGE_ALIGN_FOR_SIZE 25
 .span_row_table_screen2_HI
 FOR row,0,24,1    ;SCREEN_HEIGHT_PIXELS-1,1
 ;row = y DIV 8
 EQUB HI(span_screen2_row0_unrolled + row * UNROLLED_ROW_SIZE)
 NEXT
+CHECK_SAME_PAGE_AS span_row_table_screen2_HI
 
 .span_screen1_row0_unrolled
 UNROLL_SPAN_ROW 1, 0
