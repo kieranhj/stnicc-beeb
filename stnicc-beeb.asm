@@ -73,6 +73,12 @@ ALIGN &100
 PRINT "Lost ", P%-H%, "bytes"
 ENDMACRO
 
+MACRO PAGE_ALIGN_FOR_SIZE size
+IF HI(P%+size) <> HI(P%)
+	PAGE_ALIGN
+ENDIF
+ENDMACRO
+
 MACRO CHECK_SAME_PAGE_AS base
 IF HI(P%-1) <> HI(base)
 PRINT "WARNING! Table or branch base address",~base, "may cross page boundary at",~P%
@@ -918,9 +924,7 @@ EQUB &00, &0F, &F0, &FF
 
 include "src/plot_data.asm"
 
-IF HI(P%+&84) <> HI(P%)
-	PAGE_ALIGN
-ENDIF
+PAGE_ALIGN_FOR_SIZE 33*4
 .long_span_tables
 FOR col,0,32,1
 EQUB (32-col)*3					; +0,x for span_column_offset

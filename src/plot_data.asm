@@ -7,6 +7,7 @@
 \ *	PIXEL BYTE MASKS
 \ ******************************************************************
 
+PAGE_ALIGN_FOR_SIZE 4
 .screen_mask_starting_at_pixel
 {
     EQUB %00000000
@@ -16,6 +17,7 @@
 }
 CHECK_SAME_PAGE_AS screen_mask_starting_at_pixel
 
+PAGE_ALIGN_FOR_SIZE 4
 .colour_mask_starting_at_pixel
 {
     EQUB %11111111
@@ -25,11 +27,12 @@ CHECK_SAME_PAGE_AS screen_mask_starting_at_pixel
 }
 CHECK_SAME_PAGE_AS colour_mask_starting_at_pixel
 
+PAGE_ALIGN_FOR_SIZE 4
 .four_minus
 EQUB 4,3,2,1
 CHECK_SAME_PAGE_AS four_minus
 
-PAGE_ALIGN
+PAGE_ALIGN_FOR_SIZE 14
 .minus_1_times_4
 EQUB 0, 0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48
 CHECK_SAME_PAGE_AS minus_1_times_4
@@ -100,26 +103,31 @@ FOUR_BYTE_MASK_SHIFTS &FFF8, e, table_index
 ENDIF
 ENDMACRO
 
+PAGE_ALIGN_FOR_SIZE 52
 .colour_mask_short_0
 SHORT_MASK_TABLE 0,0        ; 20+16+16 = 52 bytes max
 CHECK_SAME_PAGE_AS colour_mask_short_0
+PAGE_ALIGN_FOR_SIZE 52
 .screen_mask_short_0
 SHORT_MASK_TABLE $ff,0
 CHECK_SAME_PAGE_AS screen_mask_short_0
 
+PAGE_ALIGN_FOR_SIZE 52
 .colour_mask_short_1
 SHORT_MASK_TABLE 0,1
 CHECK_SAME_PAGE_AS colour_mask_short_1
+PAGE_ALIGN_FOR_SIZE 52
 .screen_mask_short_1
 SHORT_MASK_TABLE $ff,1
 CHECK_SAME_PAGE_AS screen_mask_short_1
 
 ; tables to 3 bytes
 IF _SHORT_SPAN_MAX_PIXELS > 5
-PAGE_ALIGN
+PAGE_ALIGN_FOR_SIZE 52
 .colour_mask_short_2
 SHORT_MASK_TABLE 0,2
 CHECK_SAME_PAGE_AS colour_mask_short_2
+PAGE_ALIGN_FOR_SIZE 52
 .screen_mask_short_2
 SHORT_MASK_TABLE $ff,2
 CHECK_SAME_PAGE_AS screen_mask_short_2
@@ -127,10 +135,11 @@ ENDIF
 
 ; tables to 4 bytes
 IF _SHORT_SPAN_MAX_PIXELS > 9
+PAGE_ALIGN_FOR_SIZE 52
 .colour_mask_short_3
 SHORT_MASK_TABLE 0,3
 CHECK_SAME_PAGE_AS colour_mask_short_3
-
+PAGE_ALIGN_FOR_SIZE 52
 .screen_mask_short_3
 SHORT_MASK_TABLE $ff,3
 CHECK_SAME_PAGE_AS screen_mask_short_3

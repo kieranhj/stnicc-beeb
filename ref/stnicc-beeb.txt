@@ -323,4 +323,7 @@ Hmmm, still &7233 without palette switch!
 Not sure how this has changed from previous measurement of &71D9?!
 
 Timer1 was in the wrong place after screen was centred vertically!
-Now down to Master@HQ (jsbeeb) = &7178! = 3.10 fps!
+Now down to (jsbeeb):
+Master@HQ = &7178 = 3.10 fps!
+Master@MQ = &4E18 = 4.50 fps! (ModelB = &4D85 = 4.53 fps!)
+Master@LQ = &4758 = 4.93 fps!

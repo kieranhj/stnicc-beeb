@@ -743,29 +743,37 @@ ENDMACRO
 
 UNROLLED_ROW_SIZE = 33 * 3
 
+PAGE_ALIGN_FOR_SIZE 25
 .span_row_table_screen1_LO
 FOR row,0,24,1    ;SCREEN_HEIGHT_PIXELS-1,1
 ;row = y DIV 8
 EQUB LO(span_screen1_row0_unrolled + row * UNROLLED_ROW_SIZE)
 NEXT
+CHECK_SAME_PAGE_AS span_row_table_screen1_LO
 
+PAGE_ALIGN_FOR_SIZE 25
 .span_row_table_screen1_HI
 FOR row,0,24,1    ;SCREEN_HEIGHT_PIXELS-1,1
 ;row = y DIV 8
 EQUB HI(span_screen1_row0_unrolled + row * UNROLLED_ROW_SIZE)
 NEXT
+CHECK_SAME_PAGE_AS span_row_table_screen1_HI
 
+PAGE_ALIGN_FOR_SIZE 25
 .span_row_table_screen2_LO
 FOR row,0,24,1    ;SCREEN_HEIGHT_PIXELS-1,1
 ;row = y DIV 8
 EQUB LO(span_screen2_row0_unrolled + row * UNROLLED_ROW_SIZE)
 NEXT
+CHECK_SAME_PAGE_AS span_row_table_screen2_LO
 
+PAGE_ALIGN_FOR_SIZE 25
 .span_row_table_screen2_HI
 FOR row,0,24,1    ;SCREEN_HEIGHT_PIXELS-1,1
 ;row = y DIV 8
 EQUB HI(span_screen2_row0_unrolled + row * UNROLLED_ROW_SIZE)
 NEXT
+CHECK_SAME_PAGE_AS span_row_table_screen2_HI
 
 .span_screen1_row0_unrolled
 UNROLL_SPAN_ROW 1, 0
