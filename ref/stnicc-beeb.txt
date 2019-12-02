@@ -261,4 +261,69 @@ Moving Timer 1: Master@HQ = &7280
 Master@LQ = 4.94 fps but runs out of data switching to disc 3!
 
 20/11
-Maste@HQ = &71D9
+Master@HQ = &71D9
+
+Palette pondersing
+~~~
+
+ST is a 9-bit palette = 512 colours
+If we shift down to a 6-bit palette = 64 colour patterns
+3 actual colours + black
+Stipple pattern of 4x4 pixels - trivially get 4 shades of dither
+
+Palette problem:
+1. Closest two Beeb colours to the desired colour
+2. Blend value => dither pattern between those two colours
+3. Which actual colours are available?
+4. When and how do we update the actual colours available?
+5. Palette entry then becomes 4x bytes corresponding to the dither pattern between 'best' two actual colours available
+
+See pal.txt
+108 frames with palette changes.
+Only 149 actual palette changes.
+Many redundant or minor changes that could be removed.
+Looks like <= 32 main segments of palette in the sequence.
+
+Keep the motif colours, like the yellow throughout.
+Identify the colour theme for the segment.
+Transitions between segments may have to suffer.
+Better to have a contrasting palette than blurred into a pixely mess.
+
+149 palette changes x 4 bytes
+Could just have a stream of dither bytes to copy into palette array
+Perhaps move palette array to ZP?
+
+How to trigger colour palette changes?
+Have a palette data stream.
+For each palette containing frame have a descriptor
+#colour changes << 4 | #palette updates
+
+Colour bytes first: 4x colour values ready to send to ULA
+
+We might want to change more or less of the palette entries
+But do we need to?
+Only if there is a palette entry using a colour that will be redefined
+
+Do the colour changes first then worry about palette updates
+
+Each palette update is:
+Entry # [0-15]
+Dither [1-16] (can skip all 0)
+Colour 1 [0-7]
+Colour 2 [0-7]
+
+Palette change relatively expensive to compute at run-time but is a
+cost proportional to the #frames
+
+HQ w/ palette jsbeeb Master = &72D0
+Now &7299 => extra &C0 frames for palette changes.
+192 frames when there are ~ 100 instances?! Odd!
+After removing all page crossing = &7233 => 90 frames more for palette :\
+Hmmm, still &7233 without palette switch!
+Not sure how this has changed from previous measurement of &71D9?!
+
+Timer1 was in the wrong place after screen was centred vertically!
+Now down to (jsbeeb):
+Master@HQ = &7178 = 3.10 fps!
+Master@MQ = &4E18 = 4.50 fps! (ModelB = &4D85 = 4.53 fps!)
+Master@LQ = &4758 = 4.93 fps!

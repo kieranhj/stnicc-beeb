@@ -38,6 +38,18 @@ equb ((i>>3) or (i<<1)) and 15
 next
 endif
 
+if NOT(_NULA)
+MACRO GET_PAL_BYTE
+{
+    inc pal_ptr_LO
+    bne no_carry
+    inc pal_ptr_HI
+    .no_carry
+    lda (pal_ptr_LO), y
+}
+ENDMACRO
+endif
+
 .parse_frame
 {
     ldy #0
@@ -65,9 +77,8 @@ ENDIF
     \\ Read palette words
     ldx #15
     .parse_palette_loop
-    asl frame_bitmask+0
+    asl frame_bitmask
     rol frame_bitmask+1
-
     bcc not_this_bit
 
     \\ Discard our palette for now
@@ -126,6 +137,14 @@ endif
     .not_this_bit
     dex
     bpl parse_palette_loop
+
+if NOT(_NULA)
+    GET_PAL_BYTE
+    beq no_palette
+
+    jmp handle_beeb_palette
+    .^return_here_from_handle_beeb_palette
+endif
     .no_palette
 
     \\ Check whether we have indexed data
