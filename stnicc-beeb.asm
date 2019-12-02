@@ -73,6 +73,12 @@ ALIGN &100
 PRINT "Lost ", P%-H%, "bytes"
 ENDMACRO
 
+MACRO PAGE_ALIGN_FOR_SIZE size
+IF HI(P%+size) <> HI(P%)
+	PAGE_ALIGN
+ENDIF
+ENDMACRO
+
 MACRO CHECK_SAME_PAGE_AS base
 IF HI(P%-1) <> HI(base)
 PRINT "WARNING! Table or branch base address",~base, "may cross page boundary at",~P%
@@ -125,7 +131,7 @@ FramePeriod = 312*64-2
 
 ; This is when we trigger the next frame draw during the frame
 ; Essentially how much time we give the main loop to stream the next track
-TimerValue = (32+12)*64 - 2*64
+TimerValue = (12)*64 - 2*64
 
 \ ******************************************************************
 \ *	ZERO PAGE
@@ -187,6 +193,14 @@ ENDIF
 ;.poly_descriptor    skip 1
 .eof_flag			skip 1
 
+; palette vars
+.pal_ptr_LO			skip 1
+.pal_ptr_HI			skip 1
+.pal_descriptor		skip 1
+.pal_byte1			skip 1
+.pal_byte2			skip 1
+.pal_dither_idx		skip 1
+
 ; system vars
 .rom_bank           skip 1
 .vsync_counter      skip 2
@@ -222,8 +236,10 @@ skip &100
 skip &100
 .y_to_row
 skip &100
-PAGE_ALIGN  ; lazy
+PAGE_ALIGN
 .poly_palette
+skip &40
+.dither_table
 skip &40
 .screen_col_LO
 skip &80
@@ -231,6 +247,11 @@ skip &80
 
 ORG &A00
 GUARD &D00
+.palette_stream_buffer ; or use &E00?
+skip &300
+
+ORG &E00
+GUARD &1000
 .span_buffer_start
 skip &100
 .span_buffer_end
@@ -294,6 +315,11 @@ GUARD screen2_addr
 	lda #HI(reloc_from_start)
 	ldy #HI(reloc_to_start)
 	ldx #HI(reloc_to_end - reloc_to_start + &ff)
+	jsr copy_pages
+
+	lda #HI(palette_stream_start)
+	ldy #HI(palette_stream_buffer)
+	ldx #HI(palette_stream_end - palette_stream_start + &ff)
 	jsr copy_pages
 
 	ldx #15
@@ -373,6 +399,11 @@ GUARD screen2_addr
     \\ Init system
     lda #HI(screen1_addr)
     sta draw_buffer_HI
+
+	lda #LO(palette_stream_buffer-1)
+	sta pal_ptr_LO
+	lda #HI(palette_stream_buffer-1)
+	sta pal_ptr_HI
 
     \\ Clear screen
     jsr screen_cls
@@ -494,12 +525,16 @@ ENDIF
 
     {
         lda frame_no+1
+		IF _STOP_AT_FRAME > -1
+        cmp #HI(_STOP_AT_FRAME)+1
+		bcs lock_me
+		ENDIF
         cmp #HI(_STOP_AT_FRAME)
         bcc continue
         lda frame_no
         cmp #LO(_STOP_AT_FRAME)
         bcc continue
-
+		.lock_me
 		lda #&ff:sta pause_lock
 		.continue
     }
@@ -810,9 +845,9 @@ old_irqv = P%-2
 .fx_start
 
 ;INCLUDE "lib/disksys.asm"
-INCLUDE "src/screen.asm"
 INCLUDE "src/parse_frame.asm"
 INCLUDE "src/plot_poly.asm"
+INCLUDE "src/screen.asm"
 
 .fx_end
 
@@ -884,8 +919,12 @@ EQUB 0				; returned error value
 .drive_order
 EQUB 2,3,1,0
 
+.colour_table
+EQUB &00, &0F, &F0, &FF
+
 include "src/plot_data.asm"
 
+PAGE_ALIGN_FOR_SIZE 33*4
 .long_span_tables
 FOR col,0,32,1
 EQUB (32-col)*3					; +0,x for span_column_offset
@@ -893,6 +932,7 @@ EQUB (col*8) AND 255			; +1,x for mult_8
 EQUB 0							; +2,x spare
 EQUB 0							; +3,x spare
 NEXT
+CHECK_SAME_PAGE_AS long_span_tables
 
 .data_end
 
@@ -955,6 +995,10 @@ CHECK_SAME_PAGE_AS reloc_screen_col_LO
 
 .reloc_from_end
 
+PAGE_ALIGN
+GUARD P%+&300
+include "src/palette_stream.asm"
+
 \ ******************************************************************
 \ *	End address to be saved
 \ ******************************************************************
@@ -997,6 +1041,7 @@ PRINT "FX size = ", ~fx_end-fx_start
 PRINT "DATA size =",~data_end-data_start
 PRINT "ADDITIONAL size =",~additional_end-additional_start
 PRINT "RELOC size =",~reloc_from_end-reloc_from_start
+PRINT "PALETTE STREAM size =",~palette_stream_end-palette_stream_start
 PRINT "BSS size =",~bss_end-bss_start
 PRINT "------"
 PRINT "HIGH WATERMARK =", ~P%

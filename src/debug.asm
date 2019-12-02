@@ -5,6 +5,7 @@
 
 IF _DEBUG
 
+IF _PLOT_WIREFRAME
 .plot_poly_line
 {
     ; X=poly_num_verts
@@ -296,6 +297,7 @@ IF _DEBUG
 .pixels_mode5
     EQUB &88,&44,&22,&11
 }
+ENDIF
 
 .debug_plot_glyph
 {
