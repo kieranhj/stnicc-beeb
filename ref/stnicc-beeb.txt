@@ -321,3 +321,6 @@ Now &7299 => extra &C0 frames for palette changes.
 After removing all page crossing = &7233 => 90 frames more for palette :\
 Hmmm, still &7233 without palette switch!
 Not sure how this has changed from previous measurement of &71D9?!
+
+Timer1 was in the wrong place after screen was centred vertically!
+Now down to Master@HQ (jsbeeb) = &7178! = 3.10 fps!

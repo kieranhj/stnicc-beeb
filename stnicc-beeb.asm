@@ -125,7 +125,7 @@ FramePeriod = 312*64-2
 
 ; This is when we trigger the next frame draw during the frame
 ; Essentially how much time we give the main loop to stream the next track
-TimerValue = (32+12)*64 - 2*64
+TimerValue = (12)*64 - 2*64
 
 \ ******************************************************************
 \ *	ZERO PAGE
