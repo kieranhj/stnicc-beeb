@@ -6,7 +6,7 @@
 ; 0 = LOW quality (128 x 100 scanline skipped)
 ; 1 = MEDIUM quality (128 x 100 scanline doubled)
 ; 2 = HIGH quality (128 x 200)
-_QUALITY = 2
+_QUALITY = 1
 
 _DEBUG = TRUE
 _TESTS = FALSE
@@ -143,7 +143,7 @@ GUARD &A0
 .span_start         skip 1
 ;.span_end           skip 1
 .span_width         skip 1
-.span_colour        skip 1
+.span_colour        skip 2
 .shortptr			skip 2
 
 ; vars for drawline

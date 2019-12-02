@@ -115,7 +115,10 @@ ENDIF
     \\ To save 4c per poly at the expense of 1 page.
     txa ; poly_descriptor
     and #&f0:lsr a:lsr a
-    sta load_palette+1      ; poly_colour * 4
+    sta plot_span_load_palette+1      ; poly_colour * 4
+    IF _DOUBLE_PLOT_Y
+    sta plot_span_load_palette2+1      ; poly_colour * 4
+    ENDIF
 
     lda frame_flags
     and #FLAG_INDEXED_DATA

@@ -112,8 +112,8 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     ldy #0                                  ; 2c
 
     \\ A=screen byte
-    .do_unrolled_span
     lda span_colour                         ; 3c
+    .do_unrolled_span
     .jump_to_unrolled_span_row
     jmp &ffff                               ; _DOUBLE_PLOT_Y ?
     .^return_here_from_unrolled_span_loop
@@ -121,7 +121,7 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     tya:and #1                              ; 4c
     .branch_to_done_double_plot
     bne done_double_plot                    ; 6c
-
+    lda span_colour+1                       ; 3c
     iny:bne do_unrolled_span                ; 5c
     CHECK_SAME_PAGE_AS do_unrolled_span
 
@@ -243,9 +243,15 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
 
     \\ v= on Master would happily burn a PAGE per palette to save 6c!
     tya:and #3:tax              ; 6c
-    .^load_palette
+    .^plot_span_load_palette
     lda poly_palette, X         ; 4c
     sta span_colour             ; 3c    <= where is this used?
+    IF _DOUBLE_PLOT_Y
+    inx                         ; 2c
+    .^plot_span_load_palette2
+    lda poly_palette, X         ; 4c
+    sta span_colour+1           ; 3c    <= where is this used?
+    ENDIF
 
     lda span_buffer_start, Y    ; 4c
     tax                         ; 2c    X=span_start
