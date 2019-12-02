@@ -242,7 +242,11 @@ _SHORT_SPAN_MAX_PIXELS = 13 ; up to this many pixels considered a short span
     sty poly_y                  ; 3c
 
     \\ v= on Master would happily burn a PAGE per palette to save 6c!
-    tya:and #3:tax              ; 6c
+    tya
+    IF _DOUBLE_PLOT_Y
+    asl a
+    ENDIF
+    and #3:tax              ; 6c
     .^plot_span_load_palette
     lda poly_palette, X         ; 4c
     sta span_colour             ; 3c    <= where is this used?
