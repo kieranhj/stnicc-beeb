@@ -26,7 +26,7 @@ _HALF_VERTICAL_RES = (_QUALITY < 2)
 _DOUBLE_PLOT_Y = (_QUALITY = 1)
 _WIDESCREEN = (_QUALITY = 2) AND FALSE
 
-_NULA=TRUE
+_NULA=FALSE
 
 \ ******************************************************************
 \ *	OS defines
