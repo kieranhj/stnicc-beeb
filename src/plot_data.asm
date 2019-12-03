@@ -33,13 +33,85 @@ EQUB 4,3,2,1
 CHECK_SAME_PAGE_AS four_minus
 
 PAGE_ALIGN_FOR_SIZE 14
+if _NULA
+.minus_1_times_2
+EQUB 0, 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24
+CHECK_SAME_PAGE_AS minus_1_times_2
+else
 .minus_1_times_4
 EQUB 0, 0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48
 CHECK_SAME_PAGE_AS minus_1_times_4
+endif
 
 \ ******************************************************************
 \ *	PRE-SHIFTED DATA FOR SHORT/MEDIUM SPANS
 \ ******************************************************************
+
+if _NULA
+
+; w=1
+; p0 00 00 00
+; 0p 00 00 00
+;
+; w=2
+; pp 00 00 00
+; 0p p0 00 00
+;
+; w=3
+; pp p0 00 00
+; 0p pp 00 00
+;
+; w=4
+; pp pp 00 00
+; 0p pp p0 00
+;
+; w=5
+; pp pp p0 00
+; 0p pp pp 00
+;
+; w=6
+; pp pp pp 00
+; 0p pp pp p0
+;
+; w=7
+; pp pp pp p0
+; 0p pp pp pp
+
+MACRO TWO_BYTE_MASK_ENTRY x,e
+equb ((x<<6) or (x<<4) or (x<<2) or (x<<0)) eor e
+ENDMACRO
+
+MACRO TWO_BYTE_MASK_SHIFTS p,e,table_index
+for x,0,1
+s=p>>x
+h=(s and $3000)>>12
+m=(s and $0300)>>8
+l=(s and $0030)>>4
+z=(s and $0003)>>0
+if table_index==0:TWO_BYTE_MASK_ENTRY h,e
+elif table_index==1:TWO_BYTE_MASK_ENTRY m,e
+elif table_index==2:TWO_BYTE_MASK_ENTRY l,e
+else:TWO_BYTE_MASK_ENTRY z,e
+endif
+next
+endmacro
+
+macro SHORT_MASK_TABLE e,table_index
+; 1,2,3 = 2 bytes max
+TWO_BYTE_MASK_SHIFTS $2000,e,table_index
+TWO_BYTE_MASK_SHIFTS $3000,e,table_index
+TWO_BYTE_MASK_SHIFTS $3200,e,table_index
+; 4,5 = 3 bytes max
+TWO_BYTE_MASK_SHIFTS $3300,e,table_index
+TWO_BYTE_MASK_SHIFTS $3320,e,table_index
+; 6, 7 = 4 bytes max
+TWO_BYTE_MASK_SHIFTS $3330,e,table_index
+TWO_BYTE_MASK_SHIFTS $3332,e,table_index
+endmacro
+
+SHORT_SPAN_TABLE_SIZE=14
+
+else
 
 \\ Can only be a maximum of 2 bytes plotted for short (<=5 pixel) spans
 \\ X = [0,3] W = [1,5]
@@ -86,7 +158,7 @@ FOUR_BYTE_MASK_SHIFTS &E000, e, table_index
 FOUR_BYTE_MASK_SHIFTS &F000, e, table_index
 FOUR_BYTE_MASK_SHIFTS &F800, e, table_index
 
-IF _SHORT_SPAN_MAX_PIXELS > 5
+IF _SHORT_SPAN_MAX_BYTES >= 3
 \\ 6, 7, 8, 9 pixels = 3 bytes max
 FOUR_BYTE_MASK_SHIFTS &FC00, e, table_index      ; 4 bytes
 FOUR_BYTE_MASK_SHIFTS &FE00, e, table_index
@@ -94,7 +166,7 @@ FOUR_BYTE_MASK_SHIFTS &FF00, e, table_index
 FOUR_BYTE_MASK_SHIFTS &FF80, e, table_index
 ENDIF
 
-IF _SHORT_SPAN_MAX_PIXELS > 9
+IF _SHORT_SPAN_MAX_BYTES >= 4
 \\ 10, 11, 12, 13 pixels = 4 bytes max
 FOUR_BYTE_MASK_SHIFTS &FFC0, e, table_index      ; 4 bytes
 FOUR_BYTE_MASK_SHIFTS &FFE0, e, table_index
@@ -103,44 +175,53 @@ FOUR_BYTE_MASK_SHIFTS &FFF8, e, table_index
 ENDIF
 ENDMACRO
 
-PAGE_ALIGN_FOR_SIZE 52
+SHORT_SPAN_TABLE_SIZE=52
+
+endif
+
+PAGE_ALIGN_FOR_SIZE SHORT_SPAN_TABLE_SIZE
 .colour_mask_short_0
 SHORT_MASK_TABLE 0,0        ; 20+16+16 = 52 bytes max
 CHECK_SAME_PAGE_AS colour_mask_short_0
-PAGE_ALIGN_FOR_SIZE 52
+.colour_mask_short_0_end
+PAGE_ALIGN_FOR_SIZE SHORT_SPAN_TABLE_SIZE
 .screen_mask_short_0
 SHORT_MASK_TABLE $ff,0
 CHECK_SAME_PAGE_AS screen_mask_short_0
 
-PAGE_ALIGN_FOR_SIZE 52
+PAGE_ALIGN_FOR_SIZE SHORT_SPAN_TABLE_SIZE
 .colour_mask_short_1
 SHORT_MASK_TABLE 0,1
 CHECK_SAME_PAGE_AS colour_mask_short_1
-PAGE_ALIGN_FOR_SIZE 52
+PAGE_ALIGN_FOR_SIZE SHORT_SPAN_TABLE_SIZE
 .screen_mask_short_1
 SHORT_MASK_TABLE $ff,1
 CHECK_SAME_PAGE_AS screen_mask_short_1
 
 ; tables to 3 bytes
-IF _SHORT_SPAN_MAX_PIXELS > 5
-PAGE_ALIGN_FOR_SIZE 52
+IF _SHORT_SPAN_MAX_BYTES >= 3
+PAGE_ALIGN_FOR_SIZE SHORT_SPAN_TABLE_SIZE
 .colour_mask_short_2
 SHORT_MASK_TABLE 0,2
 CHECK_SAME_PAGE_AS colour_mask_short_2
-PAGE_ALIGN_FOR_SIZE 52
+PAGE_ALIGN_FOR_SIZE SHORT_SPAN_TABLE_SIZE
 .screen_mask_short_2
 SHORT_MASK_TABLE $ff,2
 CHECK_SAME_PAGE_AS screen_mask_short_2
 ENDIF
 
 ; tables to 4 bytes
-IF _SHORT_SPAN_MAX_PIXELS > 9
-PAGE_ALIGN_FOR_SIZE 52
+IF _SHORT_SPAN_MAX_BYTES >= 4
+PAGE_ALIGN_FOR_SIZE SHORT_SPAN_TABLE_SIZE
 .colour_mask_short_3
 SHORT_MASK_TABLE 0,3
 CHECK_SAME_PAGE_AS colour_mask_short_3
-PAGE_ALIGN_FOR_SIZE 52
+PAGE_ALIGN_FOR_SIZE SHORT_SPAN_TABLE_SIZE
 .screen_mask_short_3
 SHORT_MASK_TABLE $ff,3
 CHECK_SAME_PAGE_AS screen_mask_short_3
 ENDIF
+
+if colour_mask_short_0_end-colour_mask_short_0<>SHORT_SPAN_TABLE_SIZE
+error "oh no"
+endif

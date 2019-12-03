@@ -7,10 +7,12 @@
 \\ 5 pixels = 2 bytes max
 \\ 9 pixels = 3 bytes max
 \\ 13 pixels = 4 bytes max
+_SHORT_SPAN_MAX_BYTES=4
+
 if _NULA
-_SHORT_SPAN_MAX_PIXELS = 0; 13 ; up to this many pixels considered a short span
+_PIXELS_PER_BYTE=2
 else
-_SHORT_SPAN_MAX_PIXELS = 13
+_PIXELS_PER_BYTE=4
 endif
 
 \ ******************************************************************
@@ -106,7 +108,7 @@ else
 endif
 
     \\ Can't skip the inner span loop if we have a separate fn for short spans
-    IF _SHORT_SPAN_MAX_PIXELS < 9
+    IF _SHORT_SPAN_MAX_BYTES < 3
     .branch_to_skip_span_loop
     beq skip_span_loop                      ; 2/3c
     ENDIF
@@ -159,7 +161,7 @@ endif
     \\ Increment to last column
     tya:adc long_span_tables+1,X:tay        ; 8c  
 
-    IF _SHORT_SPAN_MAX_PIXELS < 9
+    IF _SHORT_SPAN_MAX_BYTES < 3
     .skip_span_loop
     CHECK_SAME_PAGE_AS branch_to_skip_span_loop
     ENDIF
@@ -308,7 +310,8 @@ endif
     \\ Shouldn't have blank spans now we have min/max Y
 
     \\ Check if the span is short...
-    cmp #(_SHORT_SPAN_MAX_PIXELS+1)     ; 2c
+    ; cmp #(_SHORT_SPAN_MAX_BYTES+1)     ; 2c
+	cmp #_SHORT_SPAN_MAX_BYTES*_PIXELS_PER_BYTE-(_PIXELS_PER_BYTE-1)+1
     bcc plot_short_span     ; [1-5] ; 2/3c
     .^branch_to_short_span
 
@@ -359,6 +362,17 @@ endif
     ; no carry!
     sta shortptr+1                  ; 3c
 
+if _NULA
+
+    txa
+	and #1
+
+	ldx span_width
+	adc minus_1_times_2,x
+	tax
+
+else
+
     \\ w = [1,N] x = [0,3]
     txa                             ; 2c
     and #3                          ; 2c
@@ -366,6 +380,8 @@ endif
     ldx span_width                  ; 3c
     adc minus_1_times_4, X          ; 4c
     tax                             ; 2c
+	
+endif
 
     \\ Byte 1
     lda colour_mask_short_0, X      ; 2c
@@ -402,7 +418,7 @@ endif
     iny:sta (shortptr), Y           ; 8c
     ENDIF
 
-IF _SHORT_SPAN_MAX_PIXELS > 5
+IF _SHORT_SPAN_MAX_BYTES >= 3
     \\ Byte 3
     lda colour_mask_short_2, X      ; 4c
     beq return_here_from_plot_span                        ; 2/3c
@@ -423,7 +439,7 @@ IF _SHORT_SPAN_MAX_PIXELS > 5
     ENDIF
 ENDIF
 
-IF _SHORT_SPAN_MAX_PIXELS > 9
+IF _SHORT_SPAN_MAX_BYTES >= 4
     \\ Byte 4
     lda colour_mask_short_3, X      ; 4c
     beq return_here_from_plot_span                        ; 2/3c
