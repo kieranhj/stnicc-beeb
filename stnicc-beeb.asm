@@ -116,12 +116,12 @@ screen1_addr = &8000 - SCREEN_SIZE_BYTES
 screen2_addr = screen1_addr - SCREEN_SIZE_BYTES
 
 ; STREAMING constants
-STREAMING_tracks_per_disk = 75
+STREAMING_tracks_per_disk = 79
 STREAMING_sectors_to_load = 10
 
 DISK1_drive_no = 0
 DISK1_first_track = 5
-DISK1_last_track = DISK1_first_track + STREAMING_tracks_per_disk
+DISK1_last_track = DISK1_first_track + 20
 
 DISK2_first_track = 1
 DISK2_last_track = DISK2_first_track + STREAMING_tracks_per_disk
@@ -637,11 +637,6 @@ ENDIF
 	LDA track_no
 	CMP #DISK2_last_track
 	BNE TRACK_LOAD_no_swap_disk
-
-	\\ Reached end of disk N
-;	LDA #&FF
-;	STA track_no
-;	BNE TRACK_LOAD_no_wrap				; and store &FF in load_to_HI
     JMP TRACK_LOAD_disk_N
 
 	\\ Disk 1
@@ -655,6 +650,16 @@ ENDIF
     LDX osword_params_drive
 	LDA drive_order, X
 	STA osword_params_drive
+
+	BNE TRACK_LOAD_continue
+
+	\\ End of last disk
+	\\ Reached end of disk N
+	LDA #&FF
+	STA track_no
+	BNE TRACK_LOAD_return
+
+	.TRACK_LOAD_continue
 
 	\\ Reset track to start of disk 2
 	LDA #DISK2_first_track
