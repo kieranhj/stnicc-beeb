@@ -334,3 +334,4 @@ I think the altered split of frame data across the disks has also helped a bit.
 Removing the initial buffer fill from the timing helps as well!
 Master@HQ = &712A = 3.11 fps!
 Master@LQ = &4702 = 4.95 fps!
+_DEBUG=FALSE saves another 50 vsyncs!

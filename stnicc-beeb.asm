@@ -3,7 +3,7 @@
 \ *	STNICC BEEB
 \ ******************************************************************
 
-_DEBUG = TRUE
+_DEBUG = TRUE	; if you change me check the same in stnicc-build.asm
 _TESTS = FALSE
 
 ; Display <drive no | sector no> <track no> <load to HI> <stream ptr HI>

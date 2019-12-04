@@ -3,10 +3,18 @@
 \ *	STNICC BEEB
 \ ******************************************************************
 
+_DEBUG = TRUE   ; if you change me check the same in stnicc-beeb.asm
 LOAD_ADDRESS = &1100
 EXEC_ADDRESS = &1100
+
+\\ NEED A BETTER WAY OF DOING THIS!
+IF _DEBUG
 EXE_SIZE = &2700
 NULA_SIZE = &2200
+ELSE
+EXE_SIZE = &2600
+NULA_SIZE = &2100
+ENDIF
 
 \ ******************************************************************
 \ *	EXES
