@@ -283,10 +283,6 @@ GUARD screen2_addr
 
 .main
 {
-	\\ Set interrupts
-
-	SEI							; disable interupts
-
     \\ Init ZP
     lda #0
     ldx #0
@@ -295,22 +291,6 @@ GUARD screen2_addr
     inx
     cpx #&A0
     bne zp_loop
-
-	\\ Don't let the IRQ do anything yet!
-	INC decode_lock
-
-	LDA #&7F					; A=01111111
-	STA &FE4E					; R14=Interrupt Enable (disable all interrupts)
-	STA &FE43					; R3=Data Direction Register "A" (set keyboard data direction)
-	LDA #&C2					; A=11000010
-	STA &FE4E					; R14=Interrupt Enable (enable main_vsync and timer interrupt)
-
-    LDA IRQ1V:STA old_irqv
-    LDA IRQ1V+1:STA old_irqv+1
-
-    LDA #LO(irq_handler):STA IRQ1V
-    LDA #HI(irq_handler):STA IRQ1V+1		; set interrupt handler
-	CLI							; enable interupts
 
     \\ Set MODE 5
 
@@ -449,7 +429,22 @@ endif
 
     \\ jmp do_tests
 
-	DEC decode_lock
+	\\ Set interrupts and handler
+	SEI							; disable interupts
+	LDA #&7F					; A=01111111
+	STA &FE4E					; R14=Interrupt Enable (disable all interrupts)
+	STA &FE43					; R3=Data Direction Register "A" (set keyboard data direction)
+	LDA #&C2					; A=11000010
+	STA &FE4E					; R14=Interrupt Enable (enable main_vsync and timer interrupt)
+
+    LDA IRQ1V:STA old_irqv
+    LDA IRQ1V+1:STA old_irqv+1
+
+    LDA #LO(irq_handler):STA IRQ1V
+    LDA #HI(irq_handler):STA IRQ1V+1		; set interrupt handler
+	CLI							; enable interupts
+
+	\\ GO!
 
     .loop
     \\ Debug
