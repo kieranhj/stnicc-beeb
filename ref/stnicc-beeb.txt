@@ -325,5 +325,13 @@ Not sure how this has changed from previous measurement of &71D9?!
 Timer1 was in the wrong place after screen was centred vertically!
 Now down to (jsbeeb):
 Master@HQ = &7178 = 3.10 fps!
-Master@MQ = &4E18 = 4.50 fps! (ModelB = &4D85 = 4.53 fps!)
+Master@MQ = &4E18 = 4.50 fps! (ModelB = &4D85 = 4.53 fps!) = 11.1 vs/fr
 Master@LQ = &4758 = 4.93 fps!
+
+Fixing degenerate polys actually makes MQ marginally faster: Master@MQ = &4E0A.
+I think the altered split of frame data across the disks has also helped a bit.
+
+Removing the initial buffer fill from the timing helps as well!
+Master@HQ = &712A = 3.11 fps!
+Master@LQ = &4702 = 4.95 fps!
+_DEBUG=FALSE saves another 50 vsyncs!

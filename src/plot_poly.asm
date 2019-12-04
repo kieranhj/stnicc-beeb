@@ -618,6 +618,7 @@ ENDMACRO
     CHECK_SAME_PAGE_AS steeplineloop
 	
     .exit_early
+    UPDATE_SPAN_BUFFER_WITH_X FALSE
     PLP:PLP
 
     .exitline
