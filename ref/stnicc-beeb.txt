@@ -325,7 +325,7 @@ Not sure how this has changed from previous measurement of &71D9?!
 Timer1 was in the wrong place after screen was centred vertically!
 Now down to (jsbeeb):
 Master@HQ = &7178 = 3.10 fps!
-Master@MQ = &4E18 = 4.50 fps! (ModelB = &4D85 = 4.53 fps!)
+Master@MQ = &4E18 = 4.50 fps! (ModelB = &4D85 = 4.53 fps!) = 11.1 vs/fr
 Master@LQ = &4758 = 4.93 fps!
 
 Fixing degenerate polys actually makes MQ marginally faster: Master@MQ = &4E0A.

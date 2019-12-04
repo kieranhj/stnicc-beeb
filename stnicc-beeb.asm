@@ -3,11 +3,6 @@
 \ *	STNICC BEEB
 \ ******************************************************************
 
-; 0 = LOW quality (128 x 100 scanline skipped)
-; 1 = MEDIUM quality (128 x 100 scanline doubled)
-; 2 = HIGH quality (128 x 200)
-_QUALITY = 2
-
 _DEBUG = TRUE
 _TESTS = FALSE
 
@@ -21,12 +16,11 @@ _STOP_AT_FRAME = -1
 ; Debug defines
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
+
 ; Rendering defines
 _HALF_VERTICAL_RES = (_QUALITY < 2)
 _DOUBLE_PLOT_Y = (_QUALITY = 1)
 _WIDESCREEN = (_QUALITY = 2) AND FALSE
-
-_NULA=FALSE
 
 \ ******************************************************************
 \ *	OS defines
@@ -120,7 +114,7 @@ STREAMING_tracks_per_disk = 79
 STREAMING_sectors_to_load = 10
 
 DISK1_drive_no = 0
-DISK1_first_track = 5
+DISK1_first_track = 60
 DISK1_last_track = DISK1_first_track + 20
 
 DISK2_first_track = 1
@@ -1073,7 +1067,15 @@ endif
 \ *	Save the code
 \ ******************************************************************
 
-SAVE "STNICC", start, end, main
+IF _NULA
+SAVE "build/NULA", start, end, main
+ELIF _QUALITY == 2
+SAVE "build/HIGH", start, end, main
+ELIF _QUALITY == 1
+SAVE "build/MEDIUM", start, end, main
+ELIF _QUALITY == 0
+SAVE "build/LOW", start, end, main
+ENDIF
 
 \ ******************************************************************
 \ *	Space reserved for runtime buffers not preinitialised
@@ -1113,47 +1115,3 @@ PRINT "------"
 PRINT "HIGH WATERMARK =", ~P%
 PRINT "FREE =", ~screen2_addr-P%
 PRINT "------"
-
-\ ******************************************************************
-\ *	SWRAM
-\ ******************************************************************
-
-CLEAR 0, &FFFF
-ORG &8000
-GUARD &C000
-.bank0_start
-
-.bank0_end
-
-PRINT "------"
-PRINT "BANK 0"
-PRINT "------"
-PRINT "TOTAL size =", ~bank0_end-bank0_start
-PRINT "------"
-PRINT "HIGH WATERMARK =", ~P%
-PRINT "FREE =", ~&C000-P%
-PRINT "------"
-
-;SAVE "BANK0", bank0_start, bank0_end
-
-\ ******************************************************************
-\ *	DISC LAYOUT
-\ ******************************************************************
-
-exe_size=(end-start+&ff)AND&FF00
-PRINT "EXE size = ",~exe_size
-; We know that Catalog + !Boot = &300
-; Need to make a dummy file so 00 is at sector 20=track 2
-dummy_size = (DISK1_first_track * DFS_track_size) - exe_size - &300
-
-CLEAR &0000,&FFFF
-ORG &0000
-.dummy
-skip dummy_size
-SAVE "dummy", dummy, P%
-
-\ ******************************************************************
-\ *	Any other files for the disc
-\ ******************************************************************
-
-PUTFILE "data/scene1_disk.00.bin", "00", 0
