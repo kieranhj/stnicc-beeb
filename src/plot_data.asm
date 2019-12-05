@@ -84,29 +84,26 @@ ENDMACRO
 MACRO TWO_BYTE_MASK_SHIFTS p,e,table_index
 for x,0,1
 s=p>>x
-h=(s and $3000)>>12
-m=(s and $0300)>>8
-l=(s and $0030)>>4
-z=(s and $0003)>>0
-if table_index==0:TWO_BYTE_MASK_ENTRY h,e
-elif table_index==1:TWO_BYTE_MASK_ENTRY m,e
-elif table_index==2:TWO_BYTE_MASK_ENTRY l,e
-else:TWO_BYTE_MASK_ENTRY z,e
+if table_index==0:TWO_BYTE_MASK_ENTRY (s>>6) and 3,e
+elif table_index==1:TWO_BYTE_MASK_ENTRY (s>>4) and 3,e
+elif table_index==2:TWO_BYTE_MASK_ENTRY (s>>2) and 3,e
+else:TWO_BYTE_MASK_ENTRY (s>>0) and 3,e
 endif
 next
 endmacro
 
 macro SHORT_MASK_TABLE e,table_index
 ; 1,2,3 = 2 bytes max
-TWO_BYTE_MASK_SHIFTS $2000,e,table_index
-TWO_BYTE_MASK_SHIFTS $3000,e,table_index
-TWO_BYTE_MASK_SHIFTS $3200,e,table_index
+TWO_BYTE_MASK_SHIFTS %10000000,e,table_index
+TWO_BYTE_MASK_SHIFTS %11000000,e,table_index
+TWO_BYTE_MASK_SHIFTS %11100000,e,table_index
 ; 4,5 = 3 bytes max
-TWO_BYTE_MASK_SHIFTS $3300,e,table_index
-TWO_BYTE_MASK_SHIFTS $3320,e,table_index
+TWO_BYTE_MASK_SHIFTS %11110000,e,table_index
+TWO_BYTE_MASK_SHIFTS %11111000,e,table_index
 ; 6, 7 = 4 bytes max
-TWO_BYTE_MASK_SHIFTS $3330,e,table_index
-TWO_BYTE_MASK_SHIFTS $3332,e,table_index
+TWO_BYTE_MASK_SHIFTS %11111100,e,table_index
+TWO_BYTE_MASK_SHIFTS %11111110,e,table_index
+; TWO_BYTE_MASK_SHIFTS $3333,e,table_index
 endmacro
 
 SHORT_SPAN_TABLE_SIZE=14
