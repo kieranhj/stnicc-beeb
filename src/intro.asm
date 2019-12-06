@@ -91,6 +91,10 @@ GUARD &A0
 .yend           skip 1
 
 .loop_index     skip 1
+.inner_index    skip 1
+
+.count          skip 1
+.text_index     skip 1
 
 .zp_end
 
@@ -173,6 +177,7 @@ GUARD screen_addr
 
     jsr lerp_glixels
 
+IF 0
     \\ Make a glixel
     \\ From (xstart,ystart) to (xend,yend)
     jsr make_lerp
@@ -190,9 +195,85 @@ GUARD screen_addr
     sta yend
     .xend_ok
     stx xend
+ENDIF
 
-    .table_full
+    lda count
+    and #63
+    bne continue
+
+    ldy text_index
+    lda string, y
+    jsr lerp_char
+
+    ldy text_index
+    iny
+    cpy #10
+    bcc ok
+    ldy #0
+    sty xend
+    sty yend
+    .ok
+    sty text_index
+
+    .continue
+    inc count
     jmp loop
+
+    rts
+}
+
+.lerp_char
+{
+    sta char_def
+    lda #10
+    ldx #LO(char_def)
+    ldy #HI(char_def)
+    jsr osword
+
+    ldx #0
+    .loop
+    stx loop_index
+
+    lda #8
+    sta inner_index
+
+    .inner_loop
+    ldx loop_index
+    asl char_def+1, X
+    bcc no_glixel
+
+    jsr make_lerp
+
+    .no_glixel
+    inc xend
+
+    dec inner_index
+    bne inner_loop
+
+    sec
+    lda xend
+    sbc #8
+    sta xend
+
+    clc
+    lda yend
+    adc #4
+    sta yend
+
+    ldx loop_index
+    inx
+    cpx #8
+    bcc loop
+
+    sec
+    lda yend
+    sbc #4*8
+    sta yend
+
+    clc
+    lda xend
+    adc #8
+    sta xend
 
     rts
 }
@@ -450,6 +531,9 @@ ENDMACRO
     rts
 }
 
+.string
+EQUS "HELLOWORLD",0
+
 \\ Four fixed possibilities
 \\ X=0 => ppp0
 \\ X=1 => 0ppp
@@ -518,6 +602,9 @@ skip MAX_GLIXELS
 
 .lerp_count
 skip MAX_GLIXELS
+
+.char_def
+skip 9
 
 .xpos
 

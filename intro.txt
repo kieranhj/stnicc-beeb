@@ -13,6 +13,12 @@
      0007
 .loop_index
      0008
+.inner_index
+     0009
+.count
+     000A
+.text_index
+     000B
 .zp_end
 .start
 .main_start
@@ -63,280 +69,327 @@
 .loop
      1156   A9 13      LDA #&13
      1158   20 F4 FF   JSR &FFF4
-     115B   20 79 11   JSR &1179
-     115E   20 D3 11   JSR &11D3
-     1161   B0 12      BCS &1175
-     1163   A6 06      LDX &06
-     1165   E8         INX
-     1166   E0 50      CPX #&50
-     1168   90 09      BCC &1173
-     116A   A2 00      LDX #&00
-     116C   18         CLC
-     116D   A5 07      LDA &07
-     116F   69 04      ADC #&04
-     1171   85 07      STA &07
-.xend_ok
-     1173   86 06      STX &06
-.table_full
-     1175   4C 56 11   JMP &1156
-     1178   60         RTS
-.lerp_glixels
-     1179   A2 00      LDX #&00
+     115B   20 C9 11   JSR &11C9
+     115E   A5 0A      LDA &0A
+     1160   29 3F      AND #&3F
+     1162   D0 17      BNE &117B
+     1164   A4 0B      LDY &0B
+     1166   B9 A3 13   LDA &13A3,Y
+     1169   20 81 11   JSR &1181
+     116C   A4 0B      LDY &0B
+     116E   C8         INY
+     116F   C0 0A      CPY #&0A
+     1171   90 06      BCC &1179
+     1173   A0 00      LDY #&00
+     1175   84 06      STY &06
+     1177   84 07      STY &07
+.ok
+     1179   84 0B      STY &0B
+.continue
+     117B   E6 0A      INC &0A
+     117D   4C 56 11   JMP &1156
+     1180   60         RTS
+.lerp_char
+     1181   8D 40 19   STA &1940
+     1184   A9 0A      LDA #&0A
+     1186   A2 40      LDX #&40
+     1188   A0 19      LDY #&19
+     118A   20 F1 FF   JSR &FFF1
+     118D   A2 00      LDX #&00
 .loop
-     117B   86 08      STX &08
-     117D   BD 00 19   LDA &1900,X
-     1180   F0 31      BEQ &11B3
-     1182   20 BB 11   JSR &11BB
-     1185   A6 08      LDX &08
-     1187   18         CLC
-     1188   BD 00 17   LDA &1700,X
-     118B   7D 00 18   ADC &1800,X
-     118E   9D 00 17   STA &1700,X
-     1191   BD 40 17   LDA &1740,X
-     1194   7D 40 18   ADC &1840,X
-     1197   9D 40 17   STA &1740,X
-     119A   18         CLC
-     119B   BD 80 17   LDA &1780,X
-     119E   7D 80 18   ADC &1880,X
-     11A1   9D 80 17   STA &1780,X
-     11A4   BD C0 17   LDA &17C0,X
-     11A7   7D C0 18   ADC &18C0,X
-     11AA   9D C0 17   STA &17C0,X
-     11AD   DE 00 19   DEC &1900,X
-     11B0   20 BB 11   JSR &11BB
-.next_lerp
+     118F   86 08      STX &08
+     1191   A9 08      LDA #&08
+     1193   85 09      STA &09
+.inner_loop
+     1195   A6 08      LDX &08
+     1197   1E 41 19   ASL &1941,X
+     119A   90 03      BCC &119F
+     119C   20 23 12   JSR &1223
+.no_glixel
+     119F   E6 06      INC &06
+     11A1   C6 09      DEC &09
+     11A3   D0 F0      BNE &1195
+     11A5   38         SEC
+     11A6   A5 06      LDA &06
+     11A8   E9 08      SBC #&08
+     11AA   85 06      STA &06
+     11AC   18         CLC
+     11AD   A5 07      LDA &07
+     11AF   69 04      ADC #&04
+     11B1   85 07      STA &07
      11B3   A6 08      LDX &08
      11B5   E8         INX
-     11B6   E0 40      CPX #&40
-     11B8   90 C1      BCC &117B
-.return
-     11BA   60         RTS
-.plot_glixel_X
-     11BB   BC C0 17   LDY &17C0,X
-     11BE   BD 40 17   LDA &1740,X
-     11C1   8D CE 11   STA &11CE
-     11C4   BD 00 17   LDA &1700,X
-     11C7   4A         LSR A
-     11C8   4A         LSR A
-     11C9   4A         LSR A
-     11CA   4A         LSR A
-     11CB   4A         LSR A
-     11CC   4A         LSR A
-.load_col
-     11CD   A2 00      LDX #&00
-     11CF   20 89 12   JSR &1289
-     11D2   60         RTS
-.make_lerp
-     11D3   20 7B 12   JSR &127B
-     11D6   90 01      BCC &11D9
-     11D8   60         RTS
-.found_slot
-     11D9   A5 03      LDA &03
-     11DB   9D 00 17   STA &1700,X
-     11DE   A5 04      LDA &04
-     11E0   9D 40 17   STA &1740,X
-     11E3   A9 00      LDA #&00
-     11E5   9D 80 17   STA &1780,X
-     11E8   A5 05      LDA &05
-     11EA   9D C0 17   STA &17C0,X
-     11ED   38         SEC
-     11EE   A9 00      LDA #&00
-     11F0   E5 03      SBC &03
-     11F2   9D 00 18   STA &1800,X
-     11F5   A5 06      LDA &06
-     11F7   E5 04      SBC &04
-     11F9   9D 40 18   STA &1840,X
-     11FC   38         SEC
-     11FD   A9 00      LDA #&00
-     11FF   E9 00      SBC #&00
-     1201   9D 80 18   STA &1880,X
-     1204   A5 07      LDA &07
-     1206   E5 05      SBC &05
-     1208   9D C0 18   STA &18C0,X
-     120B   BD 40 18   LDA &1840,X
-     120E   C9 80      CMP #&80
-     1210   7E 40 18   ROR &1840,X
-     1213   7E 00 18   ROR &1800,X
-     1216   C9 80      CMP #&80
-     1218   7E 40 18   ROR &1840,X
-     121B   7E 00 18   ROR &1800,X
-     121E   C9 80      CMP #&80
-     1220   7E 40 18   ROR &1840,X
-     1223   7E 00 18   ROR &1800,X
-     1226   C9 80      CMP #&80
-     1228   7E 40 18   ROR &1840,X
-     122B   7E 00 18   ROR &1800,X
-     122E   C9 80      CMP #&80
-     1230   7E 40 18   ROR &1840,X
-     1233   7E 00 18   ROR &1800,X
-     1236   C9 80      CMP #&80
-     1238   7E 40 18   ROR &1840,X
-     123B   7E 00 18   ROR &1800,X
-     123E   BD C0 18   LDA &18C0,X
-     1241   C9 80      CMP #&80
-     1243   7E C0 18   ROR &18C0,X
-     1246   7E 80 18   ROR &1880,X
-     1249   C9 80      CMP #&80
-     124B   7E C0 18   ROR &18C0,X
-     124E   7E 80 18   ROR &1880,X
-     1251   C9 80      CMP #&80
-     1253   7E C0 18   ROR &18C0,X
-     1256   7E 80 18   ROR &1880,X
-     1259   C9 80      CMP #&80
-     125B   7E C0 18   ROR &18C0,X
-     125E   7E 80 18   ROR &1880,X
-     1261   C9 80      CMP #&80
-     1263   7E C0 18   ROR &18C0,X
-     1266   7E 80 18   ROR &1880,X
-     1269   C9 80      CMP #&80
-     126B   7E C0 18   ROR &18C0,X
-     126E   7E 80 18   ROR &1880,X
-     1271   A9 40      LDA #&40
-     1273   9D 00 19   STA &1900,X
-     1276   20 BB 11   JSR &11BB
-.return
-     1279   18         CLC
-     127A   60         RTS
-.get_next_slot
-     127B   18         CLC
-     127C   A2 00      LDX #&00
+     11B6   E0 08      CPX #&08
+     11B8   90 D5      BCC &118F
+     11BA   38         SEC
+     11BB   A5 07      LDA &07
+     11BD   E9 20      SBC #&20
+     11BF   85 07      STA &07
+     11C1   18         CLC
+     11C2   A5 06      LDA &06
+     11C4   69 08      ADC #&08
+     11C6   85 06      STA &06
+     11C8   60         RTS
+.lerp_glixels
+     11C9   A2 00      LDX #&00
 .loop
-     127E   BD 00 19   LDA &1900,X
-     1281   F0 05      BEQ &1288
-     1283   E8         INX
-     1284   E0 40      CPX #&40
-     1286   90 F6      BCC &127E
+     11CB   86 08      STX &08
+     11CD   BD 00 19   LDA &1900,X
+     11D0   F0 31      BEQ &1203
+     11D2   20 0B 12   JSR &120B
+     11D5   A6 08      LDX &08
+     11D7   18         CLC
+     11D8   BD 00 17   LDA &1700,X
+     11DB   7D 00 18   ADC &1800,X
+     11DE   9D 00 17   STA &1700,X
+     11E1   BD 40 17   LDA &1740,X
+     11E4   7D 40 18   ADC &1840,X
+     11E7   9D 40 17   STA &1740,X
+     11EA   18         CLC
+     11EB   BD 80 17   LDA &1780,X
+     11EE   7D 80 18   ADC &1880,X
+     11F1   9D 80 17   STA &1780,X
+     11F4   BD C0 17   LDA &17C0,X
+     11F7   7D C0 18   ADC &18C0,X
+     11FA   9D C0 17   STA &17C0,X
+     11FD   DE 00 19   DEC &1900,X
+     1200   20 0B 12   JSR &120B
+.next_lerp
+     1203   A6 08      LDX &08
+     1205   E8         INX
+     1206   E0 40      CPX #&40
+     1208   90 C1      BCC &11CB
 .return
-     1288   60         RTS
+     120A   60         RTS
+.plot_glixel_X
+     120B   BC C0 17   LDY &17C0,X
+     120E   BD 40 17   LDA &1740,X
+     1211   8D 1E 12   STA &121E
+     1214   BD 00 17   LDA &1700,X
+     1217   4A         LSR A
+     1218   4A         LSR A
+     1219   4A         LSR A
+     121A   4A         LSR A
+     121B   4A         LSR A
+     121C   4A         LSR A
+.load_col
+     121D   A2 00      LDX #&00
+     121F   20 D9 12   JSR &12D9
+     1222   60         RTS
+.make_lerp
+     1223   20 CB 12   JSR &12CB
+     1226   90 01      BCC &1229
+     1228   60         RTS
+.found_slot
+     1229   A5 03      LDA &03
+     122B   9D 00 17   STA &1700,X
+     122E   A5 04      LDA &04
+     1230   9D 40 17   STA &1740,X
+     1233   A9 00      LDA #&00
+     1235   9D 80 17   STA &1780,X
+     1238   A5 05      LDA &05
+     123A   9D C0 17   STA &17C0,X
+     123D   38         SEC
+     123E   A9 00      LDA #&00
+     1240   E5 03      SBC &03
+     1242   9D 00 18   STA &1800,X
+     1245   A5 06      LDA &06
+     1247   E5 04      SBC &04
+     1249   9D 40 18   STA &1840,X
+     124C   38         SEC
+     124D   A9 00      LDA #&00
+     124F   E9 00      SBC #&00
+     1251   9D 80 18   STA &1880,X
+     1254   A5 07      LDA &07
+     1256   E5 05      SBC &05
+     1258   9D C0 18   STA &18C0,X
+     125B   BD 40 18   LDA &1840,X
+     125E   C9 80      CMP #&80
+     1260   7E 40 18   ROR &1840,X
+     1263   7E 00 18   ROR &1800,X
+     1266   C9 80      CMP #&80
+     1268   7E 40 18   ROR &1840,X
+     126B   7E 00 18   ROR &1800,X
+     126E   C9 80      CMP #&80
+     1270   7E 40 18   ROR &1840,X
+     1273   7E 00 18   ROR &1800,X
+     1276   C9 80      CMP #&80
+     1278   7E 40 18   ROR &1840,X
+     127B   7E 00 18   ROR &1800,X
+     127E   C9 80      CMP #&80
+     1280   7E 40 18   ROR &1840,X
+     1283   7E 00 18   ROR &1800,X
+     1286   C9 80      CMP #&80
+     1288   7E 40 18   ROR &1840,X
+     128B   7E 00 18   ROR &1800,X
+     128E   BD C0 18   LDA &18C0,X
+     1291   C9 80      CMP #&80
+     1293   7E C0 18   ROR &18C0,X
+     1296   7E 80 18   ROR &1880,X
+     1299   C9 80      CMP #&80
+     129B   7E C0 18   ROR &18C0,X
+     129E   7E 80 18   ROR &1880,X
+     12A1   C9 80      CMP #&80
+     12A3   7E C0 18   ROR &18C0,X
+     12A6   7E 80 18   ROR &1880,X
+     12A9   C9 80      CMP #&80
+     12AB   7E C0 18   ROR &18C0,X
+     12AE   7E 80 18   ROR &1880,X
+     12B1   C9 80      CMP #&80
+     12B3   7E C0 18   ROR &18C0,X
+     12B6   7E 80 18   ROR &1880,X
+     12B9   C9 80      CMP #&80
+     12BB   7E C0 18   ROR &18C0,X
+     12BE   7E 80 18   ROR &1880,X
+     12C1   A9 40      LDA #&40
+     12C3   9D 00 19   STA &1900,X
+     12C6   20 0B 12   JSR &120B
+.return
+     12C9   18         CLC
+     12CA   60         RTS
+.get_next_slot
+     12CB   18         CLC
+     12CC   A2 00      LDX #&00
+.loop
+     12CE   BD 00 19   LDA &1900,X
+     12D1   F0 05      BEQ &12D8
+     12D3   E8         INX
+     12D4   E0 40      CPX #&40
+     12D6   90 F6      BCC &12CE
+.return
+     12D8   60         RTS
 .plot_glixel_eor
-     1289   85 02      STA &02
-     128B   18         CLC
-     128C   B9 00 14   LDA &1400,Y
-     128F   7D 00 16   ADC &1600,X
-     1292   85 00      STA &00
-     1294   B9 00 15   LDA &1500,Y
-     1297   7D 50 16   ADC &1650,X
-     129A   85 01      STA &01
-     129C   A0 00      LDY #&00
-     129E   A6 02      LDX &02
-     12A0   E0 02      CPX #&02
-     12A2   B0 48      BCS &12EC
-     12A4   B1 00      LDA (&00),Y
-     12A6   5D 53 13   EOR &1353,X
-     12A9   91 00      STA (&00),Y
+     12D9   85 02      STA &02
+     12DB   18         CLC
+     12DC   B9 00 14   LDA &1400,Y
+     12DF   7D 00 16   ADC &1600,X
+     12E2   85 00      STA &00
+     12E4   B9 00 15   LDA &1500,Y
+     12E7   7D 50 16   ADC &1650,X
+     12EA   85 01      STA &01
+     12EC   A0 00      LDY #&00
+     12EE   A6 02      LDX &02
+     12F0   E0 02      CPX #&02
+     12F2   B0 48      BCS &133C
+     12F4   B1 00      LDA (&00),Y
+     12F6   5D AE 13   EOR &13AE,X
+     12F9   91 00      STA (&00),Y
 Macro MOVE_ROW:
-     12AB   A5 00      LDA &00
-     12AD   29 07      AND #&07
-     12AF   C9 07      CMP #&07
-     12B1   F0 04      BEQ &12B7
-     12B3   E6 00      INC &00
-     12B5   D0 0D      BNE &12C4
+     12FB   A5 00      LDA &00
+     12FD   29 07      AND #&07
+     12FF   C9 07      CMP #&07
+     1301   F0 04      BEQ &1307
+     1303   E6 00      INC &00
+     1305   D0 0D      BNE &1314
 .next_row
-     12B7   18         CLC
-     12B8   A5 00      LDA &00
-     12BA   69 79      ADC #&79
-     12BC   85 00      STA &00
-     12BE   A5 01      LDA &01
-     12C0   69 02      ADC #&02
-     12C2   85 01      STA &01
+     1307   18         CLC
+     1308   A5 00      LDA &00
+     130A   69 79      ADC #&79
+     130C   85 00      STA &00
+     130E   A5 01      LDA &01
+     1310   69 02      ADC #&02
+     1312   85 01      STA &01
 .cont
 End macro MOVE_ROW
-     12C4   B1 00      LDA (&00),Y
-     12C6   5D 53 13   EOR &1353,X
-     12C9   91 00      STA (&00),Y
+     1314   B1 00      LDA (&00),Y
+     1316   5D AE 13   EOR &13AE,X
+     1319   91 00      STA (&00),Y
 Macro MOVE_ROW:
-     12CB   A5 00      LDA &00
-     12CD   29 07      AND #&07
-     12CF   C9 07      CMP #&07
-     12D1   F0 04      BEQ &12D7
-     12D3   E6 00      INC &00
-     12D5   D0 0D      BNE &12E4
+     131B   A5 00      LDA &00
+     131D   29 07      AND #&07
+     131F   C9 07      CMP #&07
+     1321   F0 04      BEQ &1327
+     1323   E6 00      INC &00
+     1325   D0 0D      BNE &1334
 .next_row
-     12D7   18         CLC
-     12D8   A5 00      LDA &00
-     12DA   69 79      ADC #&79
-     12DC   85 00      STA &00
-     12DE   A5 01      LDA &01
-     12E0   69 02      ADC #&02
-     12E2   85 01      STA &01
+     1327   18         CLC
+     1328   A5 00      LDA &00
+     132A   69 79      ADC #&79
+     132C   85 00      STA &00
+     132E   A5 01      LDA &01
+     1330   69 02      ADC #&02
+     1332   85 01      STA &01
 .cont
 End macro MOVE_ROW
-     12E4   B1 00      LDA (&00),Y
-     12E6   5D 53 13   EOR &1353,X
-     12E9   91 00      STA (&00),Y
-     12EB   60         RTS
+     1334   B1 00      LDA (&00),Y
+     1336   5D AE 13   EOR &13AE,X
+     1339   91 00      STA (&00),Y
+     133B   60         RTS
 .two_bytes
-     12EC   B1 00      LDA (&00),Y
-     12EE   5D 53 13   EOR &1353,X
-     12F1   91 00      STA (&00),Y
-     12F3   A0 08      LDY #&08
-     12F5   B1 00      LDA (&00),Y
-     12F7   5D 57 13   EOR &1357,X
-     12FA   91 00      STA (&00),Y
+     133C   B1 00      LDA (&00),Y
+     133E   5D AE 13   EOR &13AE,X
+     1341   91 00      STA (&00),Y
+     1343   A0 08      LDY #&08
+     1345   B1 00      LDA (&00),Y
+     1347   5D B2 13   EOR &13B2,X
+     134A   91 00      STA (&00),Y
 Macro MOVE_ROW:
-     12FC   A5 00      LDA &00
-     12FE   29 07      AND #&07
-     1300   C9 07      CMP #&07
-     1302   F0 04      BEQ &1308
-     1304   E6 00      INC &00
-     1306   D0 0D      BNE &1315
+     134C   A5 00      LDA &00
+     134E   29 07      AND #&07
+     1350   C9 07      CMP #&07
+     1352   F0 04      BEQ &1358
+     1354   E6 00      INC &00
+     1356   D0 0D      BNE &1365
 .next_row
-     1308   18         CLC
-     1309   A5 00      LDA &00
-     130B   69 79      ADC #&79
-     130D   85 00      STA &00
-     130F   A5 01      LDA &01
-     1311   69 02      ADC #&02
-     1313   85 01      STA &01
+     1358   18         CLC
+     1359   A5 00      LDA &00
+     135B   69 79      ADC #&79
+     135D   85 00      STA &00
+     135F   A5 01      LDA &01
+     1361   69 02      ADC #&02
+     1363   85 01      STA &01
 .cont
 End macro MOVE_ROW
-     1315   A0 00      LDY #&00
-     1317   B1 00      LDA (&00),Y
-     1319   5D 53 13   EOR &1353,X
-     131C   91 00      STA (&00),Y
-     131E   A0 08      LDY #&08
-     1320   B1 00      LDA (&00),Y
-     1322   5D 57 13   EOR &1357,X
-     1325   91 00      STA (&00),Y
+     1365   A0 00      LDY #&00
+     1367   B1 00      LDA (&00),Y
+     1369   5D AE 13   EOR &13AE,X
+     136C   91 00      STA (&00),Y
+     136E   A0 08      LDY #&08
+     1370   B1 00      LDA (&00),Y
+     1372   5D B2 13   EOR &13B2,X
+     1375   91 00      STA (&00),Y
 Macro MOVE_ROW:
-     1327   A5 00      LDA &00
-     1329   29 07      AND #&07
-     132B   C9 07      CMP #&07
-     132D   F0 04      BEQ &1333
-     132F   E6 00      INC &00
-     1331   D0 0D      BNE &1340
+     1377   A5 00      LDA &00
+     1379   29 07      AND #&07
+     137B   C9 07      CMP #&07
+     137D   F0 04      BEQ &1383
+     137F   E6 00      INC &00
+     1381   D0 0D      BNE &1390
 .next_row
-     1333   18         CLC
-     1334   A5 00      LDA &00
-     1336   69 79      ADC #&79
-     1338   85 00      STA &00
-     133A   A5 01      LDA &01
-     133C   69 02      ADC #&02
-     133E   85 01      STA &01
+     1383   18         CLC
+     1384   A5 00      LDA &00
+     1386   69 79      ADC #&79
+     1388   85 00      STA &00
+     138A   A5 01      LDA &01
+     138C   69 02      ADC #&02
+     138E   85 01      STA &01
 .cont
 End macro MOVE_ROW
-     1340   A0 00      LDY #&00
-     1342   B1 00      LDA (&00),Y
-     1344   5D 53 13   EOR &1353,X
-     1347   91 00      STA (&00),Y
-     1349   A0 08      LDY #&08
-     134B   B1 00      LDA (&00),Y
-     134D   5D 57 13   EOR &1357,X
-     1350   91 00      STA (&00),Y
+     1390   A0 00      LDY #&00
+     1392   B1 00      LDA (&00),Y
+     1394   5D AE 13   EOR &13AE,X
+     1397   91 00      STA (&00),Y
+     1399   A0 08      LDY #&08
+     139B   B1 00      LDA (&00),Y
+     139D   5D B2 13   EOR &13B2,X
+     13A0   91 00      STA (&00),Y
 .done
-     1352   60         RTS
+     13A2   60         RTS
+.string
+     13A3   48 45 4C ...
+     13AD   00
 .glixel_byte0
-     1353   EE
-     1354   77
-     1355   33
-     1356   11
+     13AE   EE
+     13AF   77
+     13B0   33
+     13B1   11
 .glixel_byte1
-     1357   00
-     1358   00
-     1359   CC
-     135A   EE
+     13B2   00
+     13B3   00
+     13B4   CC
+     13B5   EE
 Macro PAGE_ALIGN:
-Lost  165 bytes 
+Lost  74 bytes 
 End macro PAGE_ALIGN
 .screen_row_LO
      1400   00
@@ -1037,6 +1090,8 @@ End macro PAGE_ALIGN
      18C0
 .lerp_count
      1900
+.char_def
+     1940
 .xpos
 .bss_end
 Saving file 'INTRO'
