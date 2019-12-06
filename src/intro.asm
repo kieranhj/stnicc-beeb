@@ -70,6 +70,9 @@ SCREEN_SIZE_BYTES = (SCREEN_WIDTH_PIXELS * SCREEN_HEIGHT_PIXELS) / 4
 
 screen_addr = &3000
 
+MAX_GLIXELS = 64
+LERP_FRAMES = 64
+
 \ ******************************************************************
 \ *	ZERO PAGE
 \ ******************************************************************
@@ -82,8 +85,12 @@ GUARD &A0
 .writeptr       skip 2
 .plot_x_offset  skip 1
 
-.test_x         skip 2
-.test_y         skip 2
+.xstart         skip 2  ; pixel in 1:9:6
+.ystart         skip 1
+.xend           skip 1  ; column
+.yend           skip 1
+
+.loop_index     skip 1
 
 .zp_end
 
@@ -137,63 +144,225 @@ GUARD screen_addr
 
     lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
 
+    lda #LO(160 << 6)
+    sta xstart
+    lda #HI(160 << 6)
+    sta xstart+1
+    lda #128
+    sta ystart
+
     lda #0
-    sta test_x
-    sta test_x+1
-    sta test_y
+    sta xend
+    lda #0
+    sta yend
+
+    ldx #0
+    lda #0
+    .init_loop
+    sta lerp_count, X
+    inx
+    cpx #MAX_GLIXELS
+    bcc init_loop
 
     lda #19
     jsr osbyte
 
     .loop
-    jsr plot_at_xy
     lda #19
     jsr osbyte
-    jsr plot_at_xy
 
+    jsr lerp_glixels
+
+    \\ Make a glixel
+    \\ From (xstart,ystart) to (xend,yend)
+    jsr make_lerp
+    bcs table_full
+
+    \\ Increment our destination
+    ldx xend        ; columns
+    inx
+    cpx #80
+    bcc xend_ok
+    ldx #0
     clc
-    lda test_x
-    adc #128
-    sta test_x
-    lda test_x+1
-    adc #0
-    sta test_x+1
+    lda yend
+    adc #4
+    sta yend
+    .xend_ok
+    stx xend
 
-    lda test_x
-    cmp #LO(318 << 7)
-    bne not_right
-    lda test_x+1
-    cmp #HI(318 << 7)
-    bne not_right
-
-    inc test_y
-    lda #0
-    sta test_x
-    sta test_x+1
-
-    .not_right
-
+    .table_full
     jmp loop
+
     rts
 }
 
-\\ X stored as 9:7 precision to reach [0-319] with 7 fractional bits [0-127].
-\\ Y stored as 8:8 precision unless this proves to be annoying.
-.plot_at_xy
+.lerp_glixels
 {
-    ldy test_y
-    lda test_x+1
-    lsr a
-    tax     ; column
+    ldx #0
+    .loop
+    stx loop_index
 
-    lda test_x
-    asl a                   ; top bit => C
-    lda test_x+1
-    rol a                   ; C => bottom bit
-    and #3                  ; just these two bits
-    
-    jmp plot_glixel_eor
-    \\ Could drop thru
+    lda lerp_count, X
+    beq next_lerp
+
+    \\ Remove
+    jsr plot_glixel_X
+    ldx loop_index
+
+    \\ Move
+    clc
+    lda xpos_LO, X
+    adc xdelta_LO, X
+    sta xpos_LO, X
+    lda xpos_HI, X
+    adc xdelta_HI, X
+    sta xpos_HI, X
+
+    clc
+    lda ypos_LO, X
+    adc ydelta_LO, X
+    sta ypos_LO, X
+    lda ypos_HI, X
+    adc ydelta_HI, X
+    sta ypos_HI, X
+
+    dec lerp_count, X
+
+    \\ Plot it
+    jsr plot_glixel_X
+
+    .next_lerp
+    ldx loop_index
+    inx
+    cpx #MAX_GLIXELS
+    bcc loop
+
+    .return
+    rts
+}
+
+.plot_glixel_X              ; X is trashed
+{
+    ldy ypos_HI, X
+    lda xpos_HI, X
+    sta load_col+1          ; column
+
+    lda xpos_LO, X
+    lsr a:lsr a:lsr a
+    lsr a:lsr a:lsr a       ; top 2-bits
+
+    .load_col
+    ldx #0
+    jsr plot_glixel_eor
+    rts
+}
+
+\\ From xstart, ystart
+\\ To xend, yend
+.make_lerp
+{
+    jsr get_next_slot
+    bcc found_slot
+    rts
+
+    .found_slot
+    lda xstart
+    sta xpos_LO, X
+    lda xstart+1
+    sta xpos_HI, X
+
+    lda #0
+    sta ypos_LO, X
+    lda ystart
+    sta ypos_HI, X
+
+    \\ Calculate xend - xstart
+    sec
+    lda #0
+    sbc xstart
+    sta xdelta_LO, X
+    lda xend
+    sbc xstart+1
+    sta xdelta_HI, X
+
+    \\ Calculate yend - ystart
+    sec
+    lda #0          ; yend_LO
+    sbc #0          ; ystart_LO
+    sta ydelta_LO, X
+    lda yend
+    sbc ystart
+    sta ydelta_HI, X
+
+    \\ NEED EXTRA BIT FOR SIGN!
+    \\ NEED TO KEEP SIGN!
+
+    \\ Now divide by our number of frames.
+    \\ Should do this entirely in ZP.
+    lda xdelta_HI, X
+    cmp #&80
+    ror xdelta_HI, X
+    ror xdelta_LO, X
+    cmp #&80
+    ror xdelta_HI, X
+    ror xdelta_LO, X
+    cmp #&80
+    ror xdelta_HI, X
+    ror xdelta_LO, X
+    cmp #&80
+    ror xdelta_HI, X
+    ror xdelta_LO, X
+    cmp #&80
+    ror xdelta_HI, X
+    ror xdelta_LO, X
+    cmp #&80
+    ror xdelta_HI, X
+    ror xdelta_LO, X
+
+    lda ydelta_HI, X
+    cmp #&80
+    ror ydelta_HI, X
+    ror ydelta_LO, X    
+    cmp #&80
+    ror ydelta_HI, X
+    ror ydelta_LO, X    
+    cmp #&80
+    ror ydelta_HI, X
+    ror ydelta_LO, X    
+    cmp #&80
+    ror ydelta_HI, X
+    ror ydelta_LO, X    
+    cmp #&80
+    ror ydelta_HI, X
+    ror ydelta_LO, X    
+    cmp #&80
+    ror ydelta_HI, X
+    ror ydelta_LO, X    
+
+    lda #LERP_FRAMES
+    sta lerp_count, X
+
+    \\ Plot it to begin with
+    jsr plot_glixel_X
+
+    .return
+    clc
+    rts
+}
+
+.get_next_slot
+{
+    clc
+    ldx #0
+    .loop
+    lda lerp_count, X
+    beq return
+    inx
+    cpx #MAX_GLIXELS
+    bcc loop
+    .return
+    rts
 }
 
 MACRO MOVE_ROW
@@ -281,28 +450,6 @@ ENDMACRO
     rts
 }
 
-; X=column [0-79], Y=row [0-255] (on char boundary)
-.plot_glixel_sta
-{
-    clc
-    lda screen_row_LO, Y
-    adc screen_col_LO, X
-    sta writeptr
-    lda screen_row_HI, Y
-    adc screen_col_HI, X
-    sta writeptr+1
-
-    \\ One byte only, column aligned
-    ldy #0
-    lda glixel_byte0
-    sta (writeptr), Y
-    iny
-    sta (writeptr), Y
-    iny
-    sta (writeptr), Y
-    rts 
-}
-
 \\ Four fixed possibilities
 \\ X=0 => ppp0
 \\ X=1 => 0ppp
@@ -343,6 +490,38 @@ NEXT
 \ ******************************************************************
 
 .end
+
+\ ******************************************************************
+\ *	Space reserved for runtime buffers not preinitialised
+\ ******************************************************************
+
+.bss_start
+
+PAGE_ALIGN
+.xpos_LO
+skip MAX_GLIXELS
+.xpos_HI
+skip MAX_GLIXELS
+.ypos_LO
+skip MAX_GLIXELS
+.ypos_HI
+skip MAX_GLIXELS
+
+.xdelta_LO
+skip MAX_GLIXELS
+.xdelta_HI
+skip MAX_GLIXELS
+.ydelta_LO
+skip MAX_GLIXELS
+.ydelta_HI
+skip MAX_GLIXELS
+
+.lerp_count
+skip MAX_GLIXELS
+
+.xpos
+
+.bss_end
 
 \ ******************************************************************
 \ *	Save the code
