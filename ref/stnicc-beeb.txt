@@ -335,3 +335,16 @@ Removing the initial buffer fill from the timing helps as well!
 Master@HQ = &712A = 3.11 fps!
 Master@LQ = &4702 = 4.95 fps!
 _DEBUG=FALSE saves another 50 vsyncs!
+
+Intro
+~~~
+"This is *not* a Falcon demo"
+10 chars per row with 8x8 gylphs using 4x4 pixel blocks per glyph pixel.
+MODE 1 => 320 pix = 10 * 8 * 4
+Use default font set.
+Glyph 'pixels' appear a row at a time, left to right.
+'Pixels' appear in a circular pattern then lerp to their final spot.
+This means lerp must be over a constant number of frames, rather than a constant velocity.
+Plot the 'pixels' EOR to move.
+'Pixels' have to be plotted to screen pixel accuracy.
+Maybe use term 'glixel' => glyph pixel?
