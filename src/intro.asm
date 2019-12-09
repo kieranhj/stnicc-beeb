@@ -649,29 +649,51 @@ FOR c,0,79,1
 EQUB HI(c * 8)
 NEXT
 
+k = 3
+
 PAGE_ALIGN
 .startx_table_LO
 FOR n,0,255,1
-a = 160 + 48 * SIN(n * 2 * PI / 256)
-EQUB LO(a << 6)
+;a = 160 + 48 * SIN(n * 2 * PI / 256)
+;EQUB LO(a << 6)
+
+\\ Rose: x = cos(ka) * cos(a)
+a = n *  2 * PI / 256
+x = 160 + 100 * COS(k * a) * COS(a)
+EQUB LO(x << 6)
 NEXT
 
 .startx_table_HI
 FOR n,0,255,1
-a = 160 + 48 * SIN(n * 2 * PI / 256)
-EQUB HI(a << 6)
+;a = 160 + 48 * SIN(n * 2 * PI / 256)
+;EQUB HI(a << 6)
+
+\\ Rose: x = cos(ka) * cos(a)
+a = n *  2 * PI / 256
+x = 160 + 100 * COS(k * a) * COS(a)
+EQUB HI(x << 6)
 NEXT
 
 .starty_table_LO
 FOR n,0,255,1
-a = 128 + 48 * COS(n * 2 * PI / 256)
-EQUB LO(a << 6)
+;a = 128 + 48 * COS(n * 2 * PI / 256)
+;EQUB LO(a << 6)
+
+\\ Rose: y = cos(ka) * sin(a)
+a = n *  2 * PI / 256
+x = 128 + 100 * COS(k * a) * SIN(a)
+EQUB LO(x << 6)
 NEXT
 
 .starty_table_HI
 FOR n,0,255,1
-a = 128 + 48 * COS(n * 2 * PI / 256)
-EQUB HI(a << 6)
+;a = 128 + 48 * COS(n * 2 * PI / 256)
+;EQUB HI(a << 6)
+
+\\ Rose: y = cos(ka) * sin(a)
+a = n *  2 * PI / 256
+x = 128 + 100 * COS(k * a) * SIN(a)
+EQUB HI(x << 6)
 NEXT
 
 \ ******************************************************************
