@@ -8,31 +8,31 @@
 .ystart
      0005
 .xend
-     0006
-.yend
      0007
-.loop_index
+.yend
      0008
-.inner_index
+.plot_y
      0009
-.count
+.loop_index
      000A
-.text_index
+.inner_index
      000B
-.start_index
+.count
      000C
-.char_byte
+.text_index
      000D
-.char_row
+.start_index
      000E
-.char_col
+.char_row
      000F
-.char_left
+.char_col
      0010
-.char_top
+.char_left
      0011
-.plotted
+.char_top
      0012
+.plotted
+     0013
 .zp_end
 .start
 .main_start
@@ -67,397 +67,403 @@
      1139   85 04      STA &04
      113B   AD 00 1A   LDA &1A00
      113E   85 05      STA &05
-     1140   A9 00      LDA #&00
-     1142   85 11      STA &11
-     1144   85 0F      STA &0F
-     1146   8D 48 1D   STA &1D48
-     1149   A9 07      LDA #&07
-     114B   85 0E      STA &0E
-     114D   A9 F8      LDA #&F8
-     114F   85 10      STA &10
-     1151   A2 00      LDX #&00
-     1153   A9 00      LDA #&00
+     1140   AD 00 1B   LDA &1B00
+     1143   85 06      STA &06
+     1145   A9 00      LDA #&00
+     1147   85 12      STA &12
+     1149   85 10      STA &10
+     114B   8D 48 1E   STA &1E48
+     114E   A9 07      LDA #&07
+     1150   85 0F      STA &0F
+     1152   A9 F8      LDA #&F8
+     1154   85 11      STA &11
+     1156   A2 00      LDX #&00
+     1158   A9 00      LDA #&00
 .init_loop
-     1155   9D 00 1D   STA &1D00,X
-     1158   E8         INX
-     1159   E0 40      CPX #&40
-     115B   90 F8      BCC &1155
-     115D   A9 13      LDA #&13
-     115F   20 F4 FF   JSR &FFF4
-.loop
+     115A   9D 00 1E   STA &1E00,X
+     115D   E8         INX
+     115E   E0 40      CPX #&40
+     1160   90 F8      BCC &115A
      1162   A9 13      LDA #&13
      1164   20 F4 FF   JSR &FFF4
-     1167   20 F2 11   JSR &11F2
-     116A   20 80 11   JSR &1180
-.continue
-     116D   E6 0A      INC &0A
-     116F   4C 62 11   JMP &1162
-     1172   60         RTS
-.get_char_def
-     1173   8D 40 1D   STA &1D40
-     1176   A9 0A      LDA #&0A
-     1178   A2 40      LDX #&40
-     117A   A0 1D      LDY #&1D
-     117C   20 F1 FF   JSR &FFF1
-     117F   60         RTS
-.make_glixel
-     1180   A9 00      LDA #&00
-     1182   85 12      STA &12
-     1184   A6 0E      LDX &0E
 .loop
-     1186   BD 41 1D   LDA &1D41,X
-     1189   F0 15      BEQ &11A0
-     118B   0A         ASL A
-     118C   9D 41 1D   STA &1D41,X
-     118F   90 09      BCC &119A
-     1191   20 4C 12   JSR &124C
-     1194   A9 FF      LDA #&FF
-     1196   85 12      STA &12
-     1198   A6 0E      LDX &0E
+     1167   A9 13      LDA #&13
+     1169   20 F4 FF   JSR &FFF4
+     116C   20 F0 11   JSR &11F0
+     116F   20 85 11   JSR &1185
+.continue
+     1172   E6 0C      INC &0C
+     1174   4C 67 11   JMP &1167
+     1177   60         RTS
+.get_char_def
+     1178   8D 40 1E   STA &1E40
+     117B   A9 0A      LDA #&0A
+     117D   A2 40      LDX #&40
+     117F   A0 1E      LDY #&1E
+     1181   20 F1 FF   JSR &FFF1
+     1184   60         RTS
+.make_glixel
+     1185   A9 00      LDA #&00
+     1187   85 13      STA &13
+     1189   A6 0F      LDX &0F
+.loop
+     118B   BD 41 1E   LDA &1E41,X
+     118E   F0 15      BEQ &11A5
+     1190   0A         ASL A
+     1191   9D 41 1E   STA &1E41,X
+     1194   90 09      BCC &119F
+     1196   20 57 12   JSR &1257
+     1199   A9 FF      LDA #&FF
+     119B   85 13      STA &13
+     119D   A6 0F      LDX &0F
 .no_glixel
-     119A   E6 06      INC &06
-     119C   C6 0F      DEC &0F
-     119E   D0 4B      BNE &11EB
+     119F   E6 07      INC &07
+     11A1   C6 10      DEC &10
+     11A3   D0 44      BNE &11E9
 .next_char_row
-     11A0   A9 08      LDA #&08
-     11A2   85 0F      STA &0F
-     11A4   A5 10      LDA &10
-     11A6   85 06      STA &06
-     11A8   18         CLC
-     11A9   A5 07      LDA &07
-     11AB   69 04      ADC #&04
-     11AD   85 07      STA &07
+     11A5   A9 08      LDA #&08
+     11A7   85 10      STA &10
+     11A9   A5 11      LDA &11
+     11AB   85 07      STA &07
+     11AD   E6 08      INC &08
      11AF   E8         INX
      11B0   E0 08      CPX #&08
-     11B2   90 37      BCC &11EB
+     11B2   90 35      BCC &11E9
      11B4   18         CLC
-     11B5   A5 10      LDA &10
+     11B5   A5 11      LDA &11
      11B7   69 08      ADC #&08
-     11B9   85 10      STA &10
-     11BB   A4 0B      LDY &0B
+     11B9   85 11      STA &11
+     11BB   A4 0D      LDY &0D
 .string_loop
-     11BD   B9 DF 13   LDA &13DF,Y
+     11BD   B9 EF 13   LDA &13EF,Y
      11C0   D0 04      BNE &11C6
      11C2   A0 00      LDY #&00
      11C4   F0 F7      BEQ &11BD
 .not_0
      11C6   C9 1F      CMP #&1F
-     11C8   D0 11      BNE &11DB
+     11C8   D0 0F      BNE &11D9
      11CA   C8         INY
-     11CB   B9 DF 13   LDA &13DF,Y
-     11CE   85 10      STA &10
+     11CB   B9 EF 13   LDA &13EF,Y
+     11CE   85 11      STA &11
      11D0   C8         INY
-     11D1   B9 DF 13   LDA &13DF,Y
-     11D4   0A         ASL A
-     11D5   0A         ASL A
-     11D6   85 11      STA &11
-     11D8   C8         INY
-     11D9   D0 E2      BNE &11BD
+     11D1   B9 EF 13   LDA &13EF,Y
+     11D4   85 12      STA &12
+     11D6   C8         INY
+     11D7   D0 E4      BNE &11BD
 .not_31
-     11DB   C8         INY
-     11DC   84 0B      STY &0B
-     11DE   20 73 11   JSR &1173
-     11E1   A5 10      LDA &10
-     11E3   85 06      STA &06
-     11E5   A5 11      LDA &11
-     11E7   85 07      STA &07
-     11E9   A2 00      LDX #&00
+     11D9   C8         INY
+     11DA   84 0D      STY &0D
+     11DC   20 78 11   JSR &1178
+     11DF   A5 11      LDA &11
+     11E1   85 07      STA &07
+     11E3   A5 12      LDA &12
+     11E5   85 08      STA &08
+     11E7   A2 00      LDX #&00
 .next_char_col
-     11EB   86 0E      STX &0E
-     11ED   A5 12      LDA &12
-     11EF   F0 95      BEQ &1186
-     11F1   60         RTS
+     11E9   86 0F      STX &0F
+     11EB   A5 13      LDA &13
+     11ED   F0 9C      BEQ &118B
+     11EF   60         RTS
 .lerp_glixels
-     11F2   A2 00      LDX #&00
+     11F0   A2 00      LDX #&00
 .loop
-     11F4   86 08      STX &08
-     11F6   BD 00 1D   LDA &1D00,X
-     11F9   F0 31      BEQ &122C
-     11FB   20 34 12   JSR &1234
-     11FE   A6 08      LDX &08
-     1200   18         CLC
-     1201   BD 00 1B   LDA &1B00,X
-     1204   7D 00 1C   ADC &1C00,X
-     1207   9D 00 1B   STA &1B00,X
-     120A   BD 40 1B   LDA &1B40,X
-     120D   7D 40 1C   ADC &1C40,X
-     1210   9D 40 1B   STA &1B40,X
-     1213   18         CLC
-     1214   BD 80 1B   LDA &1B80,X
-     1217   7D 80 1C   ADC &1C80,X
-     121A   9D 80 1B   STA &1B80,X
-     121D   BD C0 1B   LDA &1BC0,X
-     1220   7D C0 1C   ADC &1CC0,X
-     1223   9D C0 1B   STA &1BC0,X
-     1226   DE 00 1D   DEC &1D00,X
-     1229   20 34 12   JSR &1234
+     11F2   86 0A      STX &0A
+     11F4   BD 00 1E   LDA &1E00,X
+     11F7   F0 31      BEQ &122A
+     11F9   20 32 12   JSR &1232
+     11FC   A6 0A      LDX &0A
+     11FE   18         CLC
+     11FF   BD 00 1C   LDA &1C00,X
+     1202   7D 00 1D   ADC &1D00,X
+     1205   9D 00 1C   STA &1C00,X
+     1208   BD 40 1C   LDA &1C40,X
+     120B   7D 40 1D   ADC &1D40,X
+     120E   9D 40 1C   STA &1C40,X
+     1211   18         CLC
+     1212   BD 80 1C   LDA &1C80,X
+     1215   7D 80 1D   ADC &1D80,X
+     1218   9D 80 1C   STA &1C80,X
+     121B   BD C0 1C   LDA &1CC0,X
+     121E   7D C0 1D   ADC &1DC0,X
+     1221   9D C0 1C   STA &1CC0,X
+     1224   DE 00 1E   DEC &1E00,X
+     1227   20 32 12   JSR &1232
 .next_lerp
-     122C   A6 08      LDX &08
-     122E   E8         INX
-     122F   E0 40      CPX #&40
-     1231   90 C1      BCC &11F4
+     122A   A6 0A      LDX &0A
+     122C   E8         INX
+     122D   E0 40      CPX #&40
+     122F   90 C1      BCC &11F2
 .return
-     1233   60         RTS
+     1231   60         RTS
 .plot_glixel_X
-     1234   BC C0 1B   LDY &1BC0,X
-     1237   BD 40 1B   LDA &1B40,X
-     123A   8D 47 12   STA &1247
-     123D   BD 00 1B   LDA &1B00,X
-     1240   4A         LSR A
-     1241   4A         LSR A
-     1242   4A         LSR A
-     1243   4A         LSR A
-     1244   4A         LSR A
-     1245   4A         LSR A
+     1232   BD C0 1C   LDA &1CC0,X
+     1235   85 09      STA &09
+     1237   BD 80 1C   LDA &1C80,X
+     123A   0A         ASL A
+     123B   26 09      ROL &09
+     123D   0A         ASL A
+     123E   26 09      ROL &09
+     1240   A4 09      LDY &09
+     1242   BD 40 1C   LDA &1C40,X
+     1245   8D 52 12   STA &1252
+     1248   BD 00 1C   LDA &1C00,X
+     124B   4A         LSR A
+     124C   4A         LSR A
+     124D   4A         LSR A
+     124E   4A         LSR A
+     124F   4A         LSR A
+     1250   4A         LSR A
 .load_col
-     1246   A2 00      LDX #&00
-     1248   20 15 13   JSR &1315
-     124B   60         RTS
+     1251   A2 00      LDX #&00
+     1253   20 25 13   JSR &1325
+     1256   60         RTS
 .make_lerp
-     124C   20 07 13   JSR &1307
-     124F   90 01      BCC &1252
-     1251   60         RTS
+     1257   20 17 13   JSR &1317
+     125A   90 01      BCC &125D
+     125C   60         RTS
 .found_slot
-     1252   A5 03      LDA &03
-     1254   9D 00 1B   STA &1B00,X
-     1257   A5 04      LDA &04
-     1259   9D 40 1B   STA &1B40,X
-     125C   A9 00      LDA #&00
-     125E   9D 80 1B   STA &1B80,X
-     1261   A5 05      LDA &05
-     1263   9D C0 1B   STA &1BC0,X
-     1266   38         SEC
-     1267   A9 00      LDA #&00
-     1269   E5 03      SBC &03
-     126B   9D 00 1C   STA &1C00,X
-     126E   A5 06      LDA &06
-     1270   E5 04      SBC &04
-     1272   9D 40 1C   STA &1C40,X
-     1275   38         SEC
-     1276   A9 00      LDA #&00
-     1278   E9 00      SBC #&00
-     127A   9D 80 1C   STA &1C80,X
-     127D   A5 07      LDA &07
-     127F   E5 05      SBC &05
-     1281   9D C0 1C   STA &1CC0,X
-     1284   BD 40 1C   LDA &1C40,X
-     1287   C9 80      CMP #&80
-     1289   7E 40 1C   ROR &1C40,X
-     128C   7E 00 1C   ROR &1C00,X
-     128F   C9 80      CMP #&80
-     1291   7E 40 1C   ROR &1C40,X
-     1294   7E 00 1C   ROR &1C00,X
-     1297   C9 80      CMP #&80
-     1299   7E 40 1C   ROR &1C40,X
-     129C   7E 00 1C   ROR &1C00,X
-     129F   C9 80      CMP #&80
-     12A1   7E 40 1C   ROR &1C40,X
-     12A4   7E 00 1C   ROR &1C00,X
-     12A7   C9 80      CMP #&80
-     12A9   7E 40 1C   ROR &1C40,X
-     12AC   7E 00 1C   ROR &1C00,X
-     12AF   C9 80      CMP #&80
-     12B1   7E 40 1C   ROR &1C40,X
-     12B4   7E 00 1C   ROR &1C00,X
-     12B7   BD C0 1C   LDA &1CC0,X
+     125D   A5 03      LDA &03
+     125F   9D 00 1C   STA &1C00,X
+     1262   A5 04      LDA &04
+     1264   9D 40 1C   STA &1C40,X
+     1267   A5 05      LDA &05
+     1269   9D 80 1C   STA &1C80,X
+     126C   A5 06      LDA &06
+     126E   9D C0 1C   STA &1CC0,X
+     1271   38         SEC
+     1272   A9 00      LDA #&00
+     1274   E5 03      SBC &03
+     1276   9D 00 1D   STA &1D00,X
+     1279   A5 07      LDA &07
+     127B   E5 04      SBC &04
+     127D   9D 40 1D   STA &1D40,X
+     1280   38         SEC
+     1281   A9 00      LDA #&00
+     1283   E5 05      SBC &05
+     1285   9D 80 1D   STA &1D80,X
+     1288   A5 08      LDA &08
+     128A   E5 06      SBC &06
+     128C   9D C0 1D   STA &1DC0,X
+     128F   BD 40 1D   LDA &1D40,X
+     1292   C9 80      CMP #&80
+     1294   7E 40 1D   ROR &1D40,X
+     1297   7E 00 1D   ROR &1D00,X
+     129A   C9 80      CMP #&80
+     129C   7E 40 1D   ROR &1D40,X
+     129F   7E 00 1D   ROR &1D00,X
+     12A2   C9 80      CMP #&80
+     12A4   7E 40 1D   ROR &1D40,X
+     12A7   7E 00 1D   ROR &1D00,X
+     12AA   C9 80      CMP #&80
+     12AC   7E 40 1D   ROR &1D40,X
+     12AF   7E 00 1D   ROR &1D00,X
+     12B2   C9 80      CMP #&80
+     12B4   7E 40 1D   ROR &1D40,X
+     12B7   7E 00 1D   ROR &1D00,X
      12BA   C9 80      CMP #&80
-     12BC   7E C0 1C   ROR &1CC0,X
-     12BF   7E 80 1C   ROR &1C80,X
-     12C2   C9 80      CMP #&80
-     12C4   7E C0 1C   ROR &1CC0,X
-     12C7   7E 80 1C   ROR &1C80,X
-     12CA   C9 80      CMP #&80
-     12CC   7E C0 1C   ROR &1CC0,X
-     12CF   7E 80 1C   ROR &1C80,X
-     12D2   C9 80      CMP #&80
-     12D4   7E C0 1C   ROR &1CC0,X
-     12D7   7E 80 1C   ROR &1C80,X
-     12DA   C9 80      CMP #&80
-     12DC   7E C0 1C   ROR &1CC0,X
-     12DF   7E 80 1C   ROR &1C80,X
-     12E2   C9 80      CMP #&80
-     12E4   7E C0 1C   ROR &1CC0,X
-     12E7   7E 80 1C   ROR &1C80,X
-     12EA   A9 40      LDA #&40
-     12EC   9D 00 1D   STA &1D00,X
-     12EF   20 34 12   JSR &1234
-     12F2   E6 0C      INC &0C
-     12F4   A6 0C      LDX &0C
-     12F6   BD 00 18   LDA &1800,X
-     12F9   85 03      STA &03
-     12FB   BD 00 19   LDA &1900,X
-     12FE   85 04      STA &04
-     1300   BD 00 1A   LDA &1A00,X
-     1303   85 05      STA &05
+     12BC   7E 40 1D   ROR &1D40,X
+     12BF   7E 00 1D   ROR &1D00,X
+     12C2   BD C0 1D   LDA &1DC0,X
+     12C5   C9 80      CMP #&80
+     12C7   7E C0 1D   ROR &1DC0,X
+     12CA   7E 80 1D   ROR &1D80,X
+     12CD   C9 80      CMP #&80
+     12CF   7E C0 1D   ROR &1DC0,X
+     12D2   7E 80 1D   ROR &1D80,X
+     12D5   C9 80      CMP #&80
+     12D7   7E C0 1D   ROR &1DC0,X
+     12DA   7E 80 1D   ROR &1D80,X
+     12DD   C9 80      CMP #&80
+     12DF   7E C0 1D   ROR &1DC0,X
+     12E2   7E 80 1D   ROR &1D80,X
+     12E5   C9 80      CMP #&80
+     12E7   7E C0 1D   ROR &1DC0,X
+     12EA   7E 80 1D   ROR &1D80,X
+     12ED   C9 80      CMP #&80
+     12EF   7E C0 1D   ROR &1DC0,X
+     12F2   7E 80 1D   ROR &1D80,X
+     12F5   A9 40      LDA #&40
+     12F7   9D 00 1E   STA &1E00,X
+     12FA   20 32 12   JSR &1232
+     12FD   E6 0E      INC &0E
+     12FF   A6 0E      LDX &0E
+     1301   BD 00 18   LDA &1800,X
+     1304   85 03      STA &03
+     1306   BD 00 19   LDA &1900,X
+     1309   85 04      STA &04
+     130B   BD 00 1A   LDA &1A00,X
+     130E   85 05      STA &05
+     1310   BD 00 1B   LDA &1B00,X
+     1313   85 06      STA &06
 .return
-     1305   18         CLC
-     1306   60         RTS
+     1315   18         CLC
+     1316   60         RTS
 .get_next_slot
-     1307   18         CLC
-     1308   A2 00      LDX #&00
-.loop
-     130A   BD 00 1D   LDA &1D00,X
-     130D   F0 05      BEQ &1314
-     130F   E8         INX
-     1310   E0 40      CPX #&40
-     1312   90 F6      BCC &130A
-.return
-     1314   60         RTS
-.plot_glixel_eor
-     1315   85 02      STA &02
      1317   18         CLC
-     1318   B9 00 15   LDA &1500,Y
-     131B   7D 00 17   ADC &1700,X
-     131E   85 00      STA &00
-     1320   B9 00 16   LDA &1600,Y
-     1323   7D 50 17   ADC &1750,X
-     1326   85 01      STA &01
-     1328   A0 00      LDY #&00
-     132A   A6 02      LDX &02
-     132C   E0 02      CPX #&02
-     132E   B0 48      BCS &1378
-     1330   B1 00      LDA (&00),Y
-     1332   5D 14 14   EOR &1414,X
-     1335   91 00      STA (&00),Y
+     1318   A2 00      LDX #&00
+.loop
+     131A   BD 00 1E   LDA &1E00,X
+     131D   F0 05      BEQ &1324
+     131F   E8         INX
+     1320   E0 40      CPX #&40
+     1322   90 F6      BCC &131A
+.return
+     1324   60         RTS
+.plot_glixel_eor
+     1325   85 02      STA &02
+     1327   18         CLC
+     1328   B9 00 15   LDA &1500,Y
+     132B   7D 00 17   ADC &1700,X
+     132E   85 00      STA &00
+     1330   B9 00 16   LDA &1600,Y
+     1333   7D 50 17   ADC &1750,X
+     1336   85 01      STA &01
+     1338   A0 00      LDY #&00
+     133A   A6 02      LDX &02
+     133C   E0 02      CPX #&02
+     133E   B0 48      BCS &1388
+     1340   B1 00      LDA (&00),Y
+     1342   5D 24 14   EOR &1424,X
+     1345   91 00      STA (&00),Y
 Macro MOVE_ROW:
-     1337   A5 00      LDA &00
-     1339   29 07      AND #&07
-     133B   C9 07      CMP #&07
-     133D   F0 04      BEQ &1343
-     133F   E6 00      INC &00
-     1341   D0 0D      BNE &1350
+     1347   A5 00      LDA &00
+     1349   29 07      AND #&07
+     134B   C9 07      CMP #&07
+     134D   F0 04      BEQ &1353
+     134F   E6 00      INC &00
+     1351   D0 0D      BNE &1360
 .next_row
-     1343   18         CLC
-     1344   A5 00      LDA &00
-     1346   69 79      ADC #&79
-     1348   85 00      STA &00
-     134A   A5 01      LDA &01
-     134C   69 02      ADC #&02
-     134E   85 01      STA &01
+     1353   18         CLC
+     1354   A5 00      LDA &00
+     1356   69 79      ADC #&79
+     1358   85 00      STA &00
+     135A   A5 01      LDA &01
+     135C   69 02      ADC #&02
+     135E   85 01      STA &01
 .cont
 End macro MOVE_ROW
-     1350   B1 00      LDA (&00),Y
-     1352   5D 14 14   EOR &1414,X
-     1355   91 00      STA (&00),Y
+     1360   B1 00      LDA (&00),Y
+     1362   5D 24 14   EOR &1424,X
+     1365   91 00      STA (&00),Y
 Macro MOVE_ROW:
-     1357   A5 00      LDA &00
-     1359   29 07      AND #&07
-     135B   C9 07      CMP #&07
-     135D   F0 04      BEQ &1363
-     135F   E6 00      INC &00
-     1361   D0 0D      BNE &1370
+     1367   A5 00      LDA &00
+     1369   29 07      AND #&07
+     136B   C9 07      CMP #&07
+     136D   F0 04      BEQ &1373
+     136F   E6 00      INC &00
+     1371   D0 0D      BNE &1380
 .next_row
-     1363   18         CLC
-     1364   A5 00      LDA &00
-     1366   69 79      ADC #&79
-     1368   85 00      STA &00
-     136A   A5 01      LDA &01
-     136C   69 02      ADC #&02
-     136E   85 01      STA &01
+     1373   18         CLC
+     1374   A5 00      LDA &00
+     1376   69 79      ADC #&79
+     1378   85 00      STA &00
+     137A   A5 01      LDA &01
+     137C   69 02      ADC #&02
+     137E   85 01      STA &01
 .cont
 End macro MOVE_ROW
-     1370   B1 00      LDA (&00),Y
-     1372   5D 14 14   EOR &1414,X
-     1375   91 00      STA (&00),Y
-     1377   60         RTS
+     1380   B1 00      LDA (&00),Y
+     1382   5D 24 14   EOR &1424,X
+     1385   91 00      STA (&00),Y
+     1387   60         RTS
 .two_bytes
-     1378   B1 00      LDA (&00),Y
-     137A   5D 14 14   EOR &1414,X
-     137D   91 00      STA (&00),Y
-     137F   A0 08      LDY #&08
-     1381   B1 00      LDA (&00),Y
-     1383   5D 18 14   EOR &1418,X
-     1386   91 00      STA (&00),Y
+     1388   B1 00      LDA (&00),Y
+     138A   5D 24 14   EOR &1424,X
+     138D   91 00      STA (&00),Y
+     138F   A0 08      LDY #&08
+     1391   B1 00      LDA (&00),Y
+     1393   5D 28 14   EOR &1428,X
+     1396   91 00      STA (&00),Y
 Macro MOVE_ROW:
-     1388   A5 00      LDA &00
-     138A   29 07      AND #&07
-     138C   C9 07      CMP #&07
-     138E   F0 04      BEQ &1394
-     1390   E6 00      INC &00
-     1392   D0 0D      BNE &13A1
+     1398   A5 00      LDA &00
+     139A   29 07      AND #&07
+     139C   C9 07      CMP #&07
+     139E   F0 04      BEQ &13A4
+     13A0   E6 00      INC &00
+     13A2   D0 0D      BNE &13B1
 .next_row
-     1394   18         CLC
-     1395   A5 00      LDA &00
-     1397   69 79      ADC #&79
-     1399   85 00      STA &00
-     139B   A5 01      LDA &01
-     139D   69 02      ADC #&02
-     139F   85 01      STA &01
+     13A4   18         CLC
+     13A5   A5 00      LDA &00
+     13A7   69 79      ADC #&79
+     13A9   85 00      STA &00
+     13AB   A5 01      LDA &01
+     13AD   69 02      ADC #&02
+     13AF   85 01      STA &01
 .cont
 End macro MOVE_ROW
-     13A1   A0 00      LDY #&00
-     13A3   B1 00      LDA (&00),Y
-     13A5   5D 14 14   EOR &1414,X
-     13A8   91 00      STA (&00),Y
-     13AA   A0 08      LDY #&08
-     13AC   B1 00      LDA (&00),Y
-     13AE   5D 18 14   EOR &1418,X
-     13B1   91 00      STA (&00),Y
+     13B1   A0 00      LDY #&00
+     13B3   B1 00      LDA (&00),Y
+     13B5   5D 24 14   EOR &1424,X
+     13B8   91 00      STA (&00),Y
+     13BA   A0 08      LDY #&08
+     13BC   B1 00      LDA (&00),Y
+     13BE   5D 28 14   EOR &1428,X
+     13C1   91 00      STA (&00),Y
 Macro MOVE_ROW:
-     13B3   A5 00      LDA &00
-     13B5   29 07      AND #&07
-     13B7   C9 07      CMP #&07
-     13B9   F0 04      BEQ &13BF
-     13BB   E6 00      INC &00
-     13BD   D0 0D      BNE &13CC
+     13C3   A5 00      LDA &00
+     13C5   29 07      AND #&07
+     13C7   C9 07      CMP #&07
+     13C9   F0 04      BEQ &13CF
+     13CB   E6 00      INC &00
+     13CD   D0 0D      BNE &13DC
 .next_row
-     13BF   18         CLC
-     13C0   A5 00      LDA &00
-     13C2   69 79      ADC #&79
-     13C4   85 00      STA &00
-     13C6   A5 01      LDA &01
-     13C8   69 02      ADC #&02
-     13CA   85 01      STA &01
+     13CF   18         CLC
+     13D0   A5 00      LDA &00
+     13D2   69 79      ADC #&79
+     13D4   85 00      STA &00
+     13D6   A5 01      LDA &01
+     13D8   69 02      ADC #&02
+     13DA   85 01      STA &01
 .cont
 End macro MOVE_ROW
-     13CC   A0 00      LDY #&00
-     13CE   B1 00      LDA (&00),Y
-     13D0   5D 14 14   EOR &1414,X
-     13D3   91 00      STA (&00),Y
-     13D5   A0 08      LDY #&08
-     13D7   B1 00      LDA (&00),Y
-     13D9   5D 18 14   EOR &1418,X
-     13DC   91 00      STA (&00),Y
+     13DC   A0 00      LDY #&00
+     13DE   B1 00      LDA (&00),Y
+     13E0   5D 24 14   EOR &1424,X
+     13E3   91 00      STA (&00),Y
+     13E5   A0 08      LDY #&08
+     13E7   B1 00      LDA (&00),Y
+     13E9   5D 28 14   EOR &1428,X
+     13EC   91 00      STA (&00),Y
 .done
-     13DE   60         RTS
+     13EE   60         RTS
 .string
-     13DF   1F
-     13E0   00
-     13E1   00
-     13E2   48 45 4C ...
-     13E7   1F
-     13E8   28
-     13E9   08
-     13EA   57 4F 52 ...
      13EF   1F
-     13F0   0C
-     13F1   18
-     13F2   54 48 49 ...
-     13F9   1F
-     13FA   14
-     13FB   20
-     13FC   2A 4E 4F ...
-     1401   1F
-     1402   08
-     1403   28
-     1404   41 20 46 ...
-     140C   1F
-     140D   18
-     140E   30
-     140F   44 45 4D ...
-     1413   00
+     13F0   00
+     13F1   00
+     13F2   48 45 4C ...
+     13F7   1F
+     13F8   28
+     13F9   08
+     13FA   57 4F 52 ...
+     13FF   1F
+     1400   0C
+     1401   18
+     1402   54 48 49 ...
+     1409   1F
+     140A   14
+     140B   20
+     140C   2A 4E 4F ...
+     1411   1F
+     1412   08
+     1413   28
+     1414   41 20 46 ...
+     141C   1F
+     141D   18
+     141E   30
+     141F   44 45 4D ...
+     1423   00
 .glixel_byte0
-     1414   EE
-     1415   77
-     1416   33
-     1417   11
+     1424   EE
+     1425   77
+     1426   33
+     1427   11
 .glixel_byte1
-     1418   00
-     1419   00
-     141A   CC
-     141B   EE
+     1428   00
+     1429   00
+     142A   CC
+     142B   EE
 Macro PAGE_ALIGN:
-Lost  228 bytes 
+Lost  212 bytes 
 End macro PAGE_ALIGN
 .screen_row_LO
      1500   00
@@ -1652,288 +1658,545 @@ End macro PAGE_ALIGN
      19FD   27
      19FE   27
      19FF   27
-.starty_table
-     1A00   B0
-     1A01   AF
-     1A02   AF
-     1A03   AF
-     1A04   AF
-     1A05   AF
-     1A06   AF
-     1A07   AF
-     1A08   AF
-     1A09   AE
-     1A0A   AE
-     1A0B   AE
-     1A0C   AD
-     1A0D   AD
-     1A0E   AD
-     1A0F   AC
-     1A10   AC
-     1A11   AB
-     1A12   AB
-     1A13   AA
-     1A14   AA
-     1A15   A9
-     1A16   A9
-     1A17   A8
-     1A18   A7
-     1A19   A7
-     1A1A   A6
-     1A1B   A5
-     1A1C   A5
-     1A1D   A4
-     1A1E   A3
-     1A1F   A2
-     1A20   A1
-     1A21   A1
-     1A22   A0
-     1A23   9F
-     1A24   9E
-     1A25   9D
-     1A26   9C
-     1A27   9B
-     1A28   9A
-     1A29   99
-     1A2A   98
-     1A2B   97
-     1A2C   96
-     1A2D   95
-     1A2E   94
-     1A2F   93
-     1A30   92
-     1A31   91
-     1A32   90
-     1A33   8F
-     1A34   8D
-     1A35   8C
-     1A36   8B
-     1A37   8A
-     1A38   89
-     1A39   88
-     1A3A   87
-     1A3B   85
-     1A3C   84
-     1A3D   83
-     1A3E   82
-     1A3F   81
-     1A40   80
-     1A41   7E
-     1A42   7D
-     1A43   7C
-     1A44   7B
-     1A45   7A
-     1A46   78
-     1A47   77
-     1A48   76
-     1A49   75
-     1A4A   74
-     1A4B   73
-     1A4C   72
-     1A4D   70
-     1A4E   6F
-     1A4F   6E
-     1A50   6D
-     1A51   6C
-     1A52   6B
-     1A53   6A
-     1A54   69
-     1A55   68
-     1A56   67
-     1A57   66
-     1A58   65
-     1A59   64
-     1A5A   63
-     1A5B   62
-     1A5C   61
-     1A5D   60
-     1A5E   5F
-     1A5F   5E
-     1A60   5E
-     1A61   5D
-     1A62   5C
-     1A63   5B
-     1A64   5A
-     1A65   5A
-     1A66   59
-     1A67   58
-     1A68   58
-     1A69   57
-     1A6A   56
-     1A6B   56
-     1A6C   55
-     1A6D   55
-     1A6E   54
-     1A6F   54
-     1A70   53
-     1A71   53
-     1A72   52
-     1A73   52
-     1A74   52
-     1A75   51
-     1A76   51
-     1A77   51
-     1A78   50
-     1A79   50
-     1A7A   50
-     1A7B   50
-     1A7C   50
-     1A7D   50
-     1A7E   50
-     1A7F   50
-     1A80   50
-     1A81   50
-     1A82   50
-     1A83   50
-     1A84   50
-     1A85   50
-     1A86   50
-     1A87   50
-     1A88   50
-     1A89   51
-     1A8A   51
-     1A8B   51
-     1A8C   52
-     1A8D   52
-     1A8E   52
-     1A8F   53
-     1A90   53
-     1A91   54
-     1A92   54
-     1A93   55
-     1A94   55
-     1A95   56
-     1A96   56
-     1A97   57
-     1A98   58
-     1A99   58
-     1A9A   59
-     1A9B   5A
-     1A9C   5A
-     1A9D   5B
-     1A9E   5C
-     1A9F   5D
-     1AA0   5E
-     1AA1   5E
-     1AA2   5F
-     1AA3   60
-     1AA4   61
-     1AA5   62
-     1AA6   63
-     1AA7   64
-     1AA8   65
-     1AA9   66
-     1AAA   67
-     1AAB   68
-     1AAC   69
-     1AAD   6A
-     1AAE   6B
-     1AAF   6C
-     1AB0   6D
-     1AB1   6E
-     1AB2   6F
-     1AB3   70
-     1AB4   72
-     1AB5   73
-     1AB6   74
-     1AB7   75
-     1AB8   76
-     1AB9   77
-     1ABA   78
-     1ABB   7A
-     1ABC   7B
-     1ABD   7C
-     1ABE   7D
-     1ABF   7E
-     1AC0   7F
-     1AC1   81
-     1AC2   82
-     1AC3   83
-     1AC4   84
-     1AC5   85
-     1AC6   87
-     1AC7   88
-     1AC8   89
-     1AC9   8A
-     1ACA   8B
-     1ACB   8C
-     1ACC   8D
-     1ACD   8F
-     1ACE   90
-     1ACF   91
-     1AD0   92
-     1AD1   93
-     1AD2   94
-     1AD3   95
-     1AD4   96
-     1AD5   97
-     1AD6   98
-     1AD7   99
-     1AD8   9A
-     1AD9   9B
-     1ADA   9C
-     1ADB   9D
-     1ADC   9E
-     1ADD   9F
-     1ADE   A0
-     1ADF   A1
-     1AE0   A1
-     1AE1   A2
-     1AE2   A3
-     1AE3   A4
-     1AE4   A5
-     1AE5   A5
-     1AE6   A6
-     1AE7   A7
-     1AE8   A7
-     1AE9   A8
-     1AEA   A9
-     1AEB   A9
-     1AEC   AA
-     1AED   AA
-     1AEE   AB
-     1AEF   AB
-     1AF0   AC
-     1AF1   AC
-     1AF2   AD
-     1AF3   AD
-     1AF4   AD
-     1AF5   AE
-     1AF6   AE
-     1AF7   AE
-     1AF8   AF
-     1AF9   AF
-     1AFA   AF
-     1AFB   AF
-     1AFC   AF
-     1AFD   AF
-     1AFE   AF
-     1AFF   AF
+.starty_table_LO
+     1A00   00
+     1A01   C0
+     1A02   C0
+     1A03   C0
+     1A04   C0
+     1A05   C0
+     1A06   C0
+     1A07   C0
+     1A08   C0
+     1A09   80
+     1A0A   80
+     1A0B   80
+     1A0C   40
+     1A0D   40
+     1A0E   40
+     1A0F   00
+     1A10   00
+     1A11   C0
+     1A12   C0
+     1A13   80
+     1A14   80
+     1A15   40
+     1A16   40
+     1A17   00
+     1A18   C0
+     1A19   C0
+     1A1A   80
+     1A1B   40
+     1A1C   40
+     1A1D   00
+     1A1E   C0
+     1A1F   80
+     1A20   40
+     1A21   40
+     1A22   00
+     1A23   C0
+     1A24   80
+     1A25   40
+     1A26   00
+     1A27   C0
+     1A28   80
+     1A29   40
+     1A2A   00
+     1A2B   C0
+     1A2C   80
+     1A2D   40
+     1A2E   00
+     1A2F   C0
+     1A30   80
+     1A31   40
+     1A32   00
+     1A33   C0
+     1A34   40
+     1A35   00
+     1A36   C0
+     1A37   80
+     1A38   40
+     1A39   00
+     1A3A   C0
+     1A3B   40
+     1A3C   00
+     1A3D   C0
+     1A3E   80
+     1A3F   40
+     1A40   00
+     1A41   80
+     1A42   40
+     1A43   00
+     1A44   C0
+     1A45   80
+     1A46   00
+     1A47   C0
+     1A48   80
+     1A49   40
+     1A4A   00
+     1A4B   C0
+     1A4C   80
+     1A4D   00
+     1A4E   C0
+     1A4F   80
+     1A50   40
+     1A51   00
+     1A52   C0
+     1A53   80
+     1A54   40
+     1A55   00
+     1A56   C0
+     1A57   80
+     1A58   40
+     1A59   00
+     1A5A   C0
+     1A5B   80
+     1A5C   40
+     1A5D   00
+     1A5E   C0
+     1A5F   80
+     1A60   80
+     1A61   40
+     1A62   00
+     1A63   C0
+     1A64   80
+     1A65   80
+     1A66   40
+     1A67   00
+     1A68   00
+     1A69   C0
+     1A6A   80
+     1A6B   80
+     1A6C   40
+     1A6D   40
+     1A6E   00
+     1A6F   00
+     1A70   C0
+     1A71   C0
+     1A72   80
+     1A73   80
+     1A74   80
+     1A75   40
+     1A76   40
+     1A77   40
+     1A78   00
+     1A79   00
+     1A7A   00
+     1A7B   00
+     1A7C   00
+     1A7D   00
+     1A7E   00
+     1A7F   00
+     1A80   00
+     1A81   00
+     1A82   00
+     1A83   00
+     1A84   00
+     1A85   00
+     1A86   00
+     1A87   00
+     1A88   00
+     1A89   40
+     1A8A   40
+     1A8B   40
+     1A8C   80
+     1A8D   80
+     1A8E   80
+     1A8F   C0
+     1A90   C0
+     1A91   00
+     1A92   00
+     1A93   40
+     1A94   40
+     1A95   80
+     1A96   80
+     1A97   C0
+     1A98   00
+     1A99   00
+     1A9A   40
+     1A9B   80
+     1A9C   80
+     1A9D   C0
+     1A9E   00
+     1A9F   40
+     1AA0   80
+     1AA1   80
+     1AA2   C0
+     1AA3   00
+     1AA4   40
+     1AA5   80
+     1AA6   C0
+     1AA7   00
+     1AA8   40
+     1AA9   80
+     1AAA   C0
+     1AAB   00
+     1AAC   40
+     1AAD   80
+     1AAE   C0
+     1AAF   00
+     1AB0   40
+     1AB1   80
+     1AB2   C0
+     1AB3   00
+     1AB4   80
+     1AB5   C0
+     1AB6   00
+     1AB7   40
+     1AB8   80
+     1AB9   C0
+     1ABA   00
+     1ABB   80
+     1ABC   C0
+     1ABD   00
+     1ABE   40
+     1ABF   80
+     1AC0   C0
+     1AC1   40
+     1AC2   80
+     1AC3   C0
+     1AC4   00
+     1AC5   40
+     1AC6   C0
+     1AC7   00
+     1AC8   40
+     1AC9   80
+     1ACA   C0
+     1ACB   00
+     1ACC   40
+     1ACD   C0
+     1ACE   00
+     1ACF   40
+     1AD0   80
+     1AD1   C0
+     1AD2   00
+     1AD3   40
+     1AD4   80
+     1AD5   C0
+     1AD6   00
+     1AD7   40
+     1AD8   80
+     1AD9   C0
+     1ADA   00
+     1ADB   40
+     1ADC   80
+     1ADD   C0
+     1ADE   00
+     1ADF   40
+     1AE0   40
+     1AE1   80
+     1AE2   C0
+     1AE3   00
+     1AE4   40
+     1AE5   40
+     1AE6   80
+     1AE7   C0
+     1AE8   C0
+     1AE9   00
+     1AEA   40
+     1AEB   40
+     1AEC   80
+     1AED   80
+     1AEE   C0
+     1AEF   C0
+     1AF0   00
+     1AF1   00
+     1AF2   40
+     1AF3   40
+     1AF4   40
+     1AF5   80
+     1AF6   80
+     1AF7   80
+     1AF8   C0
+     1AF9   C0
+     1AFA   C0
+     1AFB   C0
+     1AFC   C0
+     1AFD   C0
+     1AFE   C0
+     1AFF   C0
+.starty_table_HI
+     1B00   2C
+     1B01   2B
+     1B02   2B
+     1B03   2B
+     1B04   2B
+     1B05   2B
+     1B06   2B
+     1B07   2B
+     1B08   2B
+     1B09   2B
+     1B0A   2B
+     1B0B   2B
+     1B0C   2B
+     1B0D   2B
+     1B0E   2B
+     1B0F   2B
+     1B10   2B
+     1B11   2A
+     1B12   2A
+     1B13   2A
+     1B14   2A
+     1B15   2A
+     1B16   2A
+     1B17   2A
+     1B18   29
+     1B19   29
+     1B1A   29
+     1B1B   29
+     1B1C   29
+     1B1D   29
+     1B1E   28
+     1B1F   28
+     1B20   28
+     1B21   28
+     1B22   28
+     1B23   27
+     1B24   27
+     1B25   27
+     1B26   27
+     1B27   26
+     1B28   26
+     1B29   26
+     1B2A   26
+     1B2B   25
+     1B2C   25
+     1B2D   25
+     1B2E   25
+     1B2F   24
+     1B30   24
+     1B31   24
+     1B32   24
+     1B33   23
+     1B34   23
+     1B35   23
+     1B36   22
+     1B37   22
+     1B38   22
+     1B39   22
+     1B3A   21
+     1B3B   21
+     1B3C   21
+     1B3D   20
+     1B3E   20
+     1B3F   20
+     1B40   20
+     1B41   1F
+     1B42   1F
+     1B43   1F
+     1B44   1E
+     1B45   1E
+     1B46   1E
+     1B47   1D
+     1B48   1D
+     1B49   1D
+     1B4A   1D
+     1B4B   1C
+     1B4C   1C
+     1B4D   1C
+     1B4E   1B
+     1B4F   1B
+     1B50   1B
+     1B51   1B
+     1B52   1A
+     1B53   1A
+     1B54   1A
+     1B55   1A
+     1B56   19
+     1B57   19
+     1B58   19
+     1B59   19
+     1B5A   18
+     1B5B   18
+     1B5C   18
+     1B5D   18
+     1B5E   17
+     1B5F   17
+     1B60   17
+     1B61   17
+     1B62   17
+     1B63   16
+     1B64   16
+     1B65   16
+     1B66   16
+     1B67   16
+     1B68   16
+     1B69   15
+     1B6A   15
+     1B6B   15
+     1B6C   15
+     1B6D   15
+     1B6E   15
+     1B6F   15
+     1B70   14
+     1B71   14
+     1B72   14
+     1B73   14
+     1B74   14
+     1B75   14
+     1B76   14
+     1B77   14
+     1B78   14
+     1B79   14
+     1B7A   14
+     1B7B   14
+     1B7C   14
+     1B7D   14
+     1B7E   14
+     1B7F   14
+     1B80   14
+     1B81   14
+     1B82   14
+     1B83   14
+     1B84   14
+     1B85   14
+     1B86   14
+     1B87   14
+     1B88   14
+     1B89   14
+     1B8A   14
+     1B8B   14
+     1B8C   14
+     1B8D   14
+     1B8E   14
+     1B8F   14
+     1B90   14
+     1B91   15
+     1B92   15
+     1B93   15
+     1B94   15
+     1B95   15
+     1B96   15
+     1B97   15
+     1B98   16
+     1B99   16
+     1B9A   16
+     1B9B   16
+     1B9C   16
+     1B9D   16
+     1B9E   17
+     1B9F   17
+     1BA0   17
+     1BA1   17
+     1BA2   17
+     1BA3   18
+     1BA4   18
+     1BA5   18
+     1BA6   18
+     1BA7   19
+     1BA8   19
+     1BA9   19
+     1BAA   19
+     1BAB   1A
+     1BAC   1A
+     1BAD   1A
+     1BAE   1A
+     1BAF   1B
+     1BB0   1B
+     1BB1   1B
+     1BB2   1B
+     1BB3   1C
+     1BB4   1C
+     1BB5   1C
+     1BB6   1D
+     1BB7   1D
+     1BB8   1D
+     1BB9   1D
+     1BBA   1E
+     1BBB   1E
+     1BBC   1E
+     1BBD   1F
+     1BBE   1F
+     1BBF   1F
+     1BC0   1F
+     1BC1   20
+     1BC2   20
+     1BC3   20
+     1BC4   21
+     1BC5   21
+     1BC6   21
+     1BC7   22
+     1BC8   22
+     1BC9   22
+     1BCA   22
+     1BCB   23
+     1BCC   23
+     1BCD   23
+     1BCE   24
+     1BCF   24
+     1BD0   24
+     1BD1   24
+     1BD2   25
+     1BD3   25
+     1BD4   25
+     1BD5   25
+     1BD6   26
+     1BD7   26
+     1BD8   26
+     1BD9   26
+     1BDA   27
+     1BDB   27
+     1BDC   27
+     1BDD   27
+     1BDE   28
+     1BDF   28
+     1BE0   28
+     1BE1   28
+     1BE2   28
+     1BE3   29
+     1BE4   29
+     1BE5   29
+     1BE6   29
+     1BE7   29
+     1BE8   29
+     1BE9   2A
+     1BEA   2A
+     1BEB   2A
+     1BEC   2A
+     1BED   2A
+     1BEE   2A
+     1BEF   2A
+     1BF0   2B
+     1BF1   2B
+     1BF2   2B
+     1BF3   2B
+     1BF4   2B
+     1BF5   2B
+     1BF6   2B
+     1BF7   2B
+     1BF8   2B
+     1BF9   2B
+     1BFA   2B
+     1BFB   2B
+     1BFC   2B
+     1BFD   2B
+     1BFE   2B
+     1BFF   2B
 .end
 .bss_start
 Macro PAGE_ALIGN:
 Lost  0 bytes 
 End macro PAGE_ALIGN
 .xpos_LO
-     1B00
-.xpos_HI
-     1B40
-.ypos_LO
-     1B80
-.ypos_HI
-     1BC0
-.xdelta_LO
      1C00
-.xdelta_HI
+.xpos_HI
      1C40
-.ydelta_LO
+.ypos_LO
      1C80
-.ydelta_HI
+.ypos_HI
      1CC0
-.lerp_count
+.xdelta_LO
      1D00
-.char_def
+.xdelta_HI
      1D40
+.ydelta_LO
+     1D80
+.ydelta_HI
+     1DC0
+.lerp_count
+     1E00
+.char_def
+     1E40
 .xpos
 .bss_end
 Saving file 'INTRO'

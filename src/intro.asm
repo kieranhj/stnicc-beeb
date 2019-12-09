@@ -86,9 +86,11 @@ GUARD &A0
 .plot_x_offset  skip 1
 
 .xstart         skip 2  ; pixel in 1:9:6
-.ystart         skip 1
+.ystart         skip 2  ; pixel in 1:8:7
 .xend           skip 1  ; column
-.yend           skip 1
+.yend           skip 1  ; row
+
+.plot_y         skip 1
 
 .loop_index     skip 1
 .inner_index    skip 1
@@ -97,7 +99,6 @@ GUARD &A0
 .text_index     skip 1
 .start_index    skip 1
 
-.char_byte      skip 1
 .char_row       skip 1
 .char_col       skip 1
 
@@ -161,8 +162,10 @@ GUARD screen_addr
     sta xstart
     lda startx_table_HI
     sta xstart+1
-    lda starty_table
+    lda starty_table_LO
     sta ystart
+    lda starty_table_HI
+    sta ystart+1
 
     lda #0
     sta char_top
@@ -268,10 +271,7 @@ ENDIF
     sta xend
 
     \\ Next y down
-    clc
-    lda yend
-    adc #4
-    sta yend
+    inc yend
 
     \\ Have we done all rows?
     inx
@@ -304,7 +304,6 @@ ENDIF
     sta char_left
     iny
     lda string, y
-    asl a:asl a
     sta char_top
     iny
     bne string_loop
@@ -379,7 +378,17 @@ ENDIF
 
 .plot_glixel_X              ; X is trashed
 {
-    ldy ypos_HI, X
+    lda ypos_HI, X
+    sta plot_y
+
+    lda ypos_LO, X
+    asl a                   ; top 2-bits
+    rol plot_y
+    asl a
+    rol plot_y
+
+    ldy plot_y
+
     lda xpos_HI, X
     sta load_col+1          ; column
 
@@ -407,14 +416,14 @@ ENDIF
     lda xstart+1
     sta xpos_HI, X
 
-    lda #0
-    sta ypos_LO, X
     lda ystart
+    sta ypos_LO, X
+    lda ystart+1
     sta ypos_HI, X
 
     \\ Calculate xend - xstart
     sec
-    lda #0
+    lda #0          ; xend_LO
     sbc xstart
     sta xdelta_LO, X
     lda xend
@@ -424,10 +433,10 @@ ENDIF
     \\ Calculate yend - ystart
     sec
     lda #0          ; yend_LO
-    sbc #0          ; ystart_LO
+    sbc ystart
     sta ydelta_LO, X
     lda yend
-    sbc ystart
+    sbc ystart+1
     sta ydelta_HI, X
 
     \\ NEED EXTRA BIT FOR SIGN!
@@ -487,8 +496,10 @@ ENDIF
     sta xstart
     lda startx_table_HI, X
     sta xstart+1
-    lda starty_table, X
+    lda starty_table_LO, X
     sta ystart
+    lda starty_table_HI, X
+    sta ystart+1
 
     .return
     clc
@@ -651,10 +662,16 @@ a = 160 + 48 * SIN(n * 2 * PI / 256)
 EQUB HI(a << 6)
 NEXT
 
-.starty_table
+.starty_table_LO
 FOR n,0,255,1
 a = 128 + 48 * COS(n * 2 * PI / 256)
-EQUB LO(a)
+EQUB LO(a << 6)
+NEXT
+
+.starty_table_HI
+FOR n,0,255,1
+a = 128 + 48 * COS(n * 2 * PI / 256)
+EQUB HI(a << 6)
 NEXT
 
 \ ******************************************************************
