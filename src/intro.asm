@@ -95,6 +95,15 @@ GUARD &A0
 
 .count          skip 1
 .text_index     skip 1
+.start_index    skip 1
+
+.char_byte      skip 1
+.char_row       skip 1
+.char_col       skip 1
+
+.char_left      skip 1
+.char_top       skip 1
+.plotted        skip 1
 
 .zp_end
 
@@ -148,17 +157,21 @@ GUARD screen_addr
 
     lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
 
-    lda #LO(160 << 6)
+    lda startx_table_LO
     sta xstart
-    lda #HI(160 << 6)
+    lda startx_table_HI
     sta xstart+1
-    lda #128
+    lda starty_table
     sta ystart
 
     lda #0
-    sta xend
-    lda #0
-    sta yend
+    sta char_top
+    sta char_col
+    sta char_def+8
+    lda #7
+    sta char_row
+    lda #LO(-8)
+    sta char_left
 
     ldx #0
     lda #0
@@ -197,23 +210,7 @@ IF 0
     stx xend
 ENDIF
 
-    lda count
-    and #63
-    bne continue
-
-    ldy text_index
-    lda string, y
-    jsr lerp_char
-
-    ldy text_index
-    iny
-    cpy #10
-    bcc ok
-    ldy #0
-    sty xend
-    sty yend
-    .ok
-    sty text_index
+    jsr make_glixel
 
     .continue
     inc count
@@ -222,58 +219,91 @@ ENDIF
     rts
 }
 
-.lerp_char
+.get_char_def
 {
     sta char_def
     lda #10
     ldx #LO(char_def)
     ldy #HI(char_def)
     jsr osword
+    rts
+}
 
-    ldx #0
+.make_glixel
+{
+    lda #0
+    sta plotted
+
+    ldx char_row
     .loop
-    stx loop_index
+    lda char_def+1, X
+    beq next_char_row
 
-    lda #8
-    sta inner_index
-
-    .inner_loop
-    ldx loop_index
-    asl char_def+1, X
+    \\ Pop the top bit
+    asl a
+    sta char_def+1, X
     bcc no_glixel
 
+    \\ Make a glixel to lerp
     jsr make_lerp
+    lda #&ff
+    sta plotted
+    ldx char_row
 
     .no_glixel
+    \\ Next x-coord
     inc xend
 
-    dec inner_index
-    bne inner_loop
+    \\ Column count
+    dec char_col
+    bne next_char_col
 
-    sec
-    lda xend
-    sbc #8
+    \\ Next char row
+    .next_char_row
+    lda #8
+    sta char_col
+
+    \\ Reset to lhs of char
+    lda char_left
     sta xend
 
+    \\ Next y down
     clc
     lda yend
     adc #4
     sta yend
 
-    ldx loop_index
+    \\ Have we done all rows?
     inx
     cpx #8
-    bcc loop
+    bcc next_char_col
 
-    sec
-    lda yend
-    sbc #4*8
+    \\ Next character from string
+    ldy text_index
+    lda string, y
+    iny
+    sty text_index
+    jsr get_char_def
+
+    \\ Put y back up
+    lda char_top
     sta yend
 
+    \\ Move x across one char
     clc
-    lda xend
+    lda char_left
     adc #8
+    sta char_left
     sta xend
+
+    ldx #0
+
+    \\ LOOP UNTIL THERE IS A GLIXEL
+    .next_char_col
+    stx char_row
+
+    lda plotted
+    beq loop
 
     rts
 }
@@ -427,6 +457,15 @@ ENDIF
     \\ Plot it to begin with
     jsr plot_glixel_X
 
+    inc start_index
+    ldx start_index
+    lda startx_table_LO, X
+    sta xstart
+    lda startx_table_HI, X
+    sta xstart+1
+    lda starty_table, X
+    sta ystart
+
     .return
     clc
     rts
@@ -567,6 +606,25 @@ NEXT
 .screen_col_HI
 FOR c,0,79,1
 EQUB HI(c * 8)
+NEXT
+
+PAGE_ALIGN
+.startx_table_LO
+FOR n,0,255,1
+a = 160 + 48 * SIN(n * 2 * PI / 256)
+EQUB LO(a << 6)
+NEXT
+
+.startx_table_HI
+FOR n,0,255,1
+a = 160 + 48 * SIN(n * 2 * PI / 256)
+EQUB HI(a << 6)
+NEXT
+
+.starty_table
+FOR n,0,255,1
+a = 128 + 48 * COS(n * 2 * PI / 256)
+EQUB LO(a)
 NEXT
 
 \ ******************************************************************
