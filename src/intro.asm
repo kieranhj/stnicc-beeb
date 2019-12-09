@@ -278,23 +278,47 @@ ENDIF
     cpx #8
     bcc next_char_col
 
-    \\ Next character from string
-    ldy text_index
-    lda string, y
-    iny
-    sty text_index
-    jsr get_char_def
-
-    \\ Put y back up
-    lda char_top
-    sta yend
-
     \\ Move x across one char
     clc
     lda char_left
     adc #8
     sta char_left
+
+    \\ Next character from string
+    ldy text_index
+    .string_loop
+    lda string, y
+
+    \\ Handle special chars
+    bne not_0
+    ldy #0
+    beq string_loop
+
+    .not_0
+    cmp #31     ; VDU 31 = tab cursor
+    bne not_31
+
+    \\ VDU 31,x,y
+    iny
+    lda string, y
+    sta char_left
+    iny
+    lda string, y
+    asl a:asl a
+    sta char_top
+    iny
+    bne string_loop
+    .not_31
+
+    iny
+    sty text_index
+    jsr get_char_def
+
+    \\ Put x,y to start of char plot
+    lda char_left
     sta xend
+    lda char_top
+    sta yend
 
     ldx #0
 
@@ -571,7 +595,13 @@ ENDMACRO
 }
 
 .string
-EQUS "HELLOWORLD",0
+EQUS 31,0,0,"HELLO"
+EQUS 31,40,8,"WORLD"
+EQUS 31,12,24,"THIS IS"
+EQUS 31,20,32,"*NOT*"
+EQUS 31,8,40,"A FALCON"
+EQUS 31,24,48,"DEMO"
+EQUS 0
 
 \\ Four fixed possibilities
 \\ X=0 => ppp0
