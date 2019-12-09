@@ -91,9 +91,7 @@ GUARD &A0
 .yend           skip 1  ; row
 
 .plot_y         skip 1
-
 .loop_index     skip 1
-.inner_index    skip 1
 
 .count          skip 1
 .text_index     skip 1
@@ -105,6 +103,9 @@ GUARD &A0
 .char_left      skip 1
 .char_top       skip 1
 .plotted        skip 1
+
+.lerps_active   skip 1
+.cls_active     skip 1
 
 .zp_end
 
@@ -213,6 +214,18 @@ IF 0
     stx xend
 ENDIF
 
+    ldy cls_active
+    beq do_text
+
+    \\ Wait until everything has finished moving
+    lda lerps_active
+    bne continue
+
+    jsr wipe_line_Y
+    dec cls_active
+    bne continue
+
+    .do_text
     jsr make_glixel
 
     .continue
@@ -290,13 +303,13 @@ ENDIF
     lda string, y
 
     \\ Handle special chars
-    bne not_0
+    bne not_eos
     ldy #0
     beq string_loop
 
-    .not_0
+    .not_eos
     cmp #31     ; VDU 31 = tab cursor
-    bne not_31
+    bne not_vdu31
 
     \\ VDU 31,x,y
     iny
@@ -307,8 +320,17 @@ ENDIF
     sta char_top
     iny
     bne string_loop
-    .not_31
+    .not_vdu31
+    cmp #12     ; VDU 12 = cls
+    bne not_vdu12
 
+    lda #&ff
+    sta cls_active
+    sta plotted
+    iny
+    bne string_loop
+
+    .not_vdu12
     iny
     sty text_index
     jsr get_char_def
@@ -334,11 +356,15 @@ ENDIF
 .lerp_glixels
 {
     ldx #0
+    stx lerps_active
+
     .loop
     stx loop_index
 
     lda lerp_count, X
     beq next_lerp
+
+    inc lerps_active
 
     \\ Remove
     jsr plot_glixel_X
@@ -605,13 +631,43 @@ ENDMACRO
     rts
 }
 
+.wipe_line_Y
+{
+    lda screen_row_LO, Y
+    sta writeptr
+    lda screen_row_HI, Y
+    sta writeptr+1
+
+    lda #0
+    FOR n,0,SCREEN_ROW_BYTES,8
+    ldy #LO(n)
+    sta (writeptr), Y
+    IF LO(n) = &F8
+    inc writeptr+1
+    ENDIF
+    NEXT
+
+    rts
+}
+
 .string
-EQUS 31,0,0,"HELLO"
-EQUS 31,40,8,"WORLD"
-EQUS 31,12,24,"THIS IS"
-EQUS 31,20,32,"*NOT*"
-EQUS 31,8,40,"A FALCON"
-EQUS 31,24,48,"DEMO"
+EQUS 31,12,16,"THIS IS"
+EQUS 31,20,24,"*NOT*"
+EQUS 31,8,32, "A FALCON"
+EQUS 31,24,40,"DEMO"
+EQUS 12 ; cls
+EQUS 31,4,16, "THIS IS A"
+EQUS 31,12,24,"* BIT *"
+EQUS 31,8,32, "SHIFTERS"
+EQUS 31,20,40,"DEMO!"
+EQUS 12 ; cls
+EQUS 31,4,8, "BBC Micro"
+EQUS 31,4,16,"2MHz 6502"
+EQUS 31,0,24,"No Blitter"
+EQUS 31,4,32,"Real data"
+EQUS 31,24,40,"Real"
+EQUS 31,4,48,"floppy :)"
+EQUS 12 ; cls
 EQUS 0
 
 \\ Four fixed possibilities
@@ -658,7 +714,7 @@ FOR n,0,255,1
 ;EQUB LO(a << 6)
 
 \\ Rose: x = cos(ka) * cos(a)
-a = n *  2 * PI / 256
+a = n *  4 * PI / 256
 x = 160 + 100 * COS(k * a) * COS(a)
 EQUB LO(x << 6)
 NEXT
@@ -669,7 +725,7 @@ FOR n,0,255,1
 ;EQUB HI(a << 6)
 
 \\ Rose: x = cos(ka) * cos(a)
-a = n *  2 * PI / 256
+a = n *  4 * PI / 256
 x = 160 + 100 * COS(k * a) * COS(a)
 EQUB HI(x << 6)
 NEXT
@@ -680,7 +736,7 @@ FOR n,0,255,1
 ;EQUB LO(a << 6)
 
 \\ Rose: y = cos(ka) * sin(a)
-a = n *  2 * PI / 256
+a = n *  4 * PI / 256
 x = 128 + 100 * COS(k * a) * SIN(a)
 EQUB LO(x << 6)
 NEXT
@@ -691,7 +747,7 @@ FOR n,0,255,1
 ;EQUB HI(a << 6)
 
 \\ Rose: y = cos(ka) * sin(a)
-a = n *  2 * PI / 256
+a = n *  4 * PI / 256
 x = 128 + 100 * COS(k * a) * SIN(a)
 EQUB HI(x << 6)
 NEXT
