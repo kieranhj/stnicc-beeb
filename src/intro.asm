@@ -3,6 +3,8 @@
 \ *	STNICC BEEB INTRO
 \ ******************************************************************
 
+_DEBUG_RASTERS = FALSE
+
 \ ******************************************************************
 \ *	OS defines
 \ ******************************************************************
@@ -55,6 +57,17 @@ ENDMACRO
 MACRO CHECK_SAME_PAGE_AS base
 IF HI(P%-1) <> HI(base)
 PRINT "WARNING! Table or branch base address",~base, "may cross page boundary at",~P%
+ENDIF
+ENDMACRO
+
+MACRO SET_BGCOL c
+IF _DEBUG_RASTERS
+{
+    LDA #&00+c:STA &FE21
+    LDA #&10+c:STA &FE21
+    LDA #&30+c:STA &FE21
+    LDA #&40+c:STA &FE21
+}
 ENDIF
 ENDMACRO
 
@@ -159,6 +172,15 @@ GUARD screen_addr
 
     lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
 
+    \\ Set pal
+
+    ldx #15
+    .pal_loop
+    lda palette, X
+    sta &fe21
+    dex
+    bpl pal_loop
+
     lda startx_table_LO
     sta xstart
     lda startx_table_HI
@@ -185,6 +207,26 @@ GUARD screen_addr
     cpx #MAX_GLIXELS
     bcc init_loop
 
+    \\ Char defs
+    lda #'$'
+    ldx #LO(flux_def)
+    ldy #HI(flux_def)
+    jsr def_char
+
+    lda #'@'
+    ldx #LO(smiley_def)
+    ldy #HI(smiley_def)
+    jsr def_char
+
+    lda #'%'
+    ldx #LO(quarter_def)
+    ldy #HI(quarter_def)
+    jsr def_char
+
+    jsr cls
+    lda #50         ; can use this as a lazy timer
+    sta cls_active
+
     lda #19
     jsr osbyte
 
@@ -192,7 +234,9 @@ GUARD screen_addr
     lda #19
     jsr osbyte
 
+    SET_BGCOL PAL_red
     jsr lerp_glixels
+    SET_BGCOL PAL_black
 
 IF 0
     \\ Make a glixel
@@ -631,6 +675,17 @@ ENDMACRO
     rts
 }
 
+.cls
+{
+    ldX #0
+    .loop
+    txa:tay
+    jsr wipe_line_Y
+    dex
+    bne loop
+    rts
+}
+
 .wipe_line_Y
 {
     lda screen_row_LO, Y
@@ -638,7 +693,10 @@ ENDMACRO
     lda screen_row_HI, Y
     sta writeptr+1
 
-    lda #0
+    tya
+    and #1
+    tay
+    lda stipple, Y
     FOR n,0,SCREEN_ROW_BYTES,8
     ldy #LO(n)
     sta (writeptr), Y
@@ -647,6 +705,28 @@ ENDMACRO
     ENDIF
     NEXT
 
+    rts
+
+    .stipple
+    EQUB &0A, &05
+}
+
+.def_char
+{
+    stx loop+1
+    sty loop+2
+    pha
+    lda #23
+    jsr oswrch
+    pla
+    jsr oswrch
+    ldx #0
+    .loop
+    lda &ffff, X
+    jsr oswrch
+    inx
+    cpx #8
+    bcc loop
     rts
 }
 
@@ -657,16 +737,16 @@ EQUS 31,8,32, "A FALCON"
 EQUS 31,24,40,"DEMO"
 EQUS 12 ; cls
 EQUS 31,4,16, "THIS IS A"
-EQUS 31,12,24,"* BIT *"
+EQUS 31,12,24,"$ BIT $"
 EQUS 31,8,32, "SHIFTERS"
 EQUS 31,20,40,"DEMO!"
 EQUS 12 ; cls
 EQUS 31,4,8, "BBC Micro"
 EQUS 31,4,16,"2MHz 6502"
 EQUS 31,0,24,"No Blitter"
-EQUS 31,4,32,"Real data"
-EQUS 31,24,40,"Real"
-EQUS 31,4,48,"floppy :)"
+EQUS 31,12,32,"ST data"
+EQUS 31,8,40,"Real 5%",'"'
+EQUS 31,4,48,"floppy @@"
 EQUS 12 ; cls
 EQUS 0
 
@@ -679,6 +759,57 @@ EQUS 0
 EQUB %11101110, %01110111, %00110011, %00010001
 .glixel_byte1
 EQUB %00000000, %00000000, %11001100, %11101110
+
+.palette
+{
+    EQUB &00 + PAL_black
+    EQUB &10 + PAL_black
+    EQUB &20 + PAL_blue
+    EQUB &30 + PAL_blue
+    EQUB &40 + PAL_black
+    EQUB &50 + PAL_black
+    EQUB &60 + PAL_blue
+    EQUB &70 + PAL_blue
+    EQUB &80 + PAL_cyan
+    EQUB &90 + PAL_cyan
+    EQUB &A0 + PAL_white
+    EQUB &B0 + PAL_white
+    EQUB &C0 + PAL_cyan
+    EQUB &D0 + PAL_cyan
+    EQUB &E0 + PAL_white
+    EQUB &F0 + PAL_white
+}
+
+.flux_def
+EQUB %00001110
+EQUB %00001110
+EQUB %01111110
+EQUB %01111110
+EQUB %01111110
+EQUB %01110000
+EQUB %01110000
+EQUB %00000000
+
+.smiley_def
+EQUB %01111100
+EQUB %11111110
+EQUB %10111010
+EQUB %11111110
+EQUB %10111010
+EQUB %10111010
+EQUB %11000110
+EQUB %01111100
+
+.quarter_def
+EQUB %00100000
+EQUB %00100110
+EQUB %00101100
+EQUB %00011000
+EQUB %00110101
+EQUB %01100111
+EQUB %00000001
+EQUB %00000000
+
 
 PAGE_ALIGN
 .screen_row_LO
