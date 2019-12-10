@@ -348,3 +348,18 @@ This means lerp must be over a constant number of frames, rather than a constant
 Plot the 'pixels' EOR to move.
 'Pixels' have to be plotted to screen pixel accuracy.
 Maybe use term 'glixel' => glyph pixel?
+
+Outro
+~~~
+Wireframe render in quarter screen.
+Font text in opposite corner of the screen.
+Could this work in MODE 1?
+Need to double buffer the line draw but not enough RAM to double buffer the entire screen.
+Could just display a 40 column wide MODE 1 screen for the top / bottom half
+So 40x16 characters = 640 chars = 5K
+And double buffer this.
+Bottom half would be full 80 column MODE 1.
+Would need to rupture this screen whilst also doing the decode.
+'Just' need a timer in first and second halves of the screen.
+How much RAM would be left over for a font in MODE 1?
+Say 40x glyphs at 12x16 pixels = 3x16 bytes = 40 * 48 bytes = 1920 bytes.
