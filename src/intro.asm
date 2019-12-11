@@ -194,7 +194,8 @@ GUARD screen_addr
     sta char_top
     sta char_col
     sta char_def+8
-    lda #7
+    sta char_def+1
+    lda #0
     sta char_row
     lda #LO(-8)
     sta char_left
@@ -328,12 +329,12 @@ ENDIF
     sta xend
 
     \\ Next y down
-    inc yend
+    dec yend
 
     \\ Have we done all rows?
-    inx
-    cpx #8
-    bcc next_char_col
+    dex
+    cpx #0
+    bpl next_char_col
 
     \\ Move x across one char
     clc
@@ -385,7 +386,7 @@ ENDIF
     lda char_top
     sta yend
 
-    ldx #0
+    ldx #7
 
     \\ LOOP UNTIL THERE IS A GLIXEL
     .next_char_col
@@ -731,6 +732,13 @@ ENDMACRO
 }
 
 .string
+EQUS 31,0,56, "CHRISTMAS"
+EQUS 31,0,48, "A MERRY"
+EQUS 31,0,40, "WISH YOU"
+EQUS 31,0,32, "SHIFTERS"
+EQUS 31,0,24, "BIT"
+EQUS 0
+
 EQUS 31,12,16,"THIS IS"
 EQUS 31,20,24,"*NOT*"
 EQUS 31,8,32, "A FALCON"
@@ -845,8 +853,10 @@ FOR n,0,255,1
 ;EQUB LO(a << 6)
 
 \\ Rose: x = cos(ka) * cos(a)
-a = n *  4 * PI / 256
-x = 160 + 100 * COS(k * a) * COS(a)
+;a = n *  4 * PI / 256
+;x = 160 + 100 * COS(k * a) * COS(a)
+a = n *  2 * PI / 256
+x = 160 + 150 * COS(a)
 EQUB LO(x << 6)
 NEXT
 
@@ -856,8 +866,10 @@ FOR n,0,255,1
 ;EQUB HI(a << 6)
 
 \\ Rose: x = cos(ka) * cos(a)
-a = n *  4 * PI / 256
-x = 160 + 100 * COS(k * a) * COS(a)
+;a = n *  4 * PI / 256
+;x = 160 + 100 * COS(k * a) * COS(a)
+a = n *  2 * PI / 256
+x = 160 + 150 * COS(a)
 EQUB HI(x << 6)
 NEXT
 
@@ -869,7 +881,8 @@ FOR n,0,255,1
 \\ Rose: y = cos(ka) * sin(a)
 a = n *  4 * PI / 256
 x = 128 + 100 * COS(k * a) * SIN(a)
-EQUB LO(x << 6)
+y = 0
+EQUB LO(y << 6)
 NEXT
 
 .starty_table_HI
@@ -880,7 +893,8 @@ FOR n,0,255,1
 \\ Rose: y = cos(ka) * sin(a)
 a = n *  4 * PI / 256
 x = 128 + 100 * COS(k * a) * SIN(a)
-EQUB HI(x << 6)
+y = 0
+EQUB HI(y << 6)
 NEXT
 
 \ ******************************************************************
