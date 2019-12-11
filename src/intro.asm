@@ -130,6 +130,7 @@ GUARD &A0
 .visit_count    skip 1
 .temp_x         skip 1
 .temp_y         skip 1
+.seed           skip 1
 
 .zp_end
 
@@ -243,10 +244,13 @@ GUARD screen_addr
     lda #50         ; can use this as a lazy timer
     sta cls_active
 
-    ; set up the glb
+    ; init visitor
     lda #0
     sta xend
+    lda #GLIXEL_HEIGHT-1
     sta yend
+
+    ; set up the glb
     jsr write_string_to_glb
 
     lda #19
@@ -784,7 +788,7 @@ ENDMACRO
     beq visited_all
 
     .^glb_visit_fn
-    jsr visit_fn_by_row_from_top     ; returns X,Y of next position
+    jsr visit_fn_random     ; returns X,Y of next position
 
     stx xend                ; finishing position xend
     sty yend                ; yend
@@ -795,7 +799,7 @@ ENDMACRO
     beq loop                ; loop until we get a bit
 
     .^glb_start_fn
-    jsr start_fn_static     ; sets startx, starty
+    jsr start_fn_from_table ; sets startx, starty
     jmp make_lerp           ; make a lerp
                             ; what to do if this fails?
 
@@ -803,7 +807,7 @@ ENDMACRO
     rts
 }
 
-.visit_fn_by_row_from_top
+.visit_fn_by_row_from_bottom
 {
     ldx xend
     ldy yend
@@ -813,14 +817,41 @@ ENDMACRO
     bcc same_row
 
     ldx #0
-    iny
-    cpy #GLIXEL_HEIGHT
-    bcc same_row
+    dey
+    bpl same_row
 
-    ldy #0
+    ldy #GLIXEL_HEIGHT-1
+    sec
     \\ Set Carry if we've reached max height of glb
     .same_row
     rts
+}
+
+.visit_fn_random
+{
+    ldy yend
+
+    .loop
+    inc local_count
+    bne cont
+
+    dey
+
+    .cont
+    jsr rand
+    tax
+    cpx #GLIXEL_WIDTH
+    bcs loop
+    
+    cpy #&80
+    bcc return
+
+    ldy #GLIXEL_HEIGHT-1
+
+    .return
+    rts
+
+    .local_count EQUB 0
 }
 
 .start_fn_static
@@ -917,32 +948,25 @@ ENDMACRO
     rts
 }
 
-.string
-EQUS "HELLOWORLD"
-EQUS 31,0,56, "CHRISTMAS"
-EQUS 31,0,48, "A MERRY"
-EQUS 31,0,40, "WISH YOU"
-EQUS 31,0,32, "SHIFTERS"
-EQUS 31,0,24, "BIT"
-EQUS 0
+.rand
+{
+    lda seed
+    asl a
+    asl a
+    clc
+    adc seed
+    clc
+    adc #&45
+    sta seed
+    rts
+}
 
-EQUS 31,12,16,"THIS IS"
-EQUS 31,20,24,"*NOT*"
-EQUS 31,8,32, "A FALCON"
-EQUS 31,24,40,"DEMO"
-EQUS 12 ; cls
-EQUS 31,4,16, "THIS IS A"
-EQUS 31,12,24,"$ BIT $"
-EQUS 31,8,32, "SHIFTERS"
-EQUS 31,20,40,"DEMO!"
-EQUS 12 ; cls
-EQUS 31,4,8, "BBC Micro"
-EQUS 31,4,16,"2MHz 6502"
-EQUS 31,0,24,"No Blitter"
-EQUS 31,12,32,"ST data"
-EQUS 31,8,40,"Real 5%",'"'
-EQUS 31,4,48,"floppy @@"
-EQUS 12 ; cls
+.string
+EQUS 31,0,24, "BIT"
+EQUS 31,0,32, "SHIFTERS"
+EQUS 31,0,40, "WISH YOU"
+EQUS 31,0,48, "A MERRY"
+EQUS 31,0,56, "CHRISTMAS"
 EQUS 0
 
 \\ Four fixed possibilities
@@ -1056,8 +1080,9 @@ FOR n,0,255,1
 \\ Rose: x = cos(ka) * cos(a)
 ;a = n *  4 * PI / 256
 ;x = 160 + 100 * COS(k * a) * COS(a)
-a = n *  2 * PI / 256
-x = 160 + 150 * COS(a)
+;a = n *  2 * PI / 256
+;x = 160 + 150 * COS(a)
+x = RND(320)
 EQUB LO(x << 6)
 NEXT
 
@@ -1069,8 +1094,9 @@ FOR n,0,255,1
 \\ Rose: x = cos(ka) * cos(a)
 ;a = n *  4 * PI / 256
 ;x = 160 + 100 * COS(k * a) * COS(a)
-a = n *  2 * PI / 256
-x = 160 + 150 * COS(a)
+;a = n *  2 * PI / 256
+;x = 160 + 150 * COS(a)
+x = RND(320)
 EQUB HI(x << 6)
 NEXT
 
