@@ -131,6 +131,8 @@ GUARD &A0
 .temp_x         skip 1
 .temp_y         skip 1
 .seed           skip 1
+.seed2          skip 1
+.direction      skip 1
 
 .zp_end
 
@@ -277,10 +279,34 @@ GUARD screen_addr
 
     .do_text
     ; jsr make_lerp_from_string
+
+    lda direction
+    beq do_enter
+    
+    \\ Exit
+    jsr make_exit_from_glb
+    bcc continue
+
+    ; reset visitor here
+    lda #GLIXEL_HEIGHT-1
+    sta yend
+
+    lda #0
+    sta direction
+    beq continue
+
+    .do_enter
     jsr make_lerp_from_glb
     bcc continue
 
     ; reset visitor here
+    lda #0
+    sta xstart
+    sta ystart
+    sta ystart+1
+
+    lda #1
+    sta direction
 
     .continue
     inc count
@@ -443,8 +469,13 @@ GUARD screen_addr
     sta ypos_HI, X
 
     dec lerp_count, X
+    bne plot_it
+
+    lda lerp_direction, X
+    bne next_lerp
 
     \\ Plot it
+    .plot_it
     jsr plot_glixel_X
 
     .next_lerp
@@ -567,6 +598,10 @@ GUARD screen_addr
 
     lda #LERP_FRAMES
     sta lerp_count, X
+
+    lda direction
+    sta lerp_direction, X
+    bne return
 
     \\ Plot it to begin with
     jsr plot_glixel_X
@@ -788,7 +823,7 @@ ENDMACRO
     beq visited_all
 
     .^glb_visit_fn
-    jsr visit_fn_random     ; returns X,Y of next position
+    jsr visit_fn_random_up     ; returns X,Y of next position
 
     stx xend                ; finishing position xend
     sty yend                ; yend
@@ -800,6 +835,35 @@ ENDMACRO
 
     .^glb_start_fn
     jsr start_fn_from_table ; sets startx, starty
+    jmp make_lerp           ; make a lerp
+                            ; what to do if this fails?
+
+    .visited_all
+    rts
+}
+
+.make_exit_from_glb
+{
+    lda #MAX_VISITS_PER_FRAME+1
+    sta visit_count
+
+    .loop
+    dec visit_count         ; maximum visits per frame
+    beq visited_all
+
+    .^glb_visit_fn2
+    jsr visit_fn_random_down     ; returns X,Y of next position
+
+    stx xstart+1            ; now starting position xstart
+    sty ystart+1            ; yend
+
+    bcs visited_all         ; or Carry set if finished
+
+    jsr get_glb_XY          ; is there a bit in the buffer?
+    beq loop                ; loop until we get a bit
+
+    .^glb_end_fn
+    jsr end_fn_random_on_right       ; sets endx, endy
     jmp make_lerp           ; make a lerp
                             ; what to do if this fails?
 
@@ -827,7 +891,7 @@ ENDMACRO
     rts
 }
 
-.visit_fn_random
+.visit_fn_random_up
 {
     ldy yend
 
@@ -854,10 +918,51 @@ ENDMACRO
     .local_count EQUB 0
 }
 
+.visit_fn_random_down
+{
+    ldy ystart+1
+
+    .loop
+    inc local_count
+    bne cont
+
+    iny
+
+    .cont
+    jsr rand
+    tax
+    cpx #GLIXEL_WIDTH
+    bcs loop
+    
+    cpy #GLIXEL_HEIGHT
+    bcc return
+
+    ldy #0
+
+    .return
+    rts
+
+    .local_count EQUB 0
+}
+
 .start_fn_static
 {
     \\ do nothing!
     \\ startx,starty static
+    rts
+}
+
+.end_fn_random_on_right
+{
+    lda #79
+    sta xend
+
+    .loop
+    jsr rand2
+    cmp #GLIXEL_HEIGHT
+    bcs loop
+    sta yend    
+
     rts
 }
 
@@ -961,8 +1066,21 @@ ENDMACRO
     rts
 }
 
+.rand2
+{
+    lda seed2
+    asl a
+    asl a
+    clc
+    adc seed2
+    clc
+    adc #&45
+    sta seed2
+    rts
+}
+
 .string
-EQUS 31,0,24, "BIT"
+EQUS 31,0,24, "BIT $"
 EQUS 31,0,32, "SHIFTERS"
 EQUS 31,0,40, "WISH YOU"
 EQUS 31,0,48, "A MERRY"
@@ -1156,6 +1274,8 @@ skip MAX_GLIXELS
 skip MAX_GLIXELS
 
 .lerp_count
+skip MAX_GLIXELS
+.lerp_direction
 skip MAX_GLIXELS
 
 .glixel_buffer
