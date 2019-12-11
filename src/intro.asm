@@ -86,6 +86,13 @@ screen_addr = &3000
 MAX_GLIXELS = 64
 LERP_FRAMES = 64
 
+; GLIXEL BUFFER
+GLIXEL_WIDTH = 80
+GLIXEL_HEIGHT = 64
+GLIXEL_STRIDE = GLIXEL_WIDTH / 8
+
+MAX_VISITS_PER_FRAME = 16
+
 \ ******************************************************************
 \ *	ZERO PAGE
 \ ******************************************************************
@@ -119,6 +126,10 @@ GUARD &A0
 
 .lerps_active   skip 1
 .cls_active     skip 1
+
+.visit_count    skip 1
+.temp_x         skip 1
+.temp_y         skip 1
 
 .zp_end
 
@@ -181,13 +192,17 @@ GUARD screen_addr
     dex
     bpl pal_loop
 
-    lda startx_table_LO
+;    lda startx_table_LO
+    lda #LO(160 << 6)
     sta xstart
-    lda startx_table_HI
+;    lda startx_table_HI
+    lda #HI(160 << 6)
     sta xstart+1
-    lda starty_table_LO
+;    lda starty_table_LO
+    lda #LO(128 << 6)
     sta ystart
-    lda starty_table_HI
+;    lda starty_table_HI
+    lda #HI(128 << 6)
     sta ystart+1
 
     lda #0
@@ -228,6 +243,12 @@ GUARD screen_addr
     lda #50         ; can use this as a lazy timer
     sta cls_active
 
+    ; set up the glb
+    lda #0
+    sta xend
+    sta yend
+    jsr write_string_to_glb
+
     lda #19
     jsr osbyte
 
@@ -238,26 +259,6 @@ GUARD screen_addr
     SET_BGCOL PAL_red
     jsr lerp_glixels
     SET_BGCOL PAL_black
-
-IF 0
-    \\ Make a glixel
-    \\ From (xstart,ystart) to (xend,yend)
-    jsr make_lerp
-    bcs table_full
-
-    \\ Increment our destination
-    ldx xend        ; columns
-    inx
-    cpx #80
-    bcc xend_ok
-    ldx #0
-    clc
-    lda yend
-    adc #4
-    sta yend
-    .xend_ok
-    stx xend
-ENDIF
 
     ldy cls_active
     beq do_text
@@ -271,12 +272,17 @@ ENDIF
     bne continue
 
     .do_text
-    jsr make_glixel
+    ; jsr make_lerp_from_string
+    jsr make_lerp_from_glb
+    bcc continue
+
+    ; reset visitor here
 
     .continue
     inc count
     jmp loop
 
+    .return
     rts
 }
 
@@ -290,7 +296,7 @@ ENDIF
     rts
 }
 
-.make_glixel
+.make_lerp_from_string
 {
     lda #0
     sta plotted
@@ -561,6 +567,7 @@ ENDIF
     \\ Plot it to begin with
     jsr plot_glixel_X
 
+IF 0
     inc start_index
     ldx start_index
     lda startx_table_LO, X
@@ -571,6 +578,7 @@ ENDIF
     sta ystart
     lda starty_table_HI, X
     sta ystart+1
+ENDIF
 
     .return
     clc
@@ -731,7 +739,186 @@ ENDMACRO
     rts
 }
 
+MACRO CALCULATE_GLB_PTR
+{
+    txa
+    lsr a:lsr a:lsr a       ; x DIV 8
+    clc
+    adc glixel_row_LO, Y
+    sta writeptr
+    lda glixel_row_HI, Y
+    adc #0
+    sta writeptr+1
+    txa
+    and #7
+    tax
+}
+ENDMACRO
+
+.set_glb_XY
+{
+    CALCULATE_GLB_PTR
+    ldy #0
+    lda (writeptr), Y
+    ora glixel_bit, X
+    sta (writeptr), Y
+    rts
+}
+
+.get_glb_XY
+{
+    CALCULATE_GLB_PTR
+    ldy #0
+    lda (writeptr), Y
+    and glixel_bit, X
+    rts
+}
+
+.make_lerp_from_glb
+{
+    lda #MAX_VISITS_PER_FRAME+1
+    sta visit_count
+
+    .loop
+    dec visit_count         ; maximum visits per frame
+    beq visited_all
+
+    .^glb_visit_fn
+    jsr visit_fn_by_row_from_top     ; returns X,Y of next position
+
+    stx xend                ; finishing position xend
+    sty yend                ; yend
+
+    bcs visited_all         ; or Carry set if finished
+
+    jsr get_glb_XY          ; is there a bit in the buffer?
+    beq loop                ; loop until we get a bit
+
+    .^glb_start_fn
+    jsr start_fn_static     ; sets startx, starty
+    jmp make_lerp           ; make a lerp
+                            ; what to do if this fails?
+
+    .visited_all
+    rts
+}
+
+.visit_fn_by_row_from_top
+{
+    ldx xend
+    ldy yend
+
+    inx
+    cpx #GLIXEL_WIDTH
+    bcc same_row
+
+    ldx #0
+    iny
+    cpy #GLIXEL_HEIGHT
+    bcc same_row
+
+    ldy #0
+    \\ Set Carry if we've reached max height of glb
+    .same_row
+    rts
+}
+
+.start_fn_static
+{
+    \\ do nothing!
+    \\ startx,starty static
+    rts
+}
+
+.start_fn_from_table
+{
+    ldx start_index
+    inx
+    stx start_index
+
+    \\ Get new startx, starty from our table
+    lda startx_table_LO, X
+    sta xstart
+    lda startx_table_HI, X
+    sta xstart+1
+    lda starty_table_LO, X
+    sta ystart
+    lda starty_table_HI, X
+    sta ystart+1
+
+    rts
+}
+
+.write_char_to_glb
+{
+    pha
+    CALCULATE_GLB_PTR
+    pla
+    jsr get_char_def
+
+    ldx #0
+    ldy #0
+    .loop
+    lda char_def+1, X
+    sta (writeptr), Y
+    clc
+    lda writeptr
+    adc #GLIXEL_STRIDE
+    sta writeptr
+    bcc no_carry
+    inc writeptr+1
+    .no_carry
+    inx
+    cpx #8
+    bcc loop
+
+    rts
+}
+
+.write_string_to_glb
+{
+    ldy #0
+    sty temp_x
+    sty temp_y
+
+    .loop
+    sty text_index
+
+    lda string, Y
+    beq done
+
+    cmp #31
+    bne not_vdu31
+
+    iny
+    lda string, Y
+    sta temp_x
+    iny
+    lda string, Y
+    sta temp_y
+    iny
+    jmp loop
+
+    .not_vdu31
+    ldx temp_x
+    ldy temp_y
+    jsr write_char_to_glb
+
+    clc
+    lda temp_x
+    adc #8
+    sta temp_x
+
+    ldy text_index
+    iny
+    jmp loop
+
+    .done
+    rts
+}
+
 .string
+EQUS "HELLOWORLD"
 EQUS 31,0,56, "CHRISTMAS"
 EQUS 31,0,48, "A MERRY"
 EQUS 31,0,40, "WISH YOU"
@@ -818,6 +1005,8 @@ EQUB %01100111
 EQUB %00000001
 EQUB %00000000
 
+.glixel_bit
+EQUB 128,64,32,16,8,4,2,1
 
 PAGE_ALIGN
 .screen_row_LO
@@ -842,6 +1031,18 @@ NEXT
 .screen_col_HI
 FOR c,0,79,1
 EQUB HI(c * 8)
+NEXT
+
+.glixel_row_LO
+FOR r,0,GLIXEL_HEIGHT-1,1
+addr = r * GLIXEL_STRIDE
+EQUB LO(glixel_buffer + addr)
+NEXT
+
+.glixel_row_HI
+FOR r,0,GLIXEL_HEIGHT-1,1
+addr = r * GLIXEL_STRIDE
+EQUB HI(glixel_buffer + addr)
 NEXT
 
 k = 3
@@ -930,6 +1131,9 @@ skip MAX_GLIXELS
 
 .lerp_count
 skip MAX_GLIXELS
+
+.glixel_buffer
+skip GLIXEL_HEIGHT * GLIXEL_STRIDE
 
 .char_def
 skip 9
