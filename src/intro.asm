@@ -287,6 +287,9 @@ GUARD screen_addr
     jsr make_exit_from_glb
     bcc continue
 
+    ; update glb
+    jsr write_string_to_glb
+
     ; reset visitor here
     lda #GLIXEL_HEIGHT-1
     sta yend
@@ -1013,16 +1016,26 @@ ENDMACRO
 
 .write_string_to_glb
 {
+    jsr clear_glb
+
     ldy #0
     sty temp_x
     sty temp_y
+
+    ldy text_index
 
     .loop
     sty text_index
 
     lda string, Y
-    beq done
+    beq restart
 
+    cmp #12
+    bne not_vdu12
+    iny
+    jmp return
+
+    .not_vdu12
     cmp #31
     bne not_vdu31
 
@@ -1049,7 +1062,11 @@ ENDMACRO
     iny
     jmp loop
 
-    .done
+    .restart
+    ldy #0
+
+    .return
+    sty text_index
     rts
 }
 
@@ -1079,12 +1096,40 @@ ENDMACRO
     rts
 }
 
+.clear_glb
+{
+    lda #HI(glixel_buffer)
+    sta loop+2
+    ldy #2
+    lda #0
+    ldx #0
+    .loop
+    sta glixel_buffer, X
+    inx
+    bne loop
+    inc loop+2
+    dey
+    bne loop
+    .loop2
+    sta glixel_buffer+&200,X
+    inx
+    cpx #&80
+    bne loop2
+    rts
+}
+
 .string
 EQUS 31,0,24, "BIT $"
 EQUS 31,0,32, "SHIFTERS"
 EQUS 31,0,40, "WISH YOU"
 EQUS 31,0,48, "A MERRY"
-EQUS 31,0,56, "CHRISTMAS"
+EQUS 31,0,56, "CHRISTMAS!"
+EQUS 12
+EQUS 31,0,24, "AND"
+EQUS 31,0,32, "A HAPPY"
+EQUS 31,0,40, "NEW YEAR!"
+EQUS 31,0,48, "SEE YOU"
+EQUS 31,0,56, "IN 2020 @@"
 EQUS 0
 
 \\ Four fixed possibilities
@@ -1133,9 +1178,9 @@ EQUB %11111110
 EQUB %10111010
 EQUB %11111110
 EQUB %10111010
-EQUB %10111010
 EQUB %11000110
 EQUB %01111100
+EQUB %00000000
 
 .quarter_def
 EQUB %00100000
