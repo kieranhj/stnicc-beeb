@@ -135,6 +135,9 @@ GUARD &A0
 .seed3          skip 1
 .direction      skip 1
 
+.old_irqv       skip 2
+.vsync_counter  skip 1
+
 .char_def
 skip 9
 
@@ -144,6 +147,35 @@ skip 9
 \ ******************************************************************
 \ *	BSS DATA IN LOWER RAM
 \ ******************************************************************
+
+ORG &400
+GUARD &D00
+PAGE_ALIGN
+.xpos_LO
+skip MAX_GLIXELS
+.xpos_HI
+skip MAX_GLIXELS
+.ypos_LO
+skip MAX_GLIXELS
+.ypos_HI
+skip MAX_GLIXELS
+
+.xdelta_LO
+skip MAX_GLIXELS
+.xdelta_HI
+skip MAX_GLIXELS
+.ydelta_LO
+skip MAX_GLIXELS
+.ydelta_HI
+skip MAX_GLIXELS
+
+.lerp_count
+skip MAX_GLIXELS
+.lerp_direction
+skip MAX_GLIXELS
+
+.glixel_buffer
+skip GLIXEL_HEIGHT * GLIXEL_STRIDE
 
 \ ******************************************************************
 \ *	CODE START
@@ -178,8 +210,14 @@ GUARD screen_addr
 	LDA #&7F					; A=01111111
 	STA &FE4E					; R14=Interrupt Enable (disable all interrupts)
 	STA &FE43					; R3=Data Direction Register "A" (set keyboard data direction)
-	LDA #&C2					; A=11000010
+	LDA #&82					; A=11000010
 	STA &FE4E					; R14=Interrupt Enable (enable main_vsync and timer interrupt)
+
+    LDA IRQ1V:STA old_irqv
+    LDA IRQ1V+1:STA old_irqv+1
+
+    LDA #LO(irq_handler):STA IRQ1V
+    LDA #HI(irq_handler):STA IRQ1V+1		; set interrupt handler
     CLI
 
     \\ Set MODE 1
@@ -262,12 +300,12 @@ GUARD screen_addr
     ; set up the glb
     jsr write_string_to_glb
 
-    lda #19
-    jsr osbyte
-
     .loop
-    lda #19
-    jsr osbyte
+
+    lda vsync_counter
+    .wait_for_vsync
+    cmp vsync_counter
+    beq wait_for_vsync
 
     SET_BGCOL PAL_red
     jsr lerp_glixels
@@ -1178,6 +1216,26 @@ ENDIF
     rts
 }
 
+.irq_handler
+{
+	lda &FC
+	pha
+
+	lda &FE4D
+	and #2
+	beq return
+
+    .handle_vsync
+    sta &FE4D       ; ack vsync
+
+    inc vsync_counter
+
+    .return
+    pla
+    sta &fc
+    rti
+}
+
 .main_end
 .data_start
 
@@ -1190,7 +1248,7 @@ EQUS 31,0,56, "CHRISTMAS!"
 EQUS 12
 EQUS 31,0,24, "AND"
 EQUS 31,0,32, "A HAPPY"
-EQUS 31,0,40, "NEW YEAR!"
+EQUS 31,0,40, "NEW@YEAR!"
 EQUS 31,0,48, "SEE YOU"
 EQUS 31,0,56, "IN 2020 ",128+8,128+8    ; smiley
 EQUS 0
@@ -1366,33 +1424,6 @@ ENDIF
 \ ******************************************************************
 
 .bss_start
-
-PAGE_ALIGN
-.xpos_LO
-skip MAX_GLIXELS
-.xpos_HI
-skip MAX_GLIXELS
-.ypos_LO
-skip MAX_GLIXELS
-.ypos_HI
-skip MAX_GLIXELS
-
-.xdelta_LO
-skip MAX_GLIXELS
-.xdelta_HI
-skip MAX_GLIXELS
-.ydelta_LO
-skip MAX_GLIXELS
-.ydelta_HI
-skip MAX_GLIXELS
-
-.lerp_count
-skip MAX_GLIXELS
-.lerp_direction
-skip MAX_GLIXELS
-
-.glixel_buffer
-skip GLIXEL_HEIGHT * GLIXEL_STRIDE
 
 .bss_end
 
