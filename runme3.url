@@ -2,5 +2,5 @@
 Prop3=19,2
 [InternetShortcut]
 IDList=
-URL=http://localhost:8000/?&model=Master&disc1=intro.ssd&autoboot
+URL=http://localhost:8000/?&disc1=intro.ssd&autoboot
 HotKey=0

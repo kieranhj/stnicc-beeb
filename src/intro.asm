@@ -132,9 +132,14 @@ GUARD &A0
 .temp_y         skip 1
 .seed           skip 1
 .seed2          skip 1
+.seed3          skip 1
 .direction      skip 1
 
+.char_def
+skip 9
+
 .zp_end
+
 
 \ ******************************************************************
 \ *	BSS DATA IN LOWER RAM
@@ -227,6 +232,7 @@ GUARD screen_addr
     bcc init_loop
 
     \\ Char defs
+    IF 0
     lda #128+'$'
     ldx #LO(flux_def)
     ldy #HI(flux_def)
@@ -241,10 +247,11 @@ GUARD screen_addr
     ldx #LO(quarter_def)
     ldy #HI(quarter_def)
     jsr def_char
+    ENDIF
 
     jsr cls
-    lda #50         ; can use this as a lazy timer
-    sta cls_active
+;    lda #50         ; can use this as a lazy timer
+;    sta cls_active
 
     ; init visitor
     lda #0
@@ -322,10 +329,25 @@ GUARD screen_addr
 .get_char_def
 {
     sta char_def
+    bmi local_chars
+
     lda #10
     ldx #LO(char_def)
     ldy #HI(char_def)
-    jsr osword
+    jmp osword
+
+    .local_chars
+    and #&7f
+    tax
+    ldy #0
+    .loop
+    lda local_char_defs, X
+    sta char_def+1, Y
+    inx
+    iny
+    cpy #8
+    bcc loop
+
     rts
 }
 
@@ -764,6 +786,7 @@ ENDMACRO
     EQUB &0A, &05
 }
 
+IF 0
 .def_char
 {
     stx loop+1
@@ -782,6 +805,7 @@ ENDMACRO
     bcc loop
     rts
 }
+ENDIF
 
 MACRO CALCULATE_GLB_PTR
 {
@@ -839,7 +863,8 @@ ENDMACRO
     beq loop                ; loop until we get a bit
 
     .^glb_start_fn
-    jsr start_fn_from_table ; sets startx, starty
+    jsr start_fn_random_on_top ; sets startx, starty
+;    jsr start_fn_from_table
     jmp make_lerp           ; make a lerp
                             ; what to do if this fails?
 
@@ -876,6 +901,7 @@ ENDMACRO
     rts
 }
 
+IF 0
 .visit_fn_by_row_from_bottom
 {
     ldx xend
@@ -895,6 +921,7 @@ ENDMACRO
     .same_row
     rts
 }
+ENDIF
 
 .visit_fn_random_up
 {
@@ -950,12 +977,14 @@ ENDMACRO
     .local_count EQUB 0
 }
 
+IF 0
 .start_fn_static
 {
     \\ do nothing!
     \\ startx,starty static
     rts
 }
+ENDIF
 
 .end_fn_random_on_right
 {
@@ -971,6 +1000,21 @@ ENDMACRO
     rts
 }
 
+.start_fn_random_on_top
+{
+    lda #0
+    sta ystart+1
+
+    .loop
+    jsr rand3
+    cmp #GLIXEL_WIDTH
+    bcs loop
+    sta xstart+1
+
+    rts
+}
+
+IF 0
 .start_fn_from_table
 {
     ldx start_index
@@ -989,6 +1033,7 @@ ENDMACRO
 
     rts
 }
+ENDIF
 
 .write_char_to_glb
 {
@@ -1098,6 +1143,19 @@ ENDMACRO
     rts
 }
 
+.rand3
+{
+    lda seed3
+    asl a
+    asl a
+    clc
+    adc seed3
+    clc
+    adc #&45
+    sta seed3
+    rts
+}
+
 .clear_glb
 {
     lda #HI(glixel_buffer)
@@ -1120,8 +1178,11 @@ ENDMACRO
     rts
 }
 
+.main_end
+.data_start
+
 .string
-EQUS 31,0,24, "BIT ",128+'$'
+EQUS 31,0,24, "BIT ",128+0  ; flux
 EQUS 31,0,32, "SHIFTERS"
 EQUS 31,0,40, "WISH YOU"
 EQUS 31,0,48, "A MERRY"
@@ -1131,7 +1192,7 @@ EQUS 31,0,24, "AND"
 EQUS 31,0,32, "A HAPPY"
 EQUS 31,0,40, "NEW YEAR!"
 EQUS 31,0,48, "SEE YOU"
-EQUS 31,0,56, "IN 2020 ",128+'@',128+'@'
+EQUS 31,0,56, "IN 2020 ",128+8,128+8    ; smiley
 EQUS 0
 
 \\ Four fixed possibilities
@@ -1164,6 +1225,7 @@ EQUB %00000000, %00000000, %11001100, %11101110
     EQUB &F0 + PAL_white
 }
 
+.local_char_defs
 .flux_def
 EQUB %00001110
 EQUB %00001110
@@ -1197,6 +1259,18 @@ EQUB %00000000
 .glixel_bit
 EQUB 128,64,32,16,8,4,2,1
 
+.glixel_row_LO
+FOR r,0,GLIXEL_HEIGHT-1,1
+addr = r * GLIXEL_STRIDE
+EQUB LO(glixel_buffer + addr)
+NEXT
+
+.glixel_row_HI
+FOR r,0,GLIXEL_HEIGHT-1,1
+addr = r * GLIXEL_STRIDE
+EQUB HI(glixel_buffer + addr)
+NEXT
+
 PAGE_ALIGN
 .screen_row_LO
 FOR y,0,255,1
@@ -1222,18 +1296,7 @@ FOR c,0,79,1
 EQUB HI(c * 8)
 NEXT
 
-.glixel_row_LO
-FOR r,0,GLIXEL_HEIGHT-1,1
-addr = r * GLIXEL_STRIDE
-EQUB LO(glixel_buffer + addr)
-NEXT
-
-.glixel_row_HI
-FOR r,0,GLIXEL_HEIGHT-1,1
-addr = r * GLIXEL_STRIDE
-EQUB HI(glixel_buffer + addr)
-NEXT
-
+IF 0
 k = 3
 
 PAGE_ALIGN
@@ -1288,6 +1351,9 @@ x = 128 + 100 * COS(k * a) * SIN(a)
 y = 0
 EQUB HI(y << 6)
 NEXT
+ENDIF
+
+.data_end
 
 \ ******************************************************************
 \ *	End address to be saved
@@ -1328,11 +1394,6 @@ skip MAX_GLIXELS
 .glixel_buffer
 skip GLIXEL_HEIGHT * GLIXEL_STRIDE
 
-.char_def
-skip 9
-
-.xpos
-
 .bss_end
 
 \ ******************************************************************
@@ -1340,3 +1401,19 @@ skip 9
 \ ******************************************************************
 
 SAVE "INTRO", start, end, main
+
+\ ******************************************************************
+\ *	Memory Info
+\ ******************************************************************
+
+PRINT "------"
+PRINT "XMAS-CARD"
+PRINT "------"
+PRINT "ZP size =", ~zp_end-zp_start, "(",~&C0-zp_end,"free)"
+PRINT "CODE size =", ~main_end-main_start
+PRINT "DATA size =",~data_end-data_start
+PRINT "BSS size =",~bss_end-bss_start
+PRINT "------"
+PRINT "HIGH WATERMARK =", ~P%
+PRINT "FREE =", ~screen_addr-P%
+PRINT "------"
