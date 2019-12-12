@@ -4,6 +4,7 @@
 \ ******************************************************************
 
 _DEBUG_RASTERS = FALSE
+_ENABLE_MUSIC = TRUE
 
 \ ******************************************************************
 \ *	OS defines
@@ -91,7 +92,7 @@ GLIXEL_WIDTH = 80
 GLIXEL_HEIGHT = 64
 GLIXEL_STRIDE = GLIXEL_WIDTH / 8
 
-MAX_VISITS_PER_FRAME = 16
+MAX_VISITS_PER_FRAME = 80
 
 \ ******************************************************************
 \ *	ZERO PAGE
@@ -137,9 +138,12 @@ GUARD &A0
 
 .old_irqv       skip 2
 .vsync_counter  skip 1
+.music_on       skip 1
 
 .char_def
 skip 9
+
+include "src/vgmplayer.h.asm"
 
 .zp_end
 
@@ -150,6 +154,20 @@ skip 9
 
 ORG &400
 GUARD &D00
+.vgm_buffer_start
+; reserve space for the vgm decode buffers (8x256 = 2Kb)
+PAGE_ALIGN
+.vgm_stream_buffers
+    skip 256
+    skip 256
+    skip 256
+    skip 256
+    skip 256
+    skip 256
+    skip 256
+    skip 256
+.vgm_buffer_end
+
 PAGE_ALIGN
 .xpos_LO
 skip MAX_GLIXELS
@@ -160,14 +178,8 @@ skip MAX_GLIXELS
 .ypos_HI
 skip MAX_GLIXELS
 
-.xdelta_LO
-skip MAX_GLIXELS
-.xdelta_HI
-skip MAX_GLIXELS
-.ydelta_LO
-skip MAX_GLIXELS
-.ydelta_HI
-skip MAX_GLIXELS
+ORG &E00
+GUARD screen_addr
 
 .lerp_count
 skip MAX_GLIXELS
@@ -176,6 +188,8 @@ skip MAX_GLIXELS
 
 .glixel_buffer
 skip GLIXEL_HEIGHT * GLIXEL_STRIDE
+.glixel_buffer_end
+PRINT ~P%
 
 \ ******************************************************************
 \ *	CODE START
@@ -238,6 +252,15 @@ GUARD screen_addr
     dex
     bpl pal_loop
 
+    ; initialize the vgm player with a vgc data stream
+    IF _ENABLE_MUSIC
+    lda #hi(vgm_stream_buffers)
+    ldx #lo(vgm_data)
+    ldy #hi(vgm_data)
+    sec
+    jsr vgm_init
+    ENDIF
+
 ;    lda startx_table_LO
     lda #LO(160 << 6)
     sta xstart
@@ -299,6 +322,9 @@ GUARD screen_addr
 
     ; set up the glb
     jsr write_string_to_glb
+
+    lda #&ff
+    sta music_on
 
     .loop
 
@@ -372,7 +398,8 @@ GUARD screen_addr
     lda #10
     ldx #LO(char_def)
     ldy #HI(char_def)
-    jmp osword
+    jsr osword
+    rts
 
     .local_chars
     and #&7f
@@ -1218,9 +1245,6 @@ ENDIF
 
 .irq_handler
 {
-	lda &FC
-	pha
-
 	lda &FE4D
 	and #2
 	beq return
@@ -1230,13 +1254,24 @@ ENDIF
 
     inc vsync_counter
 
+    IF _ENABLE_MUSIC
+    lda music_on
+    beq return
+
+    txa:pha:tya:pha
+    jsr vgm_update
+    pla:tay:pla:tax
+    ENDIF
+
     .return
-    pla
-    sta &fc
+    lda &fc
     rti
 }
 
+include "src/vgmplayer.asm"
+
 .main_end
+
 .data_start
 
 .string
@@ -1248,7 +1283,7 @@ EQUS 31,0,56, "CHRISTMAS!"
 EQUS 12
 EQUS 31,0,24, "AND"
 EQUS 31,0,32, "A HAPPY"
-EQUS 31,0,40, "NEW@YEAR!"
+EQUS 31,0,40, "NEW YEAR!"
 EQUS 31,0,48, "SEE YOU"
 EQUS 31,0,56, "IN 2020 ",128+8,128+8    ; smiley
 EQUS 0
@@ -1411,6 +1446,9 @@ EQUB HI(y << 6)
 NEXT
 ENDIF
 
+.vgm_data
+INCBIN "music/CRIMBO.vgc"
+
 .data_end
 
 \ ******************************************************************
@@ -1424,6 +1462,17 @@ ENDIF
 \ ******************************************************************
 
 .bss_start
+
+PAGE_ALIGN
+.xdelta_LO
+skip MAX_GLIXELS
+.xdelta_HI
+skip MAX_GLIXELS
+.ydelta_LO
+skip MAX_GLIXELS
+.ydelta_HI
+skip MAX_GLIXELS
+
 
 .bss_end
 
