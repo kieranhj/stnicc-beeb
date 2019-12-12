@@ -227,17 +227,17 @@ GUARD screen_addr
     bcc init_loop
 
     \\ Char defs
-    lda #'$'
+    lda #128+'$'
     ldx #LO(flux_def)
     ldy #HI(flux_def)
     jsr def_char
 
-    lda #'@'
+    lda #128+'@'
     ldx #LO(smiley_def)
     ldy #HI(smiley_def)
     jsr def_char
 
-    lda #'%'
+    lda #128+'%'
     ldx #LO(quarter_def)
     ldy #HI(quarter_def)
     jsr def_char
@@ -329,6 +329,7 @@ GUARD screen_addr
     rts
 }
 
+IF 0
 .make_lerp_from_string
 {
     lda #0
@@ -436,6 +437,7 @@ GUARD screen_addr
 
     rts
 }
+ENDIF
 
 .lerp_glixels
 {
@@ -1119,7 +1121,7 @@ ENDMACRO
 }
 
 .string
-EQUS 31,0,24, "BIT $"
+EQUS 31,0,24, "BIT ",128+'$'
 EQUS 31,0,32, "SHIFTERS"
 EQUS 31,0,40, "WISH YOU"
 EQUS 31,0,48, "A MERRY"
@@ -1129,7 +1131,7 @@ EQUS 31,0,24, "AND"
 EQUS 31,0,32, "A HAPPY"
 EQUS 31,0,40, "NEW YEAR!"
 EQUS 31,0,48, "SEE YOU"
-EQUS 31,0,56, "IN 2020 @@"
+EQUS 31,0,56, "IN 2020 ",128+'@',128+'@'
 EQUS 0
 
 \\ Four fixed possibilities
