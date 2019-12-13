@@ -118,12 +118,14 @@ GUARD &A0
 .text_index     skip 1
 .start_index    skip 1
 
+IF 0
 .char_row       skip 1
 .char_col       skip 1
 
 .char_left      skip 1
 .char_top       skip 1
 .plotted        skip 1
+ENDIF
 
 .lerps_active   skip 1
 .cls_active     skip 1
@@ -143,6 +145,8 @@ GUARD &A0
 .last_index     skip 1
 .last_vsync     skip 1
 .rounds         skip 1
+.music_loop     skip 1
+.music_waiting  skip 1
 
 .char_def
 skip 9
@@ -265,19 +269,16 @@ GUARD screen_addr
     jsr vgm_init
     ENDIF
 
-;    lda startx_table_LO
     lda #LO(160 << 6)
     sta xstart
-;    lda startx_table_HI
     lda #HI(160 << 6)
     sta xstart+1
-;    lda starty_table_LO
     lda #LO(128 << 6)
     sta ystart
-;    lda starty_table_HI
     lda #HI(128 << 6)
     sta ystart+1
 
+IF 0
     lda #0
     sta char_top
     sta char_col
@@ -287,6 +288,7 @@ GUARD screen_addr
     sta char_row
     lda #LO(-8)
     sta char_left
+ENDIF
 
     ldx #0
     lda #0
@@ -345,6 +347,20 @@ GUARD screen_addr
     jsr lerp_glixels
     SET_BGCOL PAL_black
 
+    lda music_waiting
+    beq not_waiting
+
+    lda music_loop
+    cmp vgm_loop_count
+    beq continue
+
+    lda #0
+    sta music_waiting
+
+    lda #25         ; can use this as a lazy timer
+    sta cls_active
+
+    .not_waiting
     ldy cls_active
     beq do_text
 
@@ -386,8 +402,10 @@ GUARD screen_addr
     bne continue
 
     ; every other round just wait a few frames for timing
-    lda #75
-    sta cls_active
+    lda vgm_loop_count
+    sta music_loop
+    lda #&ff
+    sta music_waiting
     bne continue
 
     .do_enter
@@ -1314,6 +1332,19 @@ EQUS 31,0,32, "A HAPPY"
 EQUS 31,0,40, "NEW YEAR!"
 EQUS 31,0,48, "SEE YOU"
 EQUS 31,0,56, "IN 2020 ",128+8,128+8    ; smiley
+EQUS 12
+EQUS 31,0,24, "BIT ",128+0  ; flux
+EQUS 31,0,32, "SHIFTERS"
+EQUS 31,0,40, "WISH YOU"
+EQUS 31,0,48, "A MERRY"
+EQUS 31,0,56, "CHRISTMAS!"
+EQUS 12
+EQUS 31,0,16, "CREDITS ",128+8    ; smiley
+EQUS 31,0,24, "CODE ", 128+0  ; flux
+EQUS 31,16,32, "kieranhj"
+EQUS 31,32,40, "Henley"
+EQUS 31,0,48, "MUSIC ", 128+0  ; flux
+EQUS 31,40,56, "Rhino"
 EQUS 0
 
 \\ Four fixed possibilities
@@ -1508,7 +1539,7 @@ skip MAX_GLIXELS
 \ *	Save the code
 \ ******************************************************************
 
-SAVE "INTRO", start, end, main
+SAVE "XMAS-19", start, end, main
 
 \ ******************************************************************
 \ *	Memory Info

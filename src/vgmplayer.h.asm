@@ -18,6 +18,8 @@ ENABLE_VGM_FX = FALSE
 ; workspace/zeropage vars
 ;-------------------------------
 
+.vgm_loop_count skip 1
+
 ; Declare where VGM player should locate its zero page vars
 ; VGM player uses:
 ;  8 zero page vars without huffman

@@ -104,6 +104,7 @@ ENDIF
     lda vgm_loop
     beq no_looping
     ; restart if looping
+    inc vgm_loop_count
     ldx vgm_source+0
     ldy vgm_source+1
     lda vgm_loop
