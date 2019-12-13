@@ -66,8 +66,8 @@ IF _DEBUG_RASTERS
 {
     LDA #&00+c:STA &FE21
     LDA #&10+c:STA &FE21
-    LDA #&30+c:STA &FE21
     LDA #&40+c:STA &FE21
+    LDA #&50+c:STA &FE21
 }
 ENDIF
 ENDMACRO
@@ -92,7 +92,7 @@ GLIXEL_WIDTH = 80
 GLIXEL_HEIGHT = 64
 GLIXEL_STRIDE = GLIXEL_WIDTH / 8
 
-MAX_VISITS_PER_FRAME = 80
+MAX_VISITS_PER_FRAME = 32
 
 \ ******************************************************************
 \ *	ZERO PAGE
@@ -139,6 +139,10 @@ GUARD &A0
 .old_irqv       skip 2
 .vsync_counter  skip 1
 .music_on       skip 1
+
+.last_index     skip 1
+.last_vsync     skip 1
+.rounds         skip 1
 
 .char_def
 skip 9
@@ -311,8 +315,8 @@ GUARD screen_addr
     ENDIF
 
     jsr cls
-;    lda #50         ; can use this as a lazy timer
-;    sta cls_active
+    lda #25         ; can use this as a lazy timer
+    sta cls_active
 
     ; init visitor
     lda #0
@@ -328,10 +332,14 @@ GUARD screen_addr
 
     .loop
 
-    lda vsync_counter
+    ; don't wait for vsync if we missed it!
+    lda last_vsync
     .wait_for_vsync
     cmp vsync_counter
     beq wait_for_vsync
+
+    lda vsync_counter
+    sta last_vsync
 
     SET_BGCOL PAL_red
     jsr lerp_glixels
@@ -344,7 +352,8 @@ GUARD screen_addr
     lda lerps_active
     bne continue
 
-    jsr wipe_line_Y
+; Don't actually wipe, we're just a delay now
+;   jsr wipe_line_Y
     dec cls_active
     bne continue
 
@@ -365,9 +374,21 @@ GUARD screen_addr
     lda #GLIXEL_HEIGHT-1
     sta yend
 
+    ; start enter
     lda #0
     sta direction
-    beq continue
+
+    ; we did a round of enter & exit
+    inc rounds
+
+    lda rounds
+    and #1
+    bne continue
+
+    ; every other round just wait a few frames for timing
+    lda #75
+    sta cls_active
+    bne continue
 
     .do_enter
     jsr make_lerp_from_glb
@@ -379,6 +400,7 @@ GUARD screen_addr
     sta ystart
     sta ystart+1
 
+    ; start exit
     lda #1
     sta direction
 
@@ -719,14 +741,20 @@ ENDIF
 .get_next_slot
 {
     clc
-    ldx #0
+    lda #MAX_GLIXELS
+    sta visit_count
+    ldx last_index
+    inx
+    txa:and #MAX_GLIXELS-1:tax
     .loop
     lda lerp_count, X
     beq return
     inx
-    cpx #MAX_GLIXELS
-    bcc loop
+    txa:and #MAX_GLIXELS-1:tax
+    dec visit_count
+    bne loop
     .return
+    stx last_index
     rts
 }
 
@@ -1281,7 +1309,7 @@ EQUS 31,0,40, "WISH YOU"
 EQUS 31,0,48, "A MERRY"
 EQUS 31,0,56, "CHRISTMAS!"
 EQUS 12
-EQUS 31,0,24, "AND"
+EQUS 31,0,24, "AND ",128+0  ; flux
 EQUS 31,0,32, "A HAPPY"
 EQUS 31,0,40, "NEW YEAR!"
 EQUS 31,0,48, "SEE YOU"
