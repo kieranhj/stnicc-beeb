@@ -3,7 +3,7 @@
 \ *	STNICC BEEB INTRO
 \ ******************************************************************
 
-_DEBUG_RASTERS = FALSE
+_DEBUG_RASTERS = TRUE
 _ENABLE_MUSIC = TRUE
 
 \ ******************************************************************
@@ -139,6 +139,11 @@ GUARD &A0
 .rounds         skip 1
 .music_loop     skip 1
 .music_waiting  skip 1
+
+.xd_LO          skip 1
+.xd_HI          skip 1
+.yd_LO          skip 1
+.yd_HI          skip 1
 
 .char_def
 skip 9
@@ -481,156 +486,6 @@ GUARD screen_addr
     rts
 }
 
-.plot_glixel_X              ; X is trashed
-{
-    lda ypos_HI, X
-    sta plot_y
-
-    lda ypos_LO, X
-    asl a                   ; top 2-bits
-    rol plot_y
-    asl a
-    rol plot_y
-
-    ldy plot_y
-
-    lda xpos_HI, X
-    sta load_col+1          ; column
-
-    lda xpos_LO, X
-    lsr a:lsr a:lsr a
-    lsr a:lsr a:lsr a       ; top 2-bits
-
-    .load_col
-    ldx #0
-    jsr plot_glixel_eor
-    rts
-}
-
-\\ From xstart, ystart
-\\ To xend, yend
-.make_lerp
-{
-    jsr get_next_slot
-    bcc found_slot
-    rts
-
-    .found_slot
-    lda xstart
-    sta xpos_LO, X
-    lda xstart+1
-    sta xpos_HI, X
-
-    lda ystart
-    sta ypos_LO, X
-    lda ystart+1
-    sta ypos_HI, X
-
-    \\ Calculate xend - xstart
-    sec
-    lda #0          ; xend_LO
-    sbc xstart
-    sta xdelta_LO, X
-    lda xend
-    sbc xstart+1
-    sta xdelta_HI, X
-
-    \\ Calculate yend - ystart
-    sec
-    lda #0          ; yend_LO
-    sbc ystart
-    sta ydelta_LO, X
-    lda yend
-    sbc ystart+1
-    sta ydelta_HI, X
-
-    \\ NEED EXTRA BIT FOR SIGN!
-    \\ NEED TO KEEP SIGN!
-
-    \\ Now divide by our number of frames.
-    \\ Should do this entirely in ZP.
-    lda xdelta_HI, X
-    cmp #&80
-    ror xdelta_HI, X
-    ror xdelta_LO, X
-    cmp #&80
-    ror xdelta_HI, X
-    ror xdelta_LO, X
-    cmp #&80
-    ror xdelta_HI, X
-    ror xdelta_LO, X
-    cmp #&80
-    ror xdelta_HI, X
-    ror xdelta_LO, X
-    cmp #&80
-    ror xdelta_HI, X
-    ror xdelta_LO, X
-    cmp #&80
-    ror xdelta_HI, X
-    ror xdelta_LO, X
-
-    lda ydelta_HI, X
-    cmp #&80
-    ror ydelta_HI, X
-    ror ydelta_LO, X    
-    cmp #&80
-    ror ydelta_HI, X
-    ror ydelta_LO, X    
-    cmp #&80
-    ror ydelta_HI, X
-    ror ydelta_LO, X    
-    cmp #&80
-    ror ydelta_HI, X
-    ror ydelta_LO, X    
-    cmp #&80
-    ror ydelta_HI, X
-    ror ydelta_LO, X    
-    cmp #&80
-    ror ydelta_HI, X
-    ror ydelta_LO, X    
-
-    lda #LERP_FRAMES
-    sta lerp_count, X
-
-    lda direction
-    sta lerp_direction, X
-    bne return
-
-    \\ Plot it to begin with
-    jsr plot_glixel_X
-
-    .return
-    clc
-    rts
-}
-
-.get_next_slot
-{
-    ldx last_index
-    inx
-    cpx #MAX_GLIXELS
-    bcc no_carry
-    clc
-    ldx #0
-    .no_carry
-    lda lerp_count, X
-    beq return
-
-    \\ This should actually never be required as we have 64 slots
-    \\ we create lerps one per frame that last for 64 frames.
-    ldx #0
-    .loop
-    lda lerp_count, X
-    beq return
-    inx
-    cpx #MAX_GLIXELS
-    bcc loop
-
-    .return
-    stx last_index
-    rts
-}
-
 MACRO MOVE_ROW
 {
     lda writeptr
@@ -651,6 +506,32 @@ MACRO MOVE_ROW
     .cont
 }
 ENDMACRO
+
+.plot_glixel_X              ; X is trashed
+{
+    lda ypos_HI, X
+    sta plot_y
+
+    lda ypos_LO, X
+    asl a                   ; top 2-bits
+    rol plot_y
+    asl a
+    rol plot_y
+
+    lda xpos_HI, X
+    sta load_col+1          ; column
+
+    ldy xpos_LO, X
+    lda div_64, Y
+
+    ldy plot_y
+
+    .load_col
+    ldx #0
+;    jsr plot_glixel_eor
+;    rts
+}
+\\ Fall through!!
 
 ; X=column [0-79], A=pixel offset [0-3], Y=row [0-255]
 .plot_glixel_eor
@@ -712,7 +593,144 @@ ENDMACRO
     eor glixel_byte1, X
     sta (writeptr), Y
 
-    .done
+    rts
+}
+
+\\ From xstart, ystart
+\\ To xend, yend
+.make_lerp
+{
+    jsr get_next_slot
+    bcc found_slot
+    rts
+
+    .found_slot
+    lda xstart
+    sta xpos_LO, X
+    lda xstart+1
+    sta xpos_HI, X
+
+    lda ystart
+    sta ypos_LO, X
+    lda ystart+1
+    sta ypos_HI, X
+
+    \\ Calculate xend - xstart
+    sec
+    lda #0          ; xend_LO
+    sbc xstart
+;    sta xdelta_LO, X
+    sta xd_LO
+    lda xend
+    sbc xstart+1
+    sta xd_HI
+;    sta xdelta_HI, X
+
+    \\ Calculate yend - ystart
+    sec
+    lda #0          ; yend_LO
+    sbc ystart
+    sta yd_LO
+;    sta ydelta_LO, X
+    lda yend
+    sbc ystart+1
+    sta yd_HI
+;    sta ydelta_HI, X
+
+    \\ NEED EXTRA BIT FOR SIGN!
+    \\ NEED TO KEEP SIGN!
+
+    \\ Now divide by our number of frames.
+    \\ Should do this entirely in ZP.
+
+    lda xd_HI
+    cmp #&80
+    ror xd_HI
+    ror xd_LO
+    cmp #&80
+    ror xd_HI
+    ror xd_LO
+    cmp #&80
+    ror xd_HI
+    ror xd_LO
+    cmp #&80
+    ror xd_HI
+    ror xd_LO
+    cmp #&80
+    ror xd_HI
+    ror xd_LO
+    cmp #&80
+    ror xd_HI
+    ror xd_LO
+
+    lda yd_HI
+    cmp #&80
+    ror yd_HI
+    ror yd_LO
+    cmp #&80
+    ror yd_HI
+    ror yd_LO
+    cmp #&80
+    ror yd_HI
+    ror yd_LO
+    cmp #&80
+    ror yd_HI
+    ror yd_LO
+    cmp #&80
+    ror yd_HI
+    ror yd_LO
+    cmp #&80
+    ror yd_HI
+    ror yd_LO
+
+    lda xd_LO
+    sta xdelta_LO, X
+    lda xd_HI
+    sta xdelta_HI, X
+    lda yd_LO
+    sta ydelta_LO, X
+    lda yd_HI
+    sta ydelta_HI, X
+
+    lda #LERP_FRAMES
+    sta lerp_count, X
+
+    lda direction
+    sta lerp_direction, X
+    bne return
+
+    \\ Plot it to begin with
+    jsr plot_glixel_X
+
+    .return
+    clc
+    rts
+}
+
+.get_next_slot
+{
+    ldx last_index
+    inx
+    cpx #MAX_GLIXELS
+    bcc no_carry
+    clc
+    ldx #0
+    .no_carry
+    lda lerp_count, X
+    beq return
+
+    \\ This should actually never be required as we have 64 slots
+    \\ we create lerps one per frame that last for 64 frames.
+    ldx #0
+    .loop
+    lda lerp_count, X
+    beq return
+    inx
+    cpx #MAX_GLIXELS
+    bcc loop
+
+    .return
+    stx last_index
     rts
 }
 
@@ -1186,11 +1204,15 @@ EQUS 0
 \\ X=1 => 0ppp
 \\ X=2 => 00pp p000
 \\ X=3 => 000p pp00
+PAGE_ALIGN_FOR_SIZE 4
 .glixel_byte0
 EQUB %11101110, %01110111, %00110011, %00010001
+
+PAGE_ALIGN_FOR_SIZE 4
 .glixel_byte1
 EQUB %00000000, %00000000, %11001100, %11101110
 
+PAGE_ALIGN_FOR_SIZE 16
 .palette
 {
     EQUB &00 + PAL_black
@@ -1211,6 +1233,7 @@ EQUB %00000000, %00000000, %11001100, %11101110
     EQUB &F0 + PAL_white
 }
 
+PAGE_ALIGN_FOR_SIZE 24
 .local_char_defs
 .flux_def
 EQUB %00001110
@@ -1242,15 +1265,18 @@ EQUB %01100111
 EQUB %00000001
 EQUB %00000000
 
+PAGE_ALIGN_FOR_SIZE 8
 .glixel_bit
 EQUB 128,64,32,16,8,4,2,1
 
+PAGE_ALIGN_FOR_SIZE GLIXEL_HEIGHT
 .glixel_row_LO
 FOR r,0,GLIXEL_HEIGHT-1,1
 addr = r * GLIXEL_STRIDE
 EQUB LO(glixel_buffer + addr)
 NEXT
 
+PAGE_ALIGN_FOR_SIZE GLIXEL_HEIGHT
 .glixel_row_HI
 FOR r,0,GLIXEL_HEIGHT-1,1
 addr = r * GLIXEL_STRIDE
@@ -1265,6 +1291,7 @@ addr = row * SCREEN_ROW_BYTES + sl
 EQUB LO(screen_addr + addr)
 NEXT
 
+PAGE_ALIGN
 .screen_row_HI
 FOR y,0,255,1
 row=y DIV 8:sl=y MOD 8
@@ -1272,11 +1299,19 @@ addr = row * SCREEN_ROW_BYTES + sl
 EQUB HI(screen_addr + addr)
 NEXT
 
+PAGE_ALIGN
+.div_64
+FOR n,0,255,1
+EQUB n >> 6
+NEXT
+
+PAGE_ALIGN_FOR_SIZE 80
 .screen_col_LO
 FOR c,0,79,1
 EQUB LO(c * 8)
 NEXT
 
+PAGE_ALIGN_FOR_SIZE 80
 .screen_col_HI
 FOR c,0,79,1
 EQUB HI(c * 8)
