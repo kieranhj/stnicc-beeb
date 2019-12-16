@@ -249,6 +249,7 @@ GUARD screen_addr
     lda #1
     jsr oswrch
 
+    \\ No interlace
     lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
 
     \\ Set pal
@@ -269,6 +270,7 @@ GUARD screen_addr
     jsr vgm_init
     ENDIF
 
+    ; initialise lerp vars
     lda #LO(160 << 6)
     sta xstart
     lda #HI(160 << 6)
@@ -278,18 +280,6 @@ GUARD screen_addr
     lda #HI(128 << 6)
     sta ystart+1
 
-IF 0
-    lda #0
-    sta char_top
-    sta char_col
-    sta char_def+8
-    sta char_def+1
-    lda #0
-    sta char_row
-    lda #LO(-8)
-    sta char_left
-ENDIF
-
     ldx #0
     lda #0
     .init_loop
@@ -298,25 +288,9 @@ ENDIF
     cpx #MAX_GLIXELS
     bcc init_loop
 
-    \\ Char defs
-    IF 0
-    lda #128+'$'
-    ldx #LO(flux_def)
-    ldy #HI(flux_def)
-    jsr def_char
-
-    lda #128+'@'
-    ldx #LO(smiley_def)
-    ldy #HI(smiley_def)
-    jsr def_char
-
-    lda #128+'%'
-    ldx #LO(quarter_def)
-    ldy #HI(quarter_def)
-    jsr def_char
-    ENDIF
-
+    ; clear screen to pattern
     jsr cls
+
     lda #25         ; can use this as a lazy timer
     sta cls_active
 
@@ -455,116 +429,6 @@ ENDIF
 
     rts
 }
-
-IF 0
-.make_lerp_from_string
-{
-    lda #0
-    sta plotted
-
-    ldx char_row
-    .loop
-    lda char_def+1, X
-    beq next_char_row
-
-    \\ Pop the top bit
-    asl a
-    sta char_def+1, X
-    bcc no_glixel
-
-    \\ Make a glixel to lerp
-    jsr make_lerp
-    lda #&ff
-    sta plotted
-    ldx char_row
-
-    .no_glixel
-    \\ Next x-coord
-    inc xend
-
-    \\ Column count
-    dec char_col
-    bne next_char_col
-
-    \\ Next char row
-    .next_char_row
-    lda #8
-    sta char_col
-
-    \\ Reset to lhs of char
-    lda char_left
-    sta xend
-
-    \\ Next y down
-    dec yend
-
-    \\ Have we done all rows?
-    dex
-    cpx #0
-    bpl next_char_col
-
-    \\ Move x across one char
-    clc
-    lda char_left
-    adc #8
-    sta char_left
-
-    \\ Next character from string
-    ldy text_index
-    .string_loop
-    lda string, y
-
-    \\ Handle special chars
-    bne not_eos
-    ldy #0
-    beq string_loop
-
-    .not_eos
-    cmp #31     ; VDU 31 = tab cursor
-    bne not_vdu31
-
-    \\ VDU 31,x,y
-    iny
-    lda string, y
-    sta char_left
-    iny
-    lda string, y
-    sta char_top
-    iny
-    bne string_loop
-    .not_vdu31
-    cmp #12     ; VDU 12 = cls
-    bne not_vdu12
-
-    lda #&ff
-    sta cls_active
-    sta plotted
-    iny
-    bne string_loop
-
-    .not_vdu12
-    iny
-    sty text_index
-    jsr get_char_def
-
-    \\ Put x,y to start of char plot
-    lda char_left
-    sta xend
-    lda char_top
-    sta yend
-
-    ldx #7
-
-    \\ LOOP UNTIL THERE IS A GLIXEL
-    .next_char_col
-    stx char_row
-
-    lda plotted
-    beq loop
-
-    rts
-}
-ENDIF
 
 .lerp_glixels
 {
@@ -738,19 +602,6 @@ ENDIF
     \\ Plot it to begin with
     jsr plot_glixel_X
 
-IF 0
-    inc start_index
-    ldx start_index
-    lda startx_table_LO, X
-    sta xstart
-    lda startx_table_HI, X
-    sta xstart+1
-    lda starty_table_LO, X
-    sta ystart
-    lda starty_table_HI, X
-    sta ystart+1
-ENDIF
-
     .return
     clc
     rts
@@ -896,27 +747,6 @@ ENDMACRO
     .stipple
     EQUB &0A, &05
 }
-
-IF 0
-.def_char
-{
-    stx loop+1
-    sty loop+2
-    pha
-    lda #23
-    jsr oswrch
-    pla
-    jsr oswrch
-    ldx #0
-    .loop
-    lda &ffff, X
-    jsr oswrch
-    inx
-    cpx #8
-    bcc loop
-    rts
-}
-ENDIF
 
 MACRO CALCULATE_GLB_PTR
 {
@@ -1447,63 +1277,6 @@ NEXT
 FOR c,0,79,1
 EQUB HI(c * 8)
 NEXT
-
-IF 0
-k = 3
-
-PAGE_ALIGN
-.startx_table_LO
-FOR n,0,255,1
-;a = 160 + 48 * SIN(n * 2 * PI / 256)
-;EQUB LO(a << 6)
-
-\\ Rose: x = cos(ka) * cos(a)
-;a = n *  4 * PI / 256
-;x = 160 + 100 * COS(k * a) * COS(a)
-;a = n *  2 * PI / 256
-;x = 160 + 150 * COS(a)
-x = RND(320)
-EQUB LO(x << 6)
-NEXT
-
-.startx_table_HI
-FOR n,0,255,1
-;a = 160 + 48 * SIN(n * 2 * PI / 256)
-;EQUB HI(a << 6)
-
-\\ Rose: x = cos(ka) * cos(a)
-;a = n *  4 * PI / 256
-;x = 160 + 100 * COS(k * a) * COS(a)
-;a = n *  2 * PI / 256
-;x = 160 + 150 * COS(a)
-x = RND(320)
-EQUB HI(x << 6)
-NEXT
-
-.starty_table_LO
-FOR n,0,255,1
-;a = 128 + 48 * COS(n * 2 * PI / 256)
-;EQUB LO(a << 6)
-
-\\ Rose: y = cos(ka) * sin(a)
-a = n *  4 * PI / 256
-x = 128 + 100 * COS(k * a) * SIN(a)
-y = 0
-EQUB LO(y << 6)
-NEXT
-
-.starty_table_HI
-FOR n,0,255,1
-;a = 128 + 48 * COS(n * 2 * PI / 256)
-;EQUB HI(a << 6)
-
-\\ Rose: y = cos(ka) * sin(a)
-a = n *  4 * PI / 256
-x = 128 + 100 * COS(k * a) * SIN(a)
-y = 0
-EQUB HI(y << 6)
-NEXT
-ENDIF
 
 .vgm_data
 INCBIN "music/CRIMBO.vgc"
