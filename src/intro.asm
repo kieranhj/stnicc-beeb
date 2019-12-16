@@ -94,6 +94,13 @@ GLIXEL_STRIDE = GLIXEL_WIDTH / 8
 
 MAX_VISITS_PER_FRAME = 32
 
+; Exact time for a 50Hz frame less latch load time
+FramePeriod = 312*64-2
+
+; This is when we trigger the next frame draw during the frame
+; Essentially how much time we give the main loop to stream the next track
+TimerValue = 160*64 - 2*64
+
 \ ******************************************************************
 \ *	ZERO PAGE
 \ ******************************************************************
@@ -229,7 +236,7 @@ GUARD screen_addr
 	LDA #&7F					; A=01111111
 	STA &FE4E					; R14=Interrupt Enable (disable all interrupts)
 	STA &FE43					; R3=Data Direction Register "A" (set keyboard data direction)
-	LDA #&82					; A=11000010
+	LDA #&C0					; A=11000010
 	STA &FE4E					; R14=Interrupt Enable (enable main_vsync and timer interrupt)
 
     LDA IRQ1V:STA old_irqv
@@ -248,6 +255,23 @@ GUARD screen_addr
 
     \\ No interlace
     lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
+
+	{
+		lda #2
+		.vsync1
+		bit &FE4D
+		beq vsync1 \ wait for vsync
+	}
+
+	\\ Close enough for our purposes
+	; Write T1 low now (the timer will not be written until you write the high byte)
+    LDA #LO(TimerValue):STA &FE44
+    ; Get high byte ready so we can write it as quickly as possible at the right moment
+    LDX #HI(TimerValue):STX &FE45             		; start T1 counting		; 4c +1/2c 
+
+  	; Latch T1 to interupt exactly every 50Hz frame
+	LDA #LO(FramePeriod):STA &FE46
+	LDA #HI(FramePeriod):STA &FE47
 
     \\ Set pal
 
@@ -509,34 +533,29 @@ ENDMACRO
 
 .plot_glixel_X              ; X is trashed
 {
-    lda ypos_HI, X
-    sta plot_y
+    \\ Pixel offset [0-3]
+    ldy xpos_LO, X          ; 4c
+    lda div_64, Y           ; 4c
+    sta plot_x_offset       ; 3c
 
-    lda ypos_LO, X
-    asl a                   ; top 2-bits
-    rol plot_y
-    asl a
-    rol plot_y
+    \\ Y=scanline [0-255]
+    lda ypos_LO, X          ; 4c
+    sta plot_y              ; 3c
 
-    lda xpos_HI, X
-    sta load_col+1          ; column
+    lda ypos_HI, X          ; 4c
 
-    ldy xpos_LO, X
-    lda div_64, Y
+    ; top 2-bits from ypos_LO
+    asl plot_y              ; 5c
+    rol a                   ; 2c
+    asl plot_y              ; 5c
+    rol a                   ; 2c
+    tay                     ; 2c
 
-    ldy plot_y
+    \\ X=column [0-79]
+    lda xpos_HI, X          ; 4c
+    tax                     ; 2c
 
-    .load_col
-    ldx #0
-;    jsr plot_glixel_eor
-;    rts
-}
-\\ Fall through!!
-
-; X=column [0-79], A=pixel offset [0-3], Y=row [0-255]
-.plot_glixel_eor
-{
-    sta plot_x_offset
+    ; X=column [0-79], Y=scanline [0-255]
 
     clc
     lda screen_row_LO, Y
@@ -545,7 +564,9 @@ ENDMACRO
     lda screen_row_HI, Y
     adc screen_col_HI, X
     sta writeptr+1
+}
 
+{
     ldy #0
     ldx plot_x_offset
     cpx #2
@@ -1144,7 +1165,7 @@ ENDIF
 .irq_handler
 {
 	lda &FE4D
-	and #2
+	and #&40
 	beq return
 
     .handle_vsync
