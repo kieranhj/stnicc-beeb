@@ -118,15 +118,6 @@ GUARD &A0
 .text_index     skip 1
 .start_index    skip 1
 
-IF 0
-.char_row       skip 1
-.char_col       skip 1
-
-.char_left      skip 1
-.char_top       skip 1
-.plotted        skip 1
-ENDIF
-
 .lerps_active   skip 1
 .cls_active     skip 1
 
@@ -140,6 +131,7 @@ ENDIF
 
 .old_irqv       skip 2
 .vsync_counter  skip 1
+.vsync_misses   skip 1
 .music_on       skip 1
 
 .last_index     skip 1
@@ -310,6 +302,11 @@ GUARD screen_addr
 
     ; don't wait for vsync if we missed it!
     lda last_vsync
+    cmp vsync_counter
+    beq wait_for_vsync
+
+    inc vsync_misses
+
     .wait_for_vsync
     cmp vsync_counter
     beq wait_for_vsync
@@ -609,19 +606,26 @@ GUARD screen_addr
 
 .get_next_slot
 {
-    clc
-    lda #MAX_GLIXELS
-    sta visit_count
     ldx last_index
     inx
-    txa:and #MAX_GLIXELS-1:tax
+    cpx #MAX_GLIXELS
+    bcc no_carry
+    clc
+    ldx #0
+    .no_carry
+    lda lerp_count, X
+    beq return
+
+    \\ This should actually never be required as we have 64 slots
+    \\ we create lerps one per frame that last for 64 frames.
+    ldx #0
     .loop
     lda lerp_count, X
     beq return
     inx
-    txa:and #MAX_GLIXELS-1:tax
-    dec visit_count
-    bne loop
+    cpx #MAX_GLIXELS
+    bcc loop
+
     .return
     stx last_index
     rts
