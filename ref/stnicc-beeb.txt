@@ -335,3 +335,8 @@ Removing the initial buffer fill from the timing helps as well!
 Master@HQ = &712A = 3.11 fps!
 Master@LQ = &4702 = 4.95 fps!
 _DEBUG=FALSE saves another 50 vsyncs!
+
+Skipping odd numbered frames...
+Master@HQ = &3FEF = 5.50 fps!
+Master@MQ = &2E3E = 7.60 fps!
+Master@LQ = &2B0A = 8.17 fps!
