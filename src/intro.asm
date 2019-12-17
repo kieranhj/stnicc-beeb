@@ -152,6 +152,9 @@ GUARD &A0
 .yd_LO          skip 1
 .yd_HI          skip 1
 
+.save_x_offset  skip 1
+.saveptr        skip 2
+
 .char_def
 skip 9
 
@@ -470,7 +473,7 @@ GUARD screen_addr
     inc lerps_active
 
     \\ Remove
-    jsr plot_glixel_X
+    jsr save_glixel_X
     ldx loop_index
 
     \\ Move
@@ -490,13 +493,18 @@ GUARD screen_addr
     adc ydelta_HI, X
     sta ypos_HI, X
 
+    \\ Plot old
+
+    jsr plot_saved_glixel
+    ldx loop_index
+
     dec lerp_count, X
     bne plot_it
 
     lda lerp_direction, X
     bne next_lerp
 
-    \\ Plot it
+    \\ Plot new
     .plot_it
     jsr plot_glixel_X
 
@@ -510,26 +518,114 @@ GUARD screen_addr
     rts
 }
 
-MACRO MOVE_ROW
+MACRO MOVE_ROW ptr
 {
-    lda writeptr
+    lda ptr
     and #7
     cmp #7
     beq next_row
-    inc writeptr
+    inc ptr
     bne cont 
 
     .next_row
     clc
-    lda writeptr
+    lda ptr
     adc #LO(SCREEN_ROW_BYTES-7)
-    sta writeptr
-    lda writeptr+1
+    sta ptr
+    lda ptr+1
     adc #HI(SCREEN_ROW_BYTES-7)
-    sta writeptr+1
+    sta ptr+1
     .cont
 }
 ENDMACRO
+
+.save_glixel_X
+{
+    \\ Pixel offset [0-3]
+    ldy xpos_LO, X          ; 4c
+    lda div_64, Y           ; 4c
+    sta save_x_offset       ; 3c
+
+    \\ Y=scanline [0-255]
+    lda ypos_LO, X          ; 4c
+    sta plot_y              ; 3c
+
+    lda ypos_HI, X          ; 4c
+
+    ; top 2-bits from ypos_LO
+    asl plot_y              ; 5c
+    rol a                   ; 2c
+    asl plot_y              ; 5c
+    rol a                   ; 2c
+    tay                     ; 2c
+
+    \\ X=column [0-79]
+    lda xpos_HI, X          ; 4c
+    tax                     ; 2c
+
+    ; X=column [0-79], Y=scanline [0-255]
+
+    clc
+    lda screen_row_LO, Y
+    adc screen_col_LO, X
+    sta saveptr
+    lda screen_row_HI, Y
+    adc screen_col_HI, X
+    sta saveptr+1
+    rts
+}
+
+.plot_saved_glixel
+{
+    ldx save_x_offset
+    ldy #0
+    cpx #2
+    bcs two_bytes
+
+    \\ One byte
+    lda (saveptr), Y
+    eor glixel_byte0, X
+    sta (saveptr), Y
+    MOVE_ROW saveptr
+    lda (saveptr), Y
+    eor glixel_byte0, X
+    sta (saveptr), Y
+    MOVE_ROW saveptr
+    lda (saveptr), Y
+    eor glixel_byte0, X
+    sta (saveptr), Y
+    rts
+
+    \\ Two bytes
+    .two_bytes
+    lda (saveptr), Y
+    eor glixel_byte0, X
+    sta (saveptr), Y
+    ldy #8
+    lda (saveptr), Y
+    eor glixel_byte1, X
+    sta (saveptr), Y
+    MOVE_ROW saveptr
+    ldy #0
+    lda (saveptr), Y
+    eor glixel_byte0, X
+    sta (saveptr), Y
+    ldy #8
+    lda (saveptr), Y
+    eor glixel_byte1, X
+    sta (saveptr), Y
+    MOVE_ROW saveptr
+    ldy #0
+    lda (saveptr), Y
+    eor glixel_byte0, X
+    sta (saveptr), Y
+    ldy #8
+    lda (saveptr), Y
+    eor glixel_byte1, X
+    sta (saveptr), Y
+
+    rts
+}
 
 .plot_glixel_X              ; X is trashed
 {
@@ -564,11 +660,9 @@ ENDMACRO
     lda screen_row_HI, Y
     adc screen_col_HI, X
     sta writeptr+1
-}
 
-{
-    ldy #0
     ldx plot_x_offset
+    ldy #0
     cpx #2
     bcs two_bytes
 
@@ -576,11 +670,11 @@ ENDMACRO
     lda (writeptr), Y
     eor glixel_byte0, X
     sta (writeptr), Y
-    MOVE_ROW
+    MOVE_ROW writeptr
     lda (writeptr), Y
     eor glixel_byte0, X
     sta (writeptr), Y
-    MOVE_ROW
+    MOVE_ROW writeptr
     lda (writeptr), Y
     eor glixel_byte0, X
     sta (writeptr), Y
@@ -595,7 +689,7 @@ ENDMACRO
     lda (writeptr), Y
     eor glixel_byte1, X
     sta (writeptr), Y
-    MOVE_ROW
+    MOVE_ROW writeptr
     ldy #0
     lda (writeptr), Y
     eor glixel_byte0, X
@@ -604,7 +698,7 @@ ENDMACRO
     lda (writeptr), Y
     eor glixel_byte1, X
     sta (writeptr), Y
-    MOVE_ROW
+    MOVE_ROW writeptr
     ldy #0
     lda (writeptr), Y
     eor glixel_byte0, X
@@ -613,6 +707,116 @@ ENDMACRO
     lda (writeptr), Y
     eor glixel_byte1, X
     sta (writeptr), Y
+
+    rts
+}
+
+.plot_both
+{
+    \\ Pixel offset [0-3]
+    ldy xpos_LO, X          ; 4c
+    lda div_64, Y           ; 4c
+    sta plot_x_offset       ; 3c
+
+    \\ Y=scanline [0-255]
+    lda ypos_LO, X          ; 4c
+    sta plot_y              ; 3c
+
+    lda ypos_HI, X          ; 4c
+
+    ; top 2-bits from ypos_LO
+    asl plot_y              ; 5c
+    rol a                   ; 2c
+    asl plot_y              ; 5c
+    rol a                   ; 2c
+    tay                     ; 2c
+
+    \\ X=column [0-79]
+    lda xpos_HI, X          ; 4c
+    tax                     ; 2c
+
+    ; X=column [0-79], Y=scanline [0-255]
+
+    clc
+    lda screen_row_LO, Y
+    adc screen_col_LO, X
+    sta writeptr
+    lda screen_row_HI, Y
+    adc screen_col_HI, X
+    sta writeptr+1
+
+    \\ Two bytes
+    ldy #0
+    lda (writeptr), Y
+    ldx plot_x_offset
+    eor glixel_byte0, X
+    sta (writeptr), Y
+
+    lda (saveptr), Y
+    ldx save_x_offset
+    eor glixel_byte0, X
+    sta (saveptr), Y
+
+    ldy #8
+    lda (saveptr), Y
+    eor glixel_byte1, X
+    sta (saveptr), Y
+
+    lda (writeptr), Y
+    ldx plot_x_offset
+    eor glixel_byte1, X
+    sta (writeptr), Y
+
+    MOVE_ROW writeptr
+    MOVE_ROW saveptr
+
+    ldy #0
+    lda (writeptr), Y
+    eor glixel_byte0, X
+    sta (writeptr), Y
+
+    lda (saveptr), Y
+    ldx save_x_offset
+    eor glixel_byte0, X
+    sta (saveptr), Y
+
+    ldy #8
+    lda (saveptr), Y
+    eor glixel_byte1, X
+    sta (saveptr), Y
+
+    lda (writeptr), Y
+    ldx plot_x_offset
+    eor glixel_byte1, X
+    sta (writeptr), Y
+
+    MOVE_ROW writeptr
+    MOVE_ROW saveptr
+
+    ldy #0
+    lda (writeptr), Y
+    eor glixel_byte0, X
+    sta (writeptr), Y
+
+    lda (saveptr), Y
+    ldx save_x_offset
+    eor glixel_byte0, X
+    sta (saveptr), Y
+
+    ldy #8
+    lda (saveptr), Y
+    eor glixel_byte1, X
+    sta (saveptr), Y
+
+    lda (writeptr), Y
+    ldx plot_x_offset
+    eor glixel_byte1, X
+    sta (writeptr), Y
+
+    \\ INTERLEAVE THIS.
+    \\ THEN LOOP IT.
+    \\ THEN SMC IT.
+    \\ THEN WHAT? ZP?
 
     rts
 }
