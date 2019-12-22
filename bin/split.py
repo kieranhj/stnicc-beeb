@@ -4,7 +4,7 @@ import sys
 
 TRACK_SIZE = 10 * 256
 SPLIT_SIZE = 79 * TRACK_SIZE
-FIRST_SIZE = 20 * TRACK_SIZE
+FIRST_SIZE = 50 * TRACK_SIZE
 
 if __name__ == '__main__':
 

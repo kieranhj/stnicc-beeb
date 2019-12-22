@@ -55,7 +55,7 @@ DFS_sector_size = 256
 DFS_sectors_per_track = 10
 DFS_track_size = (DFS_sectors_per_track * DFS_sector_size)
 
-DISK1_first_track = 60      ; 20 tracks on first disc
+DISK1_first_track = 30      ; 50 tracks on first disc
 
 exe_size = 3 * EXE_SIZE + NULA_SIZE     ; +SWRAM size
 PRINT "EXE size = ",~exe_size
