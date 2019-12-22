@@ -1,7 +1,9 @@
 # Parse STNICC
 
-import sys
+import argparse
 import binascii
+import sys
+import os
 
 FLAG_CLEAR_SCREEN = 0x01
 FLAG_CONTAINS_PALETTE = 0x02
@@ -10,6 +12,20 @@ FLAG_INDEXED_DATA = 0x4
 POLY_DESC_END_OF_STREAM = 0xFD
 POLY_DESC_SKIP_TO_64K = 0xFE
 POLY_DESC_END_OF_FRAME = 0xFF
+
+# Read 1 byte from our input file
+def get_byte(file):
+    return ord(file.read(1))
+
+# Convert palette word to nice RGB triple
+def colour_word_to_rgb(word):
+    B = word & 0x0f
+    G = (word >> 4) & 0x0f
+    R = (word >> 8) & 0x0f
+    return [R, G, B]
+
+def rgb_to_colour_word(rgb):
+    return (rgb[0] << 8) | (rgb[1] << 4) | rgb[2]
 
 class Vertex:
 
@@ -168,7 +184,7 @@ class Frame:
     def get_size(self):
         return self._data_size
 
-    def write(self, data):
+    def write(self, data, beeb):
         # Write frame flags
         data.append(self._flags)
 
@@ -184,8 +200,16 @@ class Frame:
             # Write num verts
             data.append(self.num_unique_verts())
             # Write each vert
-            for v in self._vertices:
-                v.write(data)
+            if beeb == True:
+                # Write de-interleaved
+                for v in self._vertices:
+                    data.append(v._x / 2)
+                for v in self._vertices:
+                    data.append(v._y)
+            else:
+                # Write interleaved
+                for v in self._vertices:
+                    v.write(data)
 
         else:
             print "    Non-indexed data!"
@@ -212,6 +236,9 @@ class Sequence:
     def set_alignment(self, a):
         self._alignment = a
 
+    def set_beeb(self, b):
+        self._BEEB = b
+
     def get_size(self):
         total = 0
         for f in self._frames:
@@ -221,7 +248,7 @@ class Sequence:
     def num_frames(self):
         return len(self._frames)
 
-    def write(self, data):
+    def write(self, data, frame_step, beeb):
         print "Sequence: {0} frames".format(self.num_frames())
         frame_no = 0
         total = 0
@@ -229,7 +256,7 @@ class Sequence:
 
             frame_no+=1
             
-            if frame_no & 1 == 1:
+            if frame_no % frame_step != 1:
                 continue
 
             print "  Frame: {0}".format(frame_no)
@@ -256,7 +283,7 @@ class Sequence:
                 for i in xrange(0,align_by):
                     data.append(0x55)
 
-            f.write(data)
+            f.write(data, beeb)
 
             total += frame_size
 
@@ -264,50 +291,25 @@ class Sequence:
         data.append(POLY_DESC_END_OF_STREAM)
         return total
 
-# Read 1 byte from our input file
-def get_byte(file):
-    return ord(file.read(1))
 
-# Convert palette word to nice RGB triple
-def colour_word_to_rgb(word):
-    B = word & 0x0f
-    G = (word >> 4) & 0x0f
-    R = (word >> 8) & 0x0f
-    return [R, G, B]
-
-def rgb_to_colour_word(rgb):
-    return (rgb[0] << 8) | (rgb[1] << 4) | rgb[2]
-
-if __name__ == '__main__':
-
-    argv = sys.argv
-    argc = len(argv)
-
-    input_file = open(argv[1], 'rb')
-
-    frame = 0
+def make_sequence_from_file(file, sequence):
     end_of_frame = 0x0
 
-    print "STNICC polygon data stream.\n"
-
-    my_sequence = Sequence()
-
     while end_of_frame != 0xfd:
-        frame += 1
         f = Frame()
-        flags = get_byte(input_file)
+        flags = get_byte(file)
 
         if flags & FLAG_CLEAR_SCREEN:
             f.set_clear_screen_flag()
 
         if flags & FLAG_CONTAINS_PALETTE:
             # Read palette mask
-            palette_bitmask = get_byte(input_file) << 8 | get_byte(input_file)
+            palette_bitmask = get_byte(file) << 8 | get_byte(file)
 
             # Read palette data
             for b in xrange(15,-1,-1):
                 if palette_bitmask & (1<<b):
-                    palette_word = get_byte(input_file) << 8 | get_byte(input_file)
+                    palette_word = get_byte(file) << 8 | get_byte(file)
                     palette_colour = colour_word_to_rgb(palette_word)
                     f.add_palette_entry(15-b, palette_colour)
 
@@ -319,11 +321,11 @@ if __name__ == '__main__':
             indexed = True
 
             # Get num vertices
-            num_verts = get_byte(input_file)
+            num_verts = get_byte(file)
 
             for v in xrange(0, num_verts):
-                x = get_byte(input_file)
-                y = get_byte(input_file)
+                x = get_byte(file)
+                y = get_byte(file)
 
                 verts_x.append(x)
                 verts_y.append(y)
@@ -331,7 +333,7 @@ if __name__ == '__main__':
         # Read polys
         while True:
             # Get poly descriptor
-            poly_descriptor = get_byte(input_file)
+            poly_descriptor = get_byte(file)
 
             # Special cases
             if poly_descriptor >= 0xfd:
@@ -350,7 +352,7 @@ if __name__ == '__main__':
             if indexed:
                 # Reading vertices
                 for v in xrange(0, poly_num_verts):
-                    vert_idx = get_byte(input_file)
+                    vert_idx = get_byte(file)
                     x = verts_x[vert_idx]
                     y = verts_y[vert_idx]
                     v = Vertex(x, y)
@@ -360,8 +362,8 @@ if __name__ == '__main__':
             else:
                 # Reading x, y values
                 for v in xrange(0, poly_num_verts):
-                    x = get_byte(input_file)
-                    y = get_byte(input_file)
+                    x = get_byte(file)
+                    y = get_byte(file)
                     v = Vertex(x, y)
                     f.add_vertex(v)
                     poly.add_vertex(v)
@@ -374,23 +376,53 @@ if __name__ == '__main__':
 
         if end_of_frame == 0xfe:
             # Skip to 64K boundary
-            input_file.seek((input_file.tell() + 0xffff) & ~0xffff)
+            file.seek((file.tell() + 0xffff) & ~0xffff)
 
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
+
+    parser.add_argument("input", help="scene1.bin STNICCC data file [input]")
+    parser.add_argument("-o", "--output", metavar="<output>", help="write new data stream <output> (default is '[input].new.bin')")
+    parser.add_argument("-a", "--align", type=int, default=65536, metavar="<n>", help="Set data stream alignment <a>, default: 65536")
+    parser.add_argument("-b", "--beeb", help="Enable BBC specific data changes", default=False, action="store_true")
+    parser.add_argument("-f", "--frame_step", type=int, default=1, metavar="<n>", help="Set frame step for output <f>, default: 1")
+    parser.add_argument("-v", "--verbose", help="Enable verbose mode", action="store_true")
+    args = parser.parse_args()
+
+    src = args.input
+    dst = args.output
+    if dst == None:
+        dst = os.path.splitext(src)[0] + ".new.bin"
+
+    # check for missing files
+    if not os.path.isfile(src):
+        print("ERROR: File '" + src + "' not found")
+        sys.exit()
+
+    input_file = open(src, 'rb')
+
+    print "STNICC polygon data stream.\n"
+
+    my_sequence = Sequence()
+    make_sequence_from_file(input_file, my_sequence)
     input_file.close()
 
-    print "Total bytes: {0}".format(my_sequence.get_size())
+    print "Total frames {0}, unaligned data size: {1}".format(my_sequence.num_frames(), my_sequence.get_size())
 
-    output_file = open(argv[2], 'wb')
+    output_file = open(dst, 'wb')
 
     # Set data alignemnt (default = 64K)
-    my_sequence.set_alignment(7680)
+    my_sequence.set_alignment(args.align)
 
     data = bytearray()
 
     # Write out the sequence...
-    actual = my_sequence.write(data)
+    actual = my_sequence.write(data, args.frame_step, args.beeb)
 
-    print "Actual bytes: {0} vs {1}".format(actual, len(data))
+    print "Actual written bytes: {0} vs {1}".format(actual, len(data))
 
     output_file.write(data)
     output_file.close()
