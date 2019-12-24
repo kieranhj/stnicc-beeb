@@ -99,10 +99,8 @@ ENDMACRO
     PALETTE_FRAME_JUST_UPDATES 1                                        ; [80]
     PALETTE_UPDATE 9, 0, 1, 2       ; [9] = [2, 0, 0]
 
-    PALETTE_FRAME_JUST_UPDATES 1                                        ; [88]
+    PALETTE_FRAME_JUST_UPDATES 2                                        ; [88]
     PALETTE_UPDATE 1, 0, 1, 11      ; [1] = [5, 3, 1]
-
-    PALETTE_FRAME_JUST_UPDATES 1                                        ; [89]
     PALETTE_UPDATE 3, 1, 3, 8       ; [3] = [6, 4, 2]
     \\ ^-- Use white not yellow as colour needs to be swapped
 
@@ -125,11 +123,9 @@ ENDMACRO
     PALETTE_UPDATE 10, 0, 3, 2      ; [10] = [1, 1, 0]
 
     ; First blue appears
-    PALETTE_FRAME_JUST_UPDATES 2                                        ; [144]
+    PALETTE_FRAME_JUST_UPDATES 3                                        ; [144]
     PALETTE_UPDATE 4, 0, 2, 6      ; [4] = [0, 3, 5]          
     PALETTE_UPDATE 5, 0, 2, 8      ; [5] = [1, 4, 6]
-
-    PALETTE_FRAME_JUST_UPDATES 1                                        ; [145]
     PALETTE_UPDATE 10, 0, 2, 2      ; [10] = [0, 1, 3]
 
     PALETTE_FRAME_JUST_UPDATES 1                                        ; [151]
@@ -141,10 +137,8 @@ ENDMACRO
     PALETTE_UPDATE 12, 0, 3, 4      ; [12] = [2, 2, 2]
     PALETTE_UPDATE 13, 0, 3, 2      ; [13] = [1, 1, 1]
 
-    PALETTE_FRAME_JUST_UPDATES 1                                        ; [154]
+    PALETTE_FRAME_JUST_UPDATES 2                                        ; [154]
     PALETTE_UPDATE 2, 0, 3, 12      ; [2] = [6, 6, 6]
-
-    PALETTE_FRAME_JUST_UPDATES 1                                        ; [155]
     PALETTE_UPDATE 10, 0, 3, 6      ; [10] = [3, 3, 3]
 
     PALETTE_FRAME_JUST_UPDATES 1                                        ; [161]
@@ -154,10 +148,8 @@ ENDMACRO
     PALETTE_UPDATE 14, 0, 3, 2      ; [14] = [1, 1, 1]
     PALETTE_UPDATE 15, 0, 2, 6      ; [15] = [0, 2, 4]
 
-    PALETTE_FRAME_JUST_UPDATES 1                                        ; [166]
+    PALETTE_FRAME_JUST_UPDATES 2                                        ; [166]
     PALETTE_UPDATE 5, 0, 3, 8      ; [5] = [4, 4, 4]
-
-    PALETTE_FRAME_JUST_UPDATES 1                                        ; [167]
     PALETTE_UPDATE 2, 0, 2, 1      ; [2] = [0, 0, 2]
 
     PALETTE_FRAME_JUST_UPDATES 1                                        ; [171]
@@ -184,14 +176,12 @@ ENDMACRO
     PALETTE_UPDATE_JUST_1 2, 0, 3, 4  ; [2] = [3, 2, 2]                 ; [225]
     PALETTE_UPDATE_JUST_1 5, 0, 3, 12 ; [5] = [6, 5, 5]                 ; [229]
 
-    PALETTE_FRAME_JUST_UPDATES 4                                        ; [231]
+    PALETTE_FRAME_JUST_UPDATES 5                                        ; [231]
     PALETTE_UPDATE 7, 0, 0, 16       ; [7] = [2, 1, 1]
     ; ^= more striking as black?
     PALETTE_UPDATE 9, 0, 3, 9        ; [9] = [5, 4, 4]
     PALETTE_UPDATE 10, 0, 3, 10      ; [10] = [5, 5, 4]
     PALETTE_UPDATE 11, 0, 3, 8       ; [11] = [4, 4, 3]
-
-    PALETTE_FRAME_JUST_UPDATES 1                                        ; [232]
     PALETTE_UPDATE 12, 0, 3, 16      ; [12] = [7, 6, 6]
 
     PALETTE_FRAME_JUST_UPDATES 1                                        ; [233]
@@ -202,21 +192,20 @@ ENDMACRO
 
     PALETTE_FRAME_NO_CHANGE                                             ; [237]
 
-    PALETTE_FRAME_JUST_UPDATES 1                                        ; [238]
+    PALETTE_FRAME_JUST_UPDATES 2                                        ; [238]
     PALETTE_UPDATE 15, 0, 0, 16      ; [15] = [1, 1, 0]
     ; ^= more striking as black?
 
-    PALETTE_UPDATE_JUST_1 2, 0, 3, 12; [2] = [6, 6, 5]                  ; [239]
+    PALETTE_UPDATE 2, 0, 3, 12       ; [2] = [6, 6, 5]                  ; [239]
+
     PALETTE_UPDATE_JUST_1 2, 0, 2, 1 ; [2] = [0, 0, 2]                  ; [249]
 
     PALETTE_FRAME_JUST_UPDATES 2                                        ; [269]
     PALETTE_UPDATE 2, 0, 3, 4        ; [2] = [3, 2, 2]
     PALETTE_UPDATE 13, 0, 3, 12      ; [13] = [6, 6, 5]
 
-    PALETTE_FRAME_JUST_UPDATES 1                                        ; [272]
+    PALETTE_FRAME_JUST_UPDATES 2                                        ; [272]
     PALETTE_UPDATE 13, 0, 3, 5       ; [13] = [3, 3, 2]
-
-    PALETTE_FRAME_JUST_UPDATES 1                                        ; [273]
     PALETTE_UPDATE 3, 0, 3, 12      ; [13] = [6, 6, 5]
 
     PALETTE_FRAME_JUST_UPDATES 1                                        ; [274]
@@ -226,8 +215,8 @@ ENDMACRO
     ; First green tint appears => replaces cyan
     PALETTE_FRAME %0010, PAL_black, PAL_yellow, PAL_green, PAL_white, 1  ; [519]
     ; ^== UPDATE ANY PALETTE ENTRY STILL CONTAINING COLOUR 2 ==v
-
     PALETTE_UPDATE 2, 0, 2, 2        ; [2] = [1, 2, 1]                   ; [519]
+
     PALETTE_FRAME_JUST_UPDATES 2                                         ; [520]
     PALETTE_UPDATE 4, 0, 2, 4        ; [4] = [2, 3, 2]
     PALETTE_UPDATE 5, 0, 2, 1        ; [5] = [0, 1, 0]
@@ -244,8 +233,10 @@ ENDMACRO
     ; ^== UPDATE ANY PALETTE ENTRY STILL CONTAINING COLOUR 3 ==v
     PALETTE_UPDATE 3, 3, 1, 8          ; [13] = [6, 4, 2]
 
-    PALETTE_UPDATE_JUST_1 8, 3, 1, 10  ; [8] = [7, 5, 3]                ; [684]
-    PALETTE_UPDATE_JUST_1 9, 0, 3, 4   ; [9] = [2, 0, 0]                ; [685]
+    PALETTE_FRAME_JUST_UPDATES 2
+    PALETTE_UPDATE 8, 3, 1, 10          ; [8] = [7, 5, 3]                ; [684]
+    PALETTE_UPDATE 9, 0, 3, 4           ; [9] = [2, 0, 0]                ; [685]
+
     PALETTE_UPDATE_JUST_1 10, 3, 1, 6  ; [10] = [5, 3, 1]               ; [686]
     PALETTE_UPDATE_JUST_1 11, 0, 3, 6  ; [11] = [3, 1, 0]               ; [693]
     PALETTE_UPDATE_JUST_1 12, 3, 1, 12 ; [12] = [7, 5, 4]               ; [696]
@@ -266,15 +257,13 @@ ENDMACRO
 
     ; Round corner into green square tunnel
     ; Blue tint => replaces red
-    PALETTE_FRAME %0001, PAL_black, PAL_yellow, PAL_green, PAL_blue, 4 ; [804]
+    PALETTE_FRAME %0001, PAL_black, PAL_yellow, PAL_green, PAL_blue, 7 ; [804]
     ; ^== UPDATE ANY PALETTE ENTRY STILL CONTAINING COLOUR 3 ==v
     PALETTE_UPDATE 3, 0, 1, 6          ; [3] = [4, 6, 5]
     PALETTE_UPDATE 5, 0, 1, 12         ; [5] = [5, 7, 6]
     PALETTE_UPDATE 7, 0, 1, 4          ; [7] = [3, 5, 3]
     PALETTE_UPDATE 9, 0, 1, 10          ; [9] = [5, 7, 5]
     ; add some yellow to the light ones?
-
-    PALETTE_FRAME_JUST_UPDATES 3                                        ; [805]
     PALETTE_UPDATE 10, 0, 2, 6        ; [10] = [1, 3, 2]
     PALETTE_UPDATE 11, 0, 2, 7        ; [11] = [2, 4, 3]
     PALETTE_UPDATE 12, 0, 2, 9        ; [12] = [3, 5, 4]
@@ -301,29 +290,22 @@ ENDMACRO
 
     ; Lots of palette fighting over 1, 4, 8, 9, 15 - ignore for now?
     PALETTE_FRAME_NO_CHANGE                                             ; [1081]
-    PALETTE_FRAME_NO_CHANGE                                             ; [1082]
     PALETTE_FRAME_NO_CHANGE                                             ; [1084]
     PALETTE_FRAME_NO_CHANGE                                             ; [1085]
     PALETTE_FRAME_NO_CHANGE                                             ; [1087]
-    PALETTE_FRAME_NO_CHANGE                                             ; [1088]
     PALETTE_FRAME_NO_CHANGE                                             ; [1089]
     PALETTE_FRAME_NO_CHANGE                                             ; [1090]
     PALETTE_FRAME_NO_CHANGE                                             ; [1091]
-    PALETTE_FRAME_NO_CHANGE                                             ; [1092]
     PALETTE_UPDATE_JUST_1 8, 0, 3, 10     ; [8] = [3, 4, 5]             ; [1093]
-    PALETTE_FRAME_NO_CHANGE                                             ; [1094]
     PALETTE_UPDATE_JUST_1 1, 0, 3, 2      ; [1] = [0, 0, 1]             ; [1095]
-    PALETTE_FRAME_NO_CHANGE                                             ; [1096]
     PALETTE_UPDATE_JUST_1 15, 0, 2, 7     ; [15] = [2, 4, 2]            ; [1097]
     PALETTE_FRAME_NO_CHANGE                                             ; [1098]
     PALETTE_FRAME_NO_CHANGE                                             ; [1099]
     PALETTE_FRAME_NO_CHANGE                                             ; [1100]
     PALETTE_FRAME_NO_CHANGE                                             ; [1101]
-    PALETTE_FRAME_NO_CHANGE                                             ; [1102]
     PALETTE_FRAME_NO_CHANGE                                             ; [1103]
     PALETTE_FRAME_NO_CHANGE                                             ; [1105]
     PALETTE_UPDATE_JUST_1 9, 0, 3, 8     ; [9] = [2, 3, 4]              ; [1106]
-    PALETTE_FRAME_NO_CHANGE                                             ; [1114]
     PALETTE_UPDATE_JUST_1 4, 0, 3, 6     ; [4] = [1, 2, 3]              ; [1115]
 
     ; Transitioning to blue bendy downwards tunnel
@@ -337,11 +319,9 @@ ENDMACRO
     PALETTE_UPDATE 5, 0, 2, 10          ; [6] = [5, 1, 0]
     PALETTE_UPDATE 6, 0, 2, 8           ; [7] = [4, 0, 0]
 
-    PALETTE_FRAME_JUST_UPDATES 2                                        ; [1248]
+    PALETTE_FRAME_JUST_UPDATES 4                                        ; [1248]
     PALETTE_UPDATE 7, 2, 1, 10           ; [7] = [7, 3, 0]
     PALETTE_UPDATE 10, 2, 1, 6          ; [10] = [6, 2, 0]
-
-    PALETTE_FRAME_JUST_UPDATES 2                                        ; [1249]
     PALETTE_UPDATE 11, 0, 2, 2          ; [11] = [2, 0, 0]
     PALETTE_UPDATE 12, 2, 1, 12         ; [12] = [7, 4, 0]
 
@@ -352,10 +332,11 @@ ENDMACRO
     PALETTE_UPDATE_JUST_1 1, 0, 2, 4     ; [1] = [3, 0, 0]              ; [1333]
     PALETTE_UPDATE_JUST_1 2, 2, 1, 8     ; [2] = [6, 3, 3]              ; [1343]
 
-    PALETTE_UPDATE_JUST_1 3, 2, 1, 10    ; [3] = [7, 4, 3]              ; [1344]
-
+    PALETTE_FRAME_JUST_UPDATES 2                                        ; [1344]
+    PALETTE_UPDATE 3, 2, 1, 10           ; [3] = [7, 4, 3]              ; [1344]
     ; First purple appears for outside cubes
-    PALETTE_UPDATE_JUST_1 7, 2, 3, 8     ; [7] = [3, 0, 3]              ; [1345]
+    PALETTE_UPDATE 7, 2, 3, 8            ; [7] = [3, 0, 3]              ; [1345]
+
     PALETTE_UPDATE_JUST_1 2, 2, 1, 10    ; [2] = [7, 3, 0]              ; [1352]
     PALETTE_UPDATE_JUST_1 3, 2, 1, 8     ; [3] = [6, 3, 3]              ; [1447]
     PALETTE_UPDATE_JUST_1 4, 2, 1, 14    ; [4] = [7, 5, 3]              ; [1459]

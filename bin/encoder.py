@@ -96,6 +96,18 @@ class Palette:
     def add_entry(self, i, rgb):
         self._entries.append([i, rgb])
 
+    def merge_palette(self, pal):
+        for e in pal._entries:
+            matched = False
+            for g in self._entries:
+                if g[0] == e[0]:
+                    g[1] = e[1]
+                    matched = True
+                    break
+                    
+            if not matched:
+                self.add_entry(e[0], e[1])
+
     def get_size(self):
         num_entries = len(self._entries)
         if num_entries == 0:
@@ -109,7 +121,7 @@ class Palette:
         bitmask = 0
         for e in self._entries:
             bitmask |= 1 << (15 - e[0])
-            
+        
         data.append(bitmask >> 8)
         data.append(bitmask & 0xff)
 
@@ -135,6 +147,14 @@ class Frame:
     def add_palette_entry(self, i, rgb):
         self._palette.add_entry(i, rgb)
         self._flags |= FLAG_CONTAINS_PALETTE
+
+    def get_palette(self):
+        return self._palette
+
+    def merge_palette(self, pal):
+        if pal.get_size() != 0:
+            self._palette.merge_palette(pal)
+            self._flags |= FLAG_CONTAINS_PALETTE
 
     def add_polygon(self, p):
         self._polygons.append(p)
@@ -170,19 +190,23 @@ class Frame:
 
     def calc_size(self):
         if self._data_size == 0:
-            # 1 byte flag + optional palette + 1 byte terminator
-            base_size = 1 + self._palette.get_size() + 1
             indexed_size = self.get_indexed_size()
             non_indexed_size = self.get_non_indexed_size()
 
             # Prefer the smaller data size obvs
-            self._data_size = base_size + min(indexed_size, non_indexed_size)
+            self._data_size = min(indexed_size, non_indexed_size)
 
             if indexed_size < non_indexed_size:
                 self._flags |= FLAG_INDEXED_DATA
 
     def get_size(self):
-        return self._data_size
+        # 1 byte flag + optional palette (+ 1 byte terminator added by Sequence)
+        base_size = 1 + self._palette.get_size()
+
+        if self._data_size == 0:
+            self.calc_size()
+
+        return base_size + self._data_size
 
     def write(self, data, beeb):
         # Write frame flags
@@ -242,7 +266,7 @@ class Sequence:
     def get_size(self):
         total = 0
         for f in self._frames:
-            total += f.get_size()
+            total += f.get_size() + 1
         return total
 
     def num_frames(self):
@@ -252,11 +276,21 @@ class Sequence:
         print "Sequence: {0} frames".format(self.num_frames())
         frame_no = 0
         total = 0
+        merge_pal = None
+
         for f in self._frames:
 
             frame_no+=1
+
+            # Merge any previous palette entries that were skipped
+            if merge_pal != None:
+                f.merge_palette(merge_pal)
+                merge_pal = None
             
+            # Is this frame to be skipped?
             if frame_no % frame_step != 1:
+                # Grab the palette and merge with the next frame
+                merge_pal = f.get_palette()
                 continue
 
             print "  Frame: {0}".format(frame_no)
@@ -274,6 +308,7 @@ class Sequence:
             # Write EOF marker for previous frame.
             if f != self._frames[0]:
                 data.append(eof_byte)
+                total += 1
 
             # Pad with 0x55 if needed.
             if eof_byte == POLY_DESC_SKIP_TO_64K:
@@ -286,13 +321,16 @@ class Sequence:
             f.write(data, beeb)
 
             total += frame_size
+            assert total == len(data)
 
         # Write EOF marker for last frame.
         data.append(POLY_DESC_END_OF_STREAM)
+        total += 1
         return total
 
 
-def make_sequence_from_file(file, sequence):
+def make_sequence_from_file(file):
+    sequence = Sequence()
     end_of_frame = 0x0
 
     while end_of_frame != 0xfd:
@@ -372,12 +410,13 @@ def make_sequence_from_file(file, sequence):
             f.add_polygon(poly)
 
         # Add this frame to our sequence
-        my_sequence.add_frame(f)
+        sequence.add_frame(f)
 
         if end_of_frame == 0xfe:
             # Skip to 64K boundary
             file.seek((file.tell() + 0xffff) & ~0xffff)
 
+    return sequence
 
 
 if __name__ == '__main__':
@@ -406,8 +445,7 @@ if __name__ == '__main__':
 
     print "STNICC polygon data stream.\n"
 
-    my_sequence = Sequence()
-    make_sequence_from_file(input_file, my_sequence)
+    my_sequence = make_sequence_from_file(input_file)
     input_file.close()
 
     print "Total frames {0}, unaligned data size: {1}".format(my_sequence.num_frames(), my_sequence.get_size())
