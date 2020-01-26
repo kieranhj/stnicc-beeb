@@ -170,11 +170,14 @@ ENDMACRO
     PALETTE_FRAME %0100, PAL_black, PAL_yellow, PAL_cyan, PAL_white, 1  ; [190]
     ; ^== UPDATE ANY PALETTE ENTRY STILL CONTAINING COLOUR 1 ==v
     ;PALETTE_UPDATE 7, 0, 3, 3       ; [7] = [4, 2, 0]
-    PALETTE_UPDATE 1, 0, 1, 16      ; [1] = [7, 7, 7]
+    PALETTE_UPDATE 1, 0, 1, 16      ; [1] = [7, 7, 0]
 
     ; The blue tunnel beomes grey with yellow stripes
-    PALETTE_UPDATE_JUST_1 2, 0, 3, 4  ; [2] = [3, 2, 2]                 ; [225]
-    PALETTE_UPDATE_JUST_1 5, 0, 3, 12 ; [5] = [6, 5, 5]                 ; [229]
+    PALETTE_FRAME_JUST_UPDATES 1                                        ; [225]
+    PALETTE_UPDATE 2, 0, 3, 4       ; [2] = [3, 2, 2]
+
+    PALETTE_FRAME_JUST_UPDATES 1                                        ; [229]
+    PALETTE_UPDATE 5, 0, 3, 12      ; [5] = [6, 5, 5]
 
     PALETTE_FRAME_JUST_UPDATES 5                                        ; [231]
     PALETTE_UPDATE 7, 0, 0, 16       ; [7] = [2, 1, 1]
@@ -195,10 +198,10 @@ ENDMACRO
     PALETTE_FRAME_JUST_UPDATES 2                                        ; [238]
     PALETTE_UPDATE 15, 0, 0, 16      ; [15] = [1, 1, 0]
     ; ^= more striking as black?
-
     PALETTE_UPDATE 2, 0, 3, 12       ; [2] = [6, 6, 5]                  ; [239]
 
-    PALETTE_UPDATE_JUST_1 2, 0, 2, 1 ; [2] = [0, 0, 2]                  ; [249]
+    PALETTE_FRAME_JUST_UPDATES 1                                        ; [249]
+    PALETTE_UPDATE 2, 0, 2, 1        ; [2] = [0, 0, 2]
 
     PALETTE_FRAME_JUST_UPDATES 2                                        ; [269]
     PALETTE_UPDATE 2, 0, 3, 4        ; [2] = [3, 2, 2]
@@ -206,7 +209,7 @@ ENDMACRO
 
     PALETTE_FRAME_JUST_UPDATES 2                                        ; [272]
     PALETTE_UPDATE 13, 0, 3, 5       ; [13] = [3, 3, 2]
-    PALETTE_UPDATE 3, 0, 3, 12      ; [13] = [6, 6, 5]
+    PALETTE_UPDATE 3, 0, 3, 12       ; [3] = [6, 6, 5]
 
     PALETTE_FRAME_JUST_UPDATES 1                                        ; [274]
     PALETTE_UPDATE 8, 0, 3, 3       ; [8] = [2, 2, 1]
@@ -248,7 +251,7 @@ ENDMACRO
     ; Transition into brown pentagon tunnel
     PALETTE_UPDATE_JUST_1 5, 0, 2, 8   ; [5] = [3, 4, 3]               ; [715]
     PALETTE_UPDATE_JUST_1 5, 3, 1, 7   ; [5] = [5, 3, 2]               ; [717]
-    PALETTE_UPDATE_JUST_1 7, 0, 2, 8   ; [7] = [3, 4, 3]               ; [718]
+;   PALETTE_UPDATE_JUST_1 7, 0, 2, 8   ; [7] = [3, 4, 3]               ; [718]
     PALETTE_UPDATE_JUST_1 7, 0, 3, 7   ; [7] = [4, 2, 0]               ; [719]
     PALETTE_UPDATE_JUST_1 1, 0, 2, 8   ; [1] = [3, 4, 3]               ; [721]
 
@@ -273,10 +276,11 @@ ENDMACRO
 
     ; Still in green tunnel
     PALETTE_FRAME_NO_CHANGE                                             ; [915]
-    PALETTE_FRAME_NO_CHANGE                                             ; [916]
     PALETTE_FRAME_NO_CHANGE                                             ; [917]
-    PALETTE_FRAME_NO_CHANGE                                             ; [918]
-    PALETTE_FRAME_NO_CHANGE                                             ; [919]
+    PALETTE_FRAME_JUST_UPDATES 2                                        ; [919]
+    PALETTE_UPDATE 1, 0, 2, 7         ; [1] = [2, 4, 2]
+    PALETTE_UPDATE 6, 0, 1, 8         ; [1] = [4, 6, 4]
+
     PALETTE_FRAME_JUST_UPDATES 2                                        ; [927]
     PALETTE_UPDATE 14, 0, 2, 4       ; [14] = [0, 2, 1]
     PALETTE_UPDATE 15, 0, 1, 15      ; [15] = [6, 7, 6]
@@ -285,23 +289,21 @@ ENDMACRO
     PALETTE_UPDATE 13, 0, 2, 5       ; [13] = [1, 3, 1]
 
     ; Lighter six-sided green tunnel - yellow motif appears!
-    PALETTE_FRAME_JUST_UPDATES 1                                        ; [1080]
+    PALETTE_FRAME_JUST_UPDATES 3                                        ; [1080]
     PALETTE_UPDATE 2, 0, 1, 16       ; [2] = [7, 7, 0]
+    PALETTE_UPDATE 8, 0, 3, 10       ; [8] = [3, 4, 5]
+    PALETTE_UPDATE 4, 0, 3, 16       ; [4] = [4, 5, 6]
 
     ; Lots of palette fighting over 1, 4, 8, 9, 15 - ignore for now?
-    PALETTE_FRAME_NO_CHANGE                                             ; [1081]
     PALETTE_FRAME_NO_CHANGE                                             ; [1084]
     PALETTE_FRAME_NO_CHANGE                                             ; [1085]
     PALETTE_FRAME_NO_CHANGE                                             ; [1087]
     PALETTE_FRAME_NO_CHANGE                                             ; [1089]
-    PALETTE_FRAME_NO_CHANGE                                             ; [1090]
     PALETTE_FRAME_NO_CHANGE                                             ; [1091]
     PALETTE_UPDATE_JUST_1 8, 0, 3, 10     ; [8] = [3, 4, 5]             ; [1093]
     PALETTE_UPDATE_JUST_1 1, 0, 3, 2      ; [1] = [0, 0, 1]             ; [1095]
     PALETTE_UPDATE_JUST_1 15, 0, 2, 7     ; [15] = [2, 4, 2]            ; [1097]
-    PALETTE_FRAME_NO_CHANGE                                             ; [1098]
     PALETTE_FRAME_NO_CHANGE                                             ; [1099]
-    PALETTE_FRAME_NO_CHANGE                                             ; [1100]
     PALETTE_FRAME_NO_CHANGE                                             ; [1101]
     PALETTE_FRAME_NO_CHANGE                                             ; [1103]
     PALETTE_FRAME_NO_CHANGE                                             ; [1105]
@@ -310,7 +312,7 @@ ENDMACRO
 
     ; Transitioning to blue bendy downwards tunnel
     PALETTE_UPDATE_JUST_1 14, 0, 3, 4  ; [14] = [0, 1, 2]               ; [1139]
-    PALETTE_UPDATE_JUST_1 3, 0, 3, 16  ;  [5] = [4, 5, 6]               ; [1184]
+    PALETTE_UPDATE_JUST_1 3, 0, 3, 16  ;  [3] = [4, 5, 6]               ; [1184]
 
     ; First dark red appears
     ; Red tint => replaces green
