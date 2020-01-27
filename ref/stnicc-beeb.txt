@@ -369,3 +369,7 @@ Plus Rich's mask optimisation above:
 Master@LQ = &2306 = 10.03 fps (effective)?!
 Master@MQ = &2668 = 9.15 efps
 Master@HQ = &37AE = 6.3 efps
+
+Need to check palette combining works for NULA.
+Make sure the later palette value is kept, not the earlier one!
+^- DONE. Need to check NULA version still works.

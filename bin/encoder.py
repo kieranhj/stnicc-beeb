@@ -101,7 +101,11 @@ class Palette:
             matched = False
             for g in self._entries:
                 if g[0] == e[0]:
-                    g[1] = e[1]
+                    # Because we're actually merging an older frame into a newer one
+                    # we actually don't want to replace the existing palette if we
+                    # get a match - we want to keep the newest entry from that palette
+                    # number.
+                    # g[1] = e[1]
                     matched = True
                     break
                     

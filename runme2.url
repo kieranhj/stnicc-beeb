@@ -2,5 +2,5 @@
 Prop3=19,2
 [InternetShortcut]
 IDList=
-URL=http://localhost:8000/?&model=Master&disc1=stnicc-A.dsd&disc2=stnicc-B.dsd&autoboot
+URL=http://localhost:8000/?&model=Master&disc1=stnicc-A.dsd&autoboot
 HotKey=0
