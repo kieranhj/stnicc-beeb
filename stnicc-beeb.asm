@@ -291,13 +291,207 @@ skip &100
 ORG &1100
 GUARD screen2_addr
 
-.start
+.boot_start
+{
+    \\ Load SWRAM data
+    SWRAM_SELECT 4
+;    lda #HI(&8000)
+;    ldx #LO(filename0)
+;    ldy #HI(filename0)
+;    jsr disksys_load_file
 
-.main_start
+	lda #HI(STREAM_buffer_start)
+	ldy #HI(start)
+	ldx #HI(end-start+&ff)
+	jsr copy_pages
+	jmp main
+}
+
+; A=from page, Y=to page, X=number of pages
+.copy_pages
+{
+	sta read_from+2
+	sty write_to+2
+
+	ldy #0
+	.page_loop
+	.read_from
+	lda &ff00, Y
+	.write_to
+	sta &ff00, Y
+	iny
+	bne page_loop
+	inc read_from+2
+	inc write_to+2
+	dex
+	bne page_loop
+
+	rts
+}
+
+.irq_handler
+{
+	LDA &FC
+	PHA
+
+	LDA &FE4D
+	AND #2
+	BEQ not_vsync
+
+	\\ Set SHADOW
+	lda screen_lock
+	beq display_main
+
+	\\ Display SHADOW
+;	lda &fe34:ora #1:sta &fe34
+	bne vsync
+
+	.display_main
+	\\ Display MAIN
+;	lda &fe34:and #&fe:sta &fe34
+
+	\\ Vsync
+	.vsync
+    INC vsync_counter
+    BNE no_carry
+    INC vsync_counter+1
+    .no_carry
+	JMP return_to_os
+
+	.not_vsync
+	\\ Which interrupt?
+	LDA &FE4D
+	AND #&40			; timer 1
+	BEQ return_to_os
+
+	\\ Acknowledge timer 1 interrupt
+	STA &FE4D
+
+	\\ If we're already busy just exit function
+	LDA decode_lock
+	\\ Waiting for buffer fill
+	ora buffer_lock
+	IF _DEBUG
+	\\ Waiting for keypress
+	ora pause_lock
+	ENDIF
+	BNE return_to_os
+
+	\\ Set a lock on our decode function
+	INC decode_lock
+
+	\\ Store registers in case of interupts
+	TXA:PHA:TYA:PHA
+
+	\\ Do the slow bit!
+	{
+	    SWRAM_SELECT 4
+
+		\\ Decode the frame with interrupts off!
+		CLI
+
+		\\ Parse and draw the next frame
+		jsr parse_frame
+		sta eof_flag
+
+		cmp #POLY_DESC_SKIP_TO_64K
+		bne stream_ok
+		
+		\\ Align to start of streaming buffer (track size)
+		lda #LO(STREAM_buffer_start-1)
+		sta STREAM_ptr_LO
+		lda #HI(STREAM_buffer_start-1)
+		sta STREAM_ptr_HI
+
+		\\ Check whether we're still loading into the start of the streaming buffer
+		lda load_to_HI
+		cmp #HI(STREAM_buffer_start)
+		bne stream_ok
+		\\ We've caught our tail...
+		lda #&ff:sta buffer_lock
+
+		.stream_ok
+		IF _PLOT_WIREFRAME OR _SKIP_ODD_FRAMES
+		{
+			lda track_no
+			bmi enough_data_for_next_frame
+			
+			lda STREAM_ptr_HI
+			cmp load_to_HI
+			bcs stream_ptr_gt_load_to
+
+			\\ Stream Ptr < Load To
+			sec
+			lda load_to_HI
+			sbc STREAM_ptr_HI
+			cmp #4
+			bcs enough_data_for_next_frame
+
+			\\ Otherwise lock our buffer
+			lda #&ff:sta buffer_lock
+			bne enough_data_for_next_frame
+
+			.stream_ptr_gt_load_to
+			\\ Stream Ptr > Load To
+			clc
+			lda load_to_HI
+			adc #HI(STREAM_buffer_size)
+			sec
+			sbc STREAM_ptr_HI
+			cmp #4
+			bcs enough_data_for_next_frame
+
+			\\ Otherwise lock our buffer
+			lda #&ff:sta buffer_lock
+
+			.enough_data_for_next_frame
+		}
+		ENDIF
+
+		IF _DEBUG
+		jsr show_vsync_counter
+		ENDIF
+
+		\\ Disable interrupts again!
+		SEI
+	}
+
+	\\ Restore registers
+	PLA:TAY:PLA:TAX
+
+	\\ Remove our work lock
+	DEC decode_lock
+
+	IF _SKIP_ODD_FRAMES
+	lda frame_no
+    lsr a
+    bcs return_here_from_swap_frame_buffers
+	ENDIF
+
+	\\ Swap frame buffers
+	jmp swap_frame_buffers
+	.^return_here_from_swap_frame_buffers
+
+	\\ Pass on to OS IRQ handler
+	.return_to_os
+	PLA
+	STA &FC
+	JMP &FFFF
+}
+old_irqv = P%-2
+
+.boot_end
+
+SAVE "build/MAIN", boot_start, boot_end
 
 \ ******************************************************************
 \ *	Code entry
 \ ******************************************************************
+
+ORG &8000
+GUARD &C000
+.start
+.main_start
 
 .main
 {
@@ -392,18 +586,17 @@ endif
 	lda #2:sta $fe00:lda #45:sta $fe01
 	lda #7:sta $fe00:lda #31:sta $fe01
 
+	\\ Buffer 1: display screen1@SHADOW, draw screen1@MAIN
     lda #12:sta &fe00
-    lda #HI(screen2_addr/8):sta &fe01
+    lda #HI(screen1_addr/8):sta &fe01
     lda #13:sta &fe00
-    lda #LO(screen2_addr/8):sta &fe01
+    lda #LO(screen1_addr/8):sta &fe01
 
-    \\ Load SWRAM data
-;    SWRAM_SELECT 4
-;    lda #HI(&8000)
-;    ldx #LO(filename0)
-;    ldy #HI(filename0)
-;    jsr disksys_load_file
+	\\ Display SHADOW
+;	lda &fe34:ora #1:sta &fe34
 
+	lda #0:sta screen_lock
+	
     \\ Set stream pointer
     lda #LO(STREAM_buffer_start-1)
     sta STREAM_ptr_LO
@@ -694,234 +887,84 @@ ENDIF
 	RTS
 }
 
-.irq_handler
-{
-	LDA &FC
-	PHA
-
-	LDA &FE4D
-	AND #2
-	BEQ not_vsync
-
-	lda #0
-	sta screen_lock
-
-	\\ Vsync
-    INC vsync_counter
-    BNE no_carry
-    INC vsync_counter+1
-    .no_carry
-	JMP return_to_os
-
-	.not_vsync
-	\\ Which interrupt?
-	LDA &FE4D
-	AND #&40			; timer 1
-	BEQ return_to_os
-
-	\\ Acknowledge timer 1 interrupt
-	STA &FE4D
-
-	\\ If we're already busy just exit function
-	LDA decode_lock
-	\\ Can't start rendering as our frame buffer hasn't flipped
-	\\ Could start parse then block before touching the screen buffer
-	ora screen_lock
-	\\ Waiting for buffer fill
-	ora buffer_lock
-	IF _DEBUG
-	\\ Waiting for keypress
-	ora pause_lock
-	ENDIF
-	BNE return_to_os
-
-	\\ Set a lock on our decode function
-	INC decode_lock
-
-	\\ Store registers in case of interupts
-	TXA:PHA:TYA:PHA
-
-	\\ Do the slow bit!
-	{
-		\\ Decode the frame with interrupts off!
-		CLI
-
-		\\ Parse and draw the next frame
-		jsr parse_frame
-		sta eof_flag
-
-		cmp #POLY_DESC_SKIP_TO_64K
-		bne stream_ok
-		
-		\\ Align to start of streaming buffer (track size)
-		lda #LO(STREAM_buffer_start-1)
-		sta STREAM_ptr_LO
-		lda #HI(STREAM_buffer_start-1)
-		sta STREAM_ptr_HI
-
-		\\ Check whether we're still loading into the start of the streaming buffer
-		lda load_to_HI
-		cmp #HI(STREAM_buffer_start)
-		bne stream_ok
-		\\ We've caught our tail...
-		lda #&ff:sta buffer_lock
-
-		.stream_ok
-		IF _PLOT_WIREFRAME OR _SKIP_ODD_FRAMES
-		{
-			lda track_no
-			bmi enough_data_for_next_frame
-			
-			lda STREAM_ptr_HI
-			cmp load_to_HI
-			bcs stream_ptr_gt_load_to
-
-			\\ Stream Ptr < Load To
-			sec
-			lda load_to_HI
-			sbc STREAM_ptr_HI
-			cmp #4
-			bcs enough_data_for_next_frame
-
-			\\ Otherwise lock our buffer
-			lda #&ff:sta buffer_lock
-			bne enough_data_for_next_frame
-
-			.stream_ptr_gt_load_to
-			\\ Stream Ptr > Load To
-			clc
-			lda load_to_HI
-			adc #HI(STREAM_buffer_size)
-			sec
-			sbc STREAM_ptr_HI
-			cmp #4
-			bcs enough_data_for_next_frame
-
-			\\ Otherwise lock our buffer
-			lda #&ff:sta buffer_lock
-
-			.enough_data_for_next_frame
-		}
-		ENDIF
-
-		IF _DEBUG
-		jsr show_vsync_counter
-		ENDIF
-
-		\\ Disable interrupts again!
-		SEI
-	}
-
-	\\ Restore registers
-	PLA:TAY:PLA:TAX
-
-	\\ Remove our work lock
-	DEC decode_lock
-
-	IF _SKIP_ODD_FRAMES
-	lda frame_no
-    lsr a
-    bcs return_here_from_swap_frame_buffers
-	ENDIF
-
-	\\ Set our screen lock until frame swap
-	lda #&ff:sta screen_lock
-
-	\\ Swap frame buffers
-	jmp swap_frame_buffers
-	.^return_here_from_swap_frame_buffers
-
-	\\ Pass on to OS IRQ handler
-	.return_to_os
-	PLA
-	STA &FC
-	JMP &FFFF
-}
-old_irqv = P%-2
-
-; A=from page, Y=to page, X=number of pages
-.copy_pages
-{
-	sta read_from+2
-	sty write_to+2
-
-	ldy #0
-	.page_loop
-	.read_from
-	lda &ff00, Y
-	.write_to
-	sta &ff00, Y
-	iny
-	bne page_loop
-	inc read_from+2
-	inc write_to+2
-	dex
-	bne page_loop
-
-	rts
-}
-
 .swap_frame_buffers
 {
-    \\ Toggle draw buffer
-    lda draw_buffer_HI
-    eor #HI(screen1_addr EOR screen2_addr)
-    sta draw_buffer_HI
+	clc
+	lda screen_lock
+	adc #1
+	cmp #3
+	bcc ok
+	lda #0
+	.ok
+	sta screen_lock
 
-	\\ Set screen buffer address in CRTC - not read until vsync
-	cmp #HI(screen1_addr)
-    IF _DOUBLE_BUFFER
-	beq show_screen2
-	ELSE
-	bne show_screen2
-    ENDIF
-
-	\\ Show screen 1
-    lda #12:sta &fe00
-    lda #HI(screen1_addr/8):sta &fe01
-    lda #13:sta &fe00
-    lda #LO(screen1_addr/8):sta &fe01
+	cmp #1
+	bne draw_screen1_addr
 
 	\\ Draw screen 2
+	.draw_sreen2_addr
+	lda #HI(screen2_addr)
+	sta draw_buffer_HI
+
 	lda #HI(screen2_row_HI)
 	sta plot_long_span_set_screen+2
 	sta plot_short_span_set_screen+2
 
-		lda #LO(span_row_table_screen2_LO)
-		sta plot_span_set_row_table_LO+1
-		lda #HI(span_row_table_screen2_LO)
-		sta plot_span_set_row_table_LO+2
-		lda #LO(span_row_table_screen2_HI)
-		sta plot_span_set_row_table_HI+1
-		lda #HI(span_row_table_screen2_HI)
-		sta plot_span_set_row_table_HI+2
+	lda #LO(span_row_table_screen2_LO)
+	sta plot_span_set_row_table_LO+1
+	lda #HI(span_row_table_screen2_LO)
+	sta plot_span_set_row_table_LO+2
+	lda #LO(span_row_table_screen2_HI)
+	sta plot_span_set_row_table_HI+1
+	lda #HI(span_row_table_screen2_HI)
+	sta plot_span_set_row_table_HI+2
 
-	\\ Continue
-	bne continue
-
-	.show_screen2
-	\\ Show screen 2
-    lda #12:sta &fe00
-    lda #HI(screen2_addr/8):sta &fe01
-    lda #13:sta &fe00
-    lda #LO(screen2_addr/8):sta &fe01
+	bne page_draw_ram
 
 	\\ Draw screen 1
+	.draw_screen1_addr
+	lda #HI(screen1_addr)
+	sta draw_buffer_HI
+
 	lda #HI(screen1_row_HI)
 	sta plot_long_span_set_screen+2
 	sta plot_short_span_set_screen+2
 		
-		lda #LO(span_row_table_screen1_LO)
-		sta plot_span_set_row_table_LO+1
-		lda #HI(span_row_table_screen1_LO)
-		sta plot_span_set_row_table_LO+2
-		lda #LO(span_row_table_screen1_HI)
-		sta plot_span_set_row_table_HI+1
-		lda #HI(span_row_table_screen1_HI)
-		sta plot_span_set_row_table_HI+2
+	lda #LO(span_row_table_screen1_LO)
+	sta plot_span_set_row_table_LO+1
+	lda #HI(span_row_table_screen1_LO)
+	sta plot_span_set_row_table_LO+2
+	lda #LO(span_row_table_screen1_HI)
+	sta plot_span_set_row_table_HI+1
+	lda #HI(span_row_table_screen1_HI)
+	sta plot_span_set_row_table_HI+2
 
-	\\ Continue
-	.continue
+	\\ Page correct RAM for draw buffer
+	.page_draw_ram
+	lda screen_lock
+	cmp #2
+	beq page_shadow_ram_draw
+
+	\\ Page MAIN RAM draw
+;	lda &fe34:and #&ff-4:sta &fe34
+
+	\\ Show screen 1
+	.show_screen1
+    lda #12:sta &fe00
+    lda #HI(screen1_addr/8):sta &fe01
+    lda #13:sta &fe00
+    lda #LO(screen1_addr/8):sta &fe01
+	jmp return_here_from_swap_frame_buffers
+
+	.page_shadow_ram_draw
+;	lda &fe34:ora #4:sta &fe34
+
+	\\ Show screen 2
+	.show_screen2
+    lda #12:sta &fe00
+    lda #HI(screen2_addr/8):sta &fe01
+    lda #13:sta &fe00
+    lda #LO(screen2_addr/8):sta &fe01
 	jmp return_here_from_swap_frame_buffers
 }
 
@@ -1129,8 +1172,8 @@ ENDIF
 
 .bss_start
 
-CLEAR reloc_from_start, screen2_addr
-ORG reloc_from_start
+CLEAR boot_end, screen2_addr
+ORG boot_end
 GUARD screen2_addr
 
 PAGE_ALIGN

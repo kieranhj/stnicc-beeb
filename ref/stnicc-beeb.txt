@@ -373,3 +373,15 @@ Master@HQ = &37AE = 6.3 efps
 Need to check palette combining works for NULA.
 Make sure the later palette value is kept, not the earlier one!
 ^- DONE. Need to check NULA version still works.
+
+Double buffer
+~~~
+Buffer 1: draw main RAM at screen1_addr, display main RAM at screen2_addr
+Buffer 2: draw main RAM at screen2_addr, display main RAM at screen1_addr
+
+Triple buffer
+~~~
+Buffer 0: draw main RAM at screen1_addr, display SHADOW RAM at screen1_addr
+Buffer 1: draw main RAM at screen2_addr, display main RAM at screen1_addr
+Buffer 2: draw SHADOW RAM at screen1_addr, display main RAM at screen2_addr
++--> can't use SHADOW buffer as need RAM from &3000-&4E00 for streaming buffer :\
