@@ -16,6 +16,7 @@ osbyte = &FFF4
 osword = &FFF1
 osfind = &FFCE
 osgbpb = &FFD1
+oscli  = &FFF7
 osargs = &FFDA
 
 IRQ1V = &204
@@ -165,6 +166,9 @@ GUARD screen_addr
 
     \\ Set MODE 1
 
+    lda #19
+    jsr osbyte
+
     lda #22
     jsr oswrch
     lda #1
@@ -269,14 +273,27 @@ ENDIF
     dec cls_active
     bne continue
 
+    ldx count
+    inx
+    cpx #3
+    stx count
+    beq load_next_part
+
     .do_text
     jsr make_glixel
 
     .continue
-    inc count
     jmp loop
 
-    rts
+    .load_next_part
+    \\ White out!
+
+    \\ Display image here for 5s?
+
+    \\ Load next part
+    ldx #LO(next_part_cmd)
+    ldy #HI(next_part_cmd)
+    jmp oscli
 }
 
 .get_char_def
@@ -677,7 +694,7 @@ ENDMACRO
 
 .cls
 {
-    ldX #0
+    ldx #0
     .loop
     txa:tay
     jsr wipe_line_Y
@@ -736,17 +753,12 @@ EQUS 31,20,24,"*NOT*"
 EQUS 31,8,32, "A FALCON"
 EQUS 31,24,40,"DEMO"
 EQUS 12 ; cls
-EQUS 31,4,16, "THIS IS A"
-EQUS 31,12,24,"$ BIT $"
-EQUS 31,8,32, "SHIFTERS"
-EQUS 31,20,40,"DEMO!"
-EQUS 12 ; cls
-EQUS 31,4,8, "BBC Micro"
-EQUS 31,4,16,"2MHz 6502"
-EQUS 31,0,24,"No Blitter"
-EQUS 31,12,32,"ST data"
-EQUS 31,8,40,"Real 5%",'"'
-EQUS 31,4,48,"floppy @@"
+EQUS 31,8,4,  "BBC MICRO"
+EQUS 31,8,12, "2MHz 6502"
+EQUS 31,24,20,"32K RAM"
+EQUS 31,0,28, "5%",'"'," FLOPPY"
+EQUS 31,0,44, "HALF THE"
+EQUS 31,16,52,"BITS...."
 EQUS 12 ; cls
 EQUS 0
 
@@ -810,6 +822,8 @@ EQUB %01100111
 EQUB %00000001
 EQUB %00000000
 
+.next_part_cmd
+EQUS "/LOW", 13
 
 PAGE_ALIGN
 .screen_row_LO
