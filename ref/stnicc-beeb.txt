@@ -335,3 +335,41 @@ Removing the initial buffer fill from the timing helps as well!
 Master@HQ = &712A = 3.11 fps!
 Master@LQ = &4702 = 4.95 fps!
 _DEBUG=FALSE saves another 50 vsyncs!
+
+Skipping odd numbered frames...
+Master@HQ = &3FEF = 5.50 fps!
+Master@MQ = &2E3E = 7.60 fps!
+Master@LQ = &2B0A = 8.17 fps!
+
+More optimisation genius from RTW:
+
+(screen AND (NOT mask)) OR (data AND mask)
+LDA mask
+EOR #&FF
+AND (screen),Y
+STA temp
+LDA mask
+AND data
+ORA temp
+But this is equivalent, and less messy:
+((screen EOR data) AND mask) EOR screen
+LDA (screen),Y
+EOR data
+AND mask
+EOR (screen),Y
+
+We need:
+(mask AND (screen EOR data)) EOR screen
+LDA mask
+BEQ early_out
+Just early out anyway.
+
+Skipping odd frames with proper data after re-encoding the stream
+Plus Rich's mask optimisation above:
+Master@LQ = &2306 = 10.03 fps (effective)?!
+Master@MQ = &2668 = 9.15 efps
+Master@HQ = &37AE = 6.3 efps
+
+Need to check palette combining works for NULA.
+Make sure the later palette value is kept, not the earlier one!
+^- DONE. Need to check NULA version still works.
