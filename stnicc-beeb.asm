@@ -21,6 +21,7 @@ _PLOT_WIREFRAME = FALSE
 _HALF_VERTICAL_RES = (_QUALITY < 2)
 _DOUBLE_PLOT_Y = (_QUALITY = 1)
 _WIDESCREEN = (_QUALITY = 2) AND FALSE
+_SKIP_ODD_FRAMES = FALSE
 
 PRINT "------"
 PRINT "STNICC-BEEB"
@@ -131,8 +132,8 @@ STREAMING_tracks_per_disk = 79
 STREAMING_sectors_to_load = 10
 
 DISK1_drive_no = 0
-DISK1_first_track = 60
-DISK1_last_track = DISK1_first_track + 20
+DISK1_first_track = 30
+DISK1_last_track = DISK1_first_track + 50
 
 DISK2_first_track = 1
 DISK2_last_track = DISK2_first_track + STREAMING_tracks_per_disk
@@ -766,13 +767,40 @@ ENDIF
 		lda #&ff:sta buffer_lock
 
 		.stream_ok
-		IF _PLOT_WIREFRAME
+		IF _PLOT_WIREFRAME OR _SKIP_ODD_FRAMES
 		{
+			lda track_no
+			bmi enough_data_for_next_frame
+			
 			lda STREAM_ptr_HI
 			cmp load_to_HI
-			bne wire_ok
+			bcs stream_ptr_gt_load_to
+
+			\\ Stream Ptr < Load To
+			sec
+			lda load_to_HI
+			sbc STREAM_ptr_HI
+			cmp #4
+			bcs enough_data_for_next_frame
+
+			\\ Otherwise lock our buffer
 			lda #&ff:sta buffer_lock
-			.wire_ok
+			bne enough_data_for_next_frame
+
+			.stream_ptr_gt_load_to
+			\\ Stream Ptr > Load To
+			clc
+			lda load_to_HI
+			adc #HI(STREAM_buffer_size)
+			sec
+			sbc STREAM_ptr_HI
+			cmp #4
+			bcs enough_data_for_next_frame
+
+			\\ Otherwise lock our buffer
+			lda #&ff:sta buffer_lock
+
+			.enough_data_for_next_frame
 		}
 		ENDIF
 
@@ -789,6 +817,12 @@ ENDIF
 
 	\\ Remove our work lock
 	DEC decode_lock
+
+	IF _SKIP_ODD_FRAMES
+	lda frame_no
+    lsr a
+    bcs return_here_from_swap_frame_buffers
+	ENDIF
 
 	\\ Set our screen lock until frame swap
 	lda #&ff:sta screen_lock
@@ -972,7 +1006,7 @@ EQUB &20 + STREAMING_sectors_to_load		; sector size / number sectors = 256 / 10
 EQUB 0				; returned error value
 
 .drive_order
-EQUB 2,3,1,0
+EQUB 2,0			; only two discs now 3,1,0
 
 .colour_table
 EQUB &00, &0F, &F0, &FF

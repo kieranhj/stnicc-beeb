@@ -4,6 +4,7 @@ import sys
 
 TRACK_SIZE = 10 * 256
 SPLIT_SIZE = 79 * TRACK_SIZE
+FIRST_SIZE = 50 * TRACK_SIZE
 
 if __name__ == '__main__':
 
@@ -14,7 +15,7 @@ if __name__ == '__main__':
     data = f.read()
     size = len(data)
 
-    first_chunk = size % SPLIT_SIZE
+    first_chunk = FIRST_SIZE
 
     # Needs to be rounded up to a full track
     if first_chunk % TRACK_SIZE != 0:

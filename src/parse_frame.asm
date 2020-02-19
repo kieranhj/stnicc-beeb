@@ -52,6 +52,11 @@ endif
 
 .parse_frame
 {
+    inc frame_no
+    bne no_carry
+    inc frame_no+1
+    .no_carry
+
     ldy #0
     GET_BYTE
     sta frame_flags
@@ -257,6 +262,11 @@ IF _PLOT_WIREFRAME
     jsr plot_poly_line
     jmp read_poly_data
 ELSE
+    IF _SKIP_ODD_FRAMES
+    lda frame_no
+    lsr a
+    bcs read_poly_data
+    ENDIF
     jmp plot_poly_span      ; JSR/RTS => JMP/JMP
 ENDIF
 
@@ -284,15 +294,15 @@ IF _PLOT_WIREFRAME
     jsr plot_poly_line
     jmp read_poly_data
 ELSE
+    IF _SKIP_ODD_FRAMES
+    lda frame_no
+    lsr a
+    bcs read_poly_data
+    ENDIF
     jmp plot_poly_span      ; JSR/RTS => JMP/JMP
 ENDIF
 
     .parse_end_of_frame
-
-    inc frame_no
-    bne no_carry
-    inc frame_no+1
-    .no_carry
 
     rts
 }

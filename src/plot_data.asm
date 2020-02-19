@@ -107,19 +107,11 @@ PAGE_ALIGN_FOR_SIZE 52
 .colour_mask_short_0
 SHORT_MASK_TABLE 0,0        ; 20+16+16 = 52 bytes max
 CHECK_SAME_PAGE_AS colour_mask_short_0
-PAGE_ALIGN_FOR_SIZE 52
-.screen_mask_short_0
-SHORT_MASK_TABLE $ff,0
-CHECK_SAME_PAGE_AS screen_mask_short_0
 
 PAGE_ALIGN_FOR_SIZE 52
 .colour_mask_short_1
 SHORT_MASK_TABLE 0,1
 CHECK_SAME_PAGE_AS colour_mask_short_1
-PAGE_ALIGN_FOR_SIZE 52
-.screen_mask_short_1
-SHORT_MASK_TABLE $ff,1
-CHECK_SAME_PAGE_AS screen_mask_short_1
 
 ; tables to 3 bytes
 IF _SHORT_SPAN_MAX_PIXELS > 5
@@ -127,10 +119,6 @@ PAGE_ALIGN_FOR_SIZE 52
 .colour_mask_short_2
 SHORT_MASK_TABLE 0,2
 CHECK_SAME_PAGE_AS colour_mask_short_2
-PAGE_ALIGN_FOR_SIZE 52
-.screen_mask_short_2
-SHORT_MASK_TABLE $ff,2
-CHECK_SAME_PAGE_AS screen_mask_short_2
 ENDIF
 
 ; tables to 4 bytes
@@ -139,8 +127,8 @@ PAGE_ALIGN_FOR_SIZE 52
 .colour_mask_short_3
 SHORT_MASK_TABLE 0,3
 CHECK_SAME_PAGE_AS colour_mask_short_3
-PAGE_ALIGN_FOR_SIZE 52
-.screen_mask_short_3
-SHORT_MASK_TABLE $ff,3
-CHECK_SAME_PAGE_AS screen_mask_short_3
 ENDIF
+
+; WTAF? Without this long_span_tables ends up a page lower and crashes?!
+; Might be to do with EXE size. 
+skip 3*52
