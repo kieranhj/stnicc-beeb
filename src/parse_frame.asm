@@ -38,18 +38,6 @@ equb ((i>>3) or (i<<1)) and 15
 next
 endif
 
-if NOT(_NULA)
-MACRO GET_PAL_BYTE
-{
-    inc pal_ptr_LO
-    bne no_carry
-    inc pal_ptr_HI
-    .no_carry
-    lda (pal_ptr_LO), y
-}
-ENDMACRO
-endif
-
 .parse_frame
 {
     inc frame_no
