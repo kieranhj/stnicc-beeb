@@ -125,6 +125,7 @@ GUARD &17
 .cls_active     skip 1
 
 .vsyncs         skip 1
+.next_slot      skip 1
 
 .zp_end
 
@@ -625,8 +626,8 @@ ENDIF
 .make_lerp
 {
     jsr get_next_slot
-    bcc found_slot
-    rts
+;    bcc found_slot
+;    rts
 
     .found_slot
     lda xstart
@@ -726,6 +727,18 @@ ENDIF
 
 .get_next_slot
 {
+IF 1
+    ldx next_slot
+    txa
+    clc
+    adc #1
+    cmp #MAX_GLIXELS
+    bcc ok
+    lda #0
+    .ok
+    sta next_slot
+    rts
+ELSE
     clc
     ldx #0
     .loop
@@ -736,6 +749,7 @@ ENDIF
     bcc loop
     .return
     rts
+ENDIF
 }
 
 MACRO MOVE_ROW
