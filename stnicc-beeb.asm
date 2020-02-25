@@ -364,23 +364,8 @@ endif
 
     jsr init_span_buffer
 
-	\\ Wait for vsync
-	{
-		lda #2
-		.vsync1
-		bit &FE4D
-		beq vsync1
-	}
-
-	\\ Close enough for our purposes
-	; Write T1 low now (the timer will not be written until you write the high byte)
-    LDA #LO(TimerValue):STA &FE44
-    ; Get high byte ready so we can write it as quickly as possible at the right moment
-    LDX #HI(TimerValue):STX &FE45             		; start T1 counting		; 4c +1/2c 
-
-  	; Latch T1 to interupt exactly every 50Hz frame
-	LDA #LO(FramePeriod):STA &FE46
-	LDA #HI(FramePeriod):STA &FE47
+	\\ Setup video
+	lda #8:sta &fe00:lda #&f0:sta &fe01		; hide screen
 
 	\\ Set ULA to MODE 5
 	lda #ULA_Mode5
@@ -433,22 +418,42 @@ endif
 	\\ Clear the visible screen
 	jsr screen2_cls
 
+	\\ Wait for vsync
+	{
+		lda #2
+		.vsync1
+		bit &FE4D
+		beq vsync1
+	}
+
 	\\ Set interrupts and handler
-	SEI							; disable interupts
-	LDA #&7F					; A=01111111
-	STA &FE4E					; R14=Interrupt Enable (disable all interrupts)
-	STA &FE43					; R3=Data Direction Register "A" (set keyboard data direction)
-	LDA #&C2					; A=11000010
-	STA &FE4E					; R14=Interrupt Enable (enable main_vsync and timer interrupt)
+	SEI										; disable interupts
+
+	\\ Close enough for our purposes
+	; Write T1 low now (the timer will not be written until you write the high byte)
+    LDA #LO(TimerValue):STA &FE44
+    ; Get high byte ready so we can write it as quickly as possible at the right moment
+    LDX #HI(TimerValue):STX &FE45            ; start T1 counting		; 4c +1/2c 
+
+  	; Latch T1 to interupt exactly every 50Hz frame
+	LDA #LO(FramePeriod):STA &FE46
+	LDA #HI(FramePeriod):STA &FE47
+
+	LDA #&7F								; A=01111111
+	STA &FE4E								; R14=Interrupt Enable (disable all interrupts)
+	STA &FE43								; R3=Data Direction Register "A" (set keyboard data direction)
+	LDA #&C2								; A=11000010
+	STA &FE4E								; R14=Interrupt Enable (enable main_vsync and timer interrupt)
 
     LDA IRQ1V:STA old_irqv
     LDA IRQ1V+1:STA old_irqv+1
 
     LDA #LO(irq_handler):STA IRQ1V
     LDA #HI(irq_handler):STA IRQ1V+1		; set interrupt handler
-	CLI							; enable interupts
+	CLI										; enable interupts
 
 	\\ GO!
+	lda #8:sta &fe00:lda #&c0:sta &fe01		; show the screen!
 
     .loop
     \\ Debug
@@ -955,7 +960,7 @@ INCLUDE "src/screen.asm"
 	EQUB 0					; R5  vertical total adjust
 	EQUB 25					; R6  vertical displayed
 	EQUB 31					; R7  vertical position
-	EQUB &C0				; R8  no interlace; cursor off
+	EQUB &F0				; R8  no interlace; cursor off; display off
 	EQUB 7					; R9  scanlines per row
 	EQUB 32					; R10 cursor start
 	EQUB 8					; R11 cursor end
