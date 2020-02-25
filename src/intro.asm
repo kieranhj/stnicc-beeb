@@ -31,6 +31,8 @@ PAL_cyan	= (6 EOR 7)
 PAL_yellow	= (3 EOR 7)
 PAL_white	= (7 EOR 7)
 
+ULA_Mode1   = &D8
+
 \ ******************************************************************
 \ *	MACROS
 \ ******************************************************************
@@ -146,6 +148,8 @@ GUARD screen_addr
 
 .main
 {
+    lda #8:sta &fe00:lda #&f0:sta &fe01          ; hide screen immediately
+
     ldx #&ff
     txs
 
@@ -167,17 +171,22 @@ GUARD screen_addr
 	STA &FE4E					; R14=Interrupt Enable (enable main_vsync and timer interrupt)
     CLI
 
-    \\ Set MODE 1
+    \\ Set MODE 1 w/out using OS.
 
-    lda #19
-    jsr osbyte
+	\\ Set ULA to MODE 5
+	lda #ULA_Mode1
+	sta &248			; OS copy
+	sta &fe20
 
-    lda #22
-    jsr oswrch
-    lda #1
-    jsr oswrch
-
-    lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
+	\\ Set CRTC to MODE 1
+	ldx #0
+	.crtc_loop
+	stx &fe00
+	lda mode1_crtc_regs, X
+	sta &fe01
+	inx
+	cpx #14
+	bcc crtc_loop
 
     \\ Set pal
 
@@ -233,6 +242,8 @@ GUARD screen_addr
 
     lda #19
     jsr osbyte
+
+    lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off, display on
 
     .loop
     lda #19
@@ -1036,8 +1047,25 @@ NEXT
 	EQUB &F0 + PAL_white
 }
 
-k = 3
+.mode1_crtc_regs
+{
+	EQUB 127    			; R0  horizontal total
+	EQUB 80					; R1  horizontal displayed
+	EQUB 98					; R2  horizontal position
+	EQUB &28				; R3  sync width
+	EQUB 38					; R4  vertical total
+	EQUB 0					; R5  vertical total adjust
+	EQUB 32					; R6  vertical displayed
+	EQUB 35					; R7  vertical position
+	EQUB &F0				; R8  no interlace; cursor off; display off
+	EQUB 7					; R9  scanlines per row
+	EQUB 32					; R10 cursor start
+	EQUB 8					; R11 cursor end
+	EQUB HI(screen_addr/8)	; R12 screen start address, high
+	EQUB LO(screen_addr/8)	; R13 screen start address, low
+}
 
+k = 3
 PAGE_ALIGN
 .startx_table_LO
 FOR n,0,255,1
