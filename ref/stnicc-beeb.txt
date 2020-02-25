@@ -373,3 +373,16 @@ Master@HQ = &37AE = 6.3 efps
 Need to check palette combining works for NULA.
 Make sure the later palette value is kept, not the earlier one!
 ^- DONE. Need to check NULA version still works.
+
+Intro
+~~~
+"This is *not* a Falcon demo"
+10 chars per row with 8x8 gylphs using 4x4 pixel blocks per glyph pixel.
+MODE 1 => 320 pix = 10 * 8 * 4
+Use default font set.
+Glyph 'pixels' appear a row at a time, left to right.
+'Pixels' appear in a circular pattern then lerp to their final spot.
+This means lerp must be over a constant number of frames, rather than a constant velocity.
+Plot the 'pixels' EOR to move.
+'Pixels' have to be plotted to screen pixel accuracy.
+Maybe use term 'glixel' => glyph pixel?

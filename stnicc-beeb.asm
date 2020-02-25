@@ -65,6 +65,8 @@ PAL_cyan	= (6 EOR 7)
 PAL_yellow	= (3 EOR 7)
 PAL_white	= (7 EOR 7)
 
+ULA_Mode5 	= &C4
+
 DFS_sector_size = 256
 DFS_sectors_per_track = 10
 DFS_track_size = (DFS_sectors_per_track * DFS_sector_size)
@@ -303,49 +305,14 @@ GUARD screen2_addr
 {
     \\ Init ZP
     lda #0
-    ldx #0
+    tax
     .zp_loop
     sta &00, x
     inx
     cpx #&A0
     bne zp_loop
 
-    \\ Set MODE 5
-
-    lda #22
-    jsr oswrch
-    lda #5
-    jsr oswrch
-
-if _NULA
-
-    lda #9:ldx #0:jsr osbyte
-	lda #10:ldx #0:jsr osbyte
-	lda #154:ldx #0:jsr osbyte
-
-	lda #$00
-	clc
-	.reset_palette_loop
-	pha
-	eor #$07:sta $fe21
-	pla
-	adc #$11
-	bcc reset_palette_loop
-
-; disable NuLA auxiliary palette
-	lda #$10
-	sta $fe22
-
-; set colour 0 to black
-
-    lda #$00
-	sta $fe23
-	sta $fe23
-
-endif
-
 	\\ Relocate data to lower RAM
-	\\ Might want to do this before clearing the screen if data overlaps!
 	lda #HI(reloc_from_start)
 	ldy #HI(reloc_to_start)
 	ldx #HI(reloc_to_end - reloc_to_start + &ff)
@@ -356,53 +323,7 @@ if not(_NULA)
 	ldy #HI(palette_stream_buffer)
 	ldx #HI(palette_stream_end - palette_stream_start + &ff)
 	jsr copy_pages
-
-	ldx #15
-	.pal_loop
-	lda mode5_palette, X
-	sta &fe21
-	dex
-	bpl pal_loop
 endif
-
-	\\ Clear the extra bit!
-	jsr screen2_cls
-
-	{
-		lda #2
-		.vsync1
-		bit &FE4D
-		beq vsync1 \ wait for vsync
-	}
-
-	\\ Close enough for our purposes
-	; Write T1 low now (the timer will not be written until you write the high byte)
-    LDA #LO(TimerValue):STA &FE44
-    ; Get high byte ready so we can write it as quickly as possible at the right moment
-    LDX #HI(TimerValue):STX &FE45             		; start T1 counting		; 4c +1/2c 
-
-  	; Latch T1 to interupt exactly every 50Hz frame
-	LDA #LO(FramePeriod):STA &FE46
-	LDA #HI(FramePeriod):STA &FE47
-
-    \\ Resolution 256x200 => 128x200
-    lda #1:sta &fe00:lda #32:sta &fe01
-    lda #6:sta &fe00:lda #25:sta &fe01
-    lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
-	lda #2:sta $fe00:lda #45:sta $fe01
-	lda #7:sta $fe00:lda #31:sta $fe01
-
-    lda #12:sta &fe00
-    lda #HI(screen2_addr/8):sta &fe01
-    lda #13:sta &fe00
-    lda #LO(screen2_addr/8):sta &fe01
-
-    \\ Load SWRAM data
-;    SWRAM_SELECT 4
-;    lda #HI(&8000)
-;    ldx #LO(filename0)
-;    ldy #HI(filename0)
-;    jsr disksys_load_file
 
     \\ Set stream pointer
     lda #LO(STREAM_buffer_start-1)
@@ -432,7 +353,7 @@ endif
         .read_error
 	}
 
-    \\ Init system
+    \\ Init early system
     lda #HI(screen1_addr)
     sta draw_buffer_HI
 
@@ -441,28 +362,98 @@ endif
 	lda #HI(palette_stream_buffer-1)
 	sta pal_ptr_HI
 
-    \\ Clear screen
-    jsr screen_cls
     jsr init_span_buffer
 
-    \\ jmp do_tests
+	\\ Setup video
+	lda #8:sta &fe00:lda #&f0:sta &fe01		; hide screen
+
+	\\ Set ULA to MODE 5
+	lda #ULA_Mode5
+	sta &248			; OS copy
+	sta &fe20
+
+	\\ Set CRTC to MODE 5 => 128x200
+	ldx #0
+	.crtc_loop
+	stx &fe00
+	lda mode5_crtc_regs, X
+	sta &fe01
+	inx
+	cpx #14
+	bcc crtc_loop
+
+if _NULA
+	\\ Set NULA palette
+    lda #9:ldx #0:jsr osbyte
+	lda #10:ldx #0:jsr osbyte
+	lda #154:ldx #0:jsr osbyte
+
+	lda #$00
+	clc
+	.reset_palette_loop
+	pha
+	eor #$07:sta $fe21
+	pla
+	adc #$11
+	bcc reset_palette_loop
+
+; disable NuLA auxiliary palette
+	lda #$10
+	sta $fe22
+
+; set colour 0 to black
+    lda #$00
+	sta $fe23
+	sta $fe23
+else
+	\\ Set ULA palete for MODE 5
+	ldx #15
+	.pal_loop
+	lda mode5_palette, X
+	sta &fe21
+	dex
+	bpl pal_loop
+endif
+
+	\\ Clear the visible screen
+	jsr screen2_cls
+
+	\\ Wait for vsync
+	{
+		lda #2
+		.vsync1
+		bit &FE4D
+		beq vsync1
+	}
 
 	\\ Set interrupts and handler
-	SEI							; disable interupts
-	LDA #&7F					; A=01111111
-	STA &FE4E					; R14=Interrupt Enable (disable all interrupts)
-	STA &FE43					; R3=Data Direction Register "A" (set keyboard data direction)
-	LDA #&C2					; A=11000010
-	STA &FE4E					; R14=Interrupt Enable (enable main_vsync and timer interrupt)
+	SEI										; disable interupts
+
+	\\ Close enough for our purposes
+	; Write T1 low now (the timer will not be written until you write the high byte)
+    LDA #LO(TimerValue):STA &FE44
+    ; Get high byte ready so we can write it as quickly as possible at the right moment
+    LDX #HI(TimerValue):STX &FE45            ; start T1 counting		; 4c +1/2c 
+
+  	; Latch T1 to interupt exactly every 50Hz frame
+	LDA #LO(FramePeriod):STA &FE46
+	LDA #HI(FramePeriod):STA &FE47
+
+	LDA #&7F								; A=01111111
+	STA &FE4E								; R14=Interrupt Enable (disable all interrupts)
+	STA &FE43								; R3=Data Direction Register "A" (set keyboard data direction)
+	LDA #&C2								; A=11000010
+	STA &FE4E								; R14=Interrupt Enable (enable main_vsync and timer interrupt)
 
     LDA IRQ1V:STA old_irqv
     LDA IRQ1V+1:STA old_irqv+1
 
     LDA #LO(irq_handler):STA IRQ1V
     LDA #HI(irq_handler):STA IRQ1V+1		; set interrupt handler
-	CLI							; enable interupts
+	CLI										; enable interupts
 
 	\\ GO!
+	lda #8:sta &fe00:lda #&c0:sta &fe01		; show the screen!
 
     .loop
     \\ Debug
@@ -933,6 +924,18 @@ old_irqv = P%-2
 
 .fx_start
 
+if not(_NULA)
+MACRO GET_PAL_BYTE
+{
+    inc pal_ptr_LO
+    bne no_carry
+    inc pal_ptr_HI
+    .no_carry
+    lda (pal_ptr_LO), y
+}
+ENDMACRO
+endif
+
 ;INCLUDE "lib/disksys.asm"
 INCLUDE "src/parse_frame.asm"
 INCLUDE "src/plot_poly.asm"
@@ -946,25 +949,24 @@ INCLUDE "src/screen.asm"
 
 .data_start
 
-IF 0
-.crtc_regs_default
+\\ Resolution 256x200 => 128x200
+.mode5_crtc_regs
 {
-	EQUB 127				; R0  horizontal total
-	EQUB 80					; R1  horizontal displayed
-	EQUB 98					; R2  horizontal position
-	EQUB &28				; R3  sync width 40 = &28
+	EQUB 63					; R0  horizontal total
+	EQUB 32					; R1  horizontal displayed
+	EQUB 45					; R2  horizontal position
+	EQUB &24				; R3  sync width
 	EQUB 38					; R4  vertical total
 	EQUB 0					; R5  vertical total adjust
-	EQUB 32					; R6  vertical displayed
-	EQUB 35					; R7  vertical position; 35=top of screen
-	EQUB &0					; R8  interlace; &30 = HIDE SCREEN
+	EQUB 25					; R6  vertical displayed
+	EQUB 31					; R7  vertical position
+	EQUB &F0				; R8  no interlace; cursor off; display off
 	EQUB 7					; R9  scanlines per row
 	EQUB 32					; R10 cursor start
 	EQUB 8					; R11 cursor end
-	EQUB HI(screen_addr/8)	; R12 screen start address, high
-	EQUB LO(screen_addr/8)	; R13 screen start address, low
+	EQUB HI(screen2_addr/8)	; R12 screen start address, high
+	EQUB LO(screen2_addr/8)	; R13 screen start address, low
 }
-ENDIF
 
 .mode5_palette
 {
