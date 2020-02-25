@@ -83,6 +83,7 @@ SCREEN_ROW_BYTES = SCREEN_WIDTH_PIXELS * 8 / 4
 SCREEN_SIZE_BYTES = (SCREEN_WIDTH_PIXELS * SCREEN_HEIGHT_PIXELS) / 4
 
 screen_addr = &3000
+screen_logo_addr = &4E00
 
 MAX_GLIXELS = 64
 LERP_FRAMES = 64
@@ -92,7 +93,7 @@ LERP_FRAMES = 64
 \ ******************************************************************
 
 ORG &00
-GUARD &A0
+GUARD &17
 
 .zp_start
 
@@ -289,6 +290,23 @@ ENDIF
     \\ White out!
 
     \\ Display image here for 5s?
+    lda #6:sta &fe00        ; vertical displayed = 20
+    lda #20:sta &fe01
+
+    lda #7:sta &fe00        ; vertical position = 28
+    lda #28:sta &fe01
+
+    lda #12:sta &fe00
+    lda #HI(screen_logo_addr/8)
+    sta &fe01
+
+    lda #13:sta &fe00
+    lda #LO(screen_logo_addr/8)
+    sta &fe01
+
+    ldx #LO(screen_exo)
+    ldy #HI(screen_exo)
+    jsr decrunch
 
     \\ Load next part
     ldx #LO(next_part_cmd)
@@ -825,6 +843,8 @@ EQUB %00000000
 .next_part_cmd
 EQUS "/LOW", 13
 
+include "src/exo.asm"
+
 PAGE_ALIGN
 .screen_row_LO
 FOR y,0,255,1
@@ -896,6 +916,9 @@ a = n *  4 * PI / 256
 x = 128 + 100 * COS(k * a) * SIN(a)
 EQUB HI(x << 6)
 NEXT
+
+.screen_exo
+INCBIN "build/logo_mode1.exo"
 
 \ ******************************************************************
 \ *	End address to be saved
