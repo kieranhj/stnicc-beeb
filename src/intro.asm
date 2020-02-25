@@ -122,6 +122,8 @@ GUARD &17
 .lerps_active   skip 1
 .cls_active     skip 1
 
+.vsyncs         skip 1
+
 .zp_end
 
 \ ******************************************************************
@@ -179,12 +181,9 @@ GUARD screen_addr
 
     \\ Set pal
 
-    ldx #15
-    .pal_loop
-    lda palette, X
-    sta &fe21
-    dex
-    bpl pal_loop
+    ldx #LO(palette)
+    ldy #HI(palette)
+    jsr set_palette
 
     lda startx_table_LO
     sta xstart
@@ -270,15 +269,13 @@ ENDIF
     lda lerps_active
     bne continue
 
-    jsr wipe_line_Y
+    lda count
+    cmp #2    
+    beq load_next_part
+
+    jsr stiple_line_Y
     dec cls_active
     bne continue
-
-    ldx count
-    inx
-    cpx #3
-    stx count
-    beq load_next_part
 
     .do_text
     jsr make_glixel
@@ -287,15 +284,82 @@ ENDIF
     jmp loop
 
     .load_next_part
-    \\ White out!
+    \\ Show BBC specs
+    ldx #125:jsr wait_frames    ; 2.5s
 
-    \\ Display image here for 5s?
-    lda #6:sta &fe00        ; vertical displayed = 20
+    \\ White out!
+    ldx #LO(whiteout_palette)
+    ldy #HI(whiteout_palette)
+    jsr set_palette
+
+    \\ CLS to solid white
+    {
+        ldx #0
+        .loop
+        lda screen_row_LO, X:sta writeptr
+        lda screen_row_HI, X:sta writeptr+1
+        lda #&ff
+        jsr write_line_writeptr
+        inx
+        bne loop
+    }
+
+    \\ Wait a beat
+    ldx #25:jsr wait_frames    ; 0.5s
+
+    \\ Safe to add black back
+    ldx #LO(withblack_palette)
+    ldy #HI(withblack_palette)
+    jsr set_palette
+
+    \\ Transition to wide screen
+    {
+        ldx #0
+        .loop
+        stx count
+        
+        ldx #1:jsr wait_frames  ; speed
+
+        ldx count
+        lda screen_row_LO, X:sta writeptr
+        lda screen_row_HI, X:sta writeptr+1
+        lda #0
+        jsr write_line_writeptr
+
+        sec
+        lda #255
+        sbc count
+        tax
+        lda screen_row_LO, X:sta writeptr
+        lda screen_row_HI, X:sta writeptr+1
+        lda #0
+        jsr write_line_writeptr
+
+        ldx count
+        inx
+        cpx #48
+        bne loop
+    }
+
+    \\ Wait a beat
+    ldx #50:jsr wait_frames    ; 1.0s
+
+    \\ Set screen size
+    lda #6:sta &fe00        ; vertical displayed
     lda #20:sta &fe01
 
-    lda #7:sta &fe00        ; vertical position = 28
-    lda #28:sta &fe01
+    lda #7:sta &fe00        ; vertical position
+    lda #29:sta &fe01
 
+    \\ How to stop vsync jump here?
+    ldx #2:jsr wait_frames
+
+    \\ White out!
+    ldx #LO(whiteout_palette)
+    ldy #HI(whiteout_palette)
+    jsr set_palette
+
+    \\ Display last part of screen RAM
     lda #12:sta &fe00
     lda #HI(screen_logo_addr/8)
     sta &fe01
@@ -304,14 +368,51 @@ ENDIF
     lda #LO(screen_logo_addr/8)
     sta &fe01
 
+    \\ Decompress screen
     ldx #LO(screen_exo)
     ldy #HI(screen_exo)
     jsr decrunch
+
+    lda #19:jsr osbyte
+
+    \\ Set palette
+    ldx #LO(logo_palette)
+    ldy #HI(logo_palette)
+    jsr set_palette
+
+    \\ Pause for dramatic effect
+    ldx #125:jsr wait_frames    ; 2.5s
 
     \\ Load next part
     ldx #LO(next_part_cmd)
     ldy #HI(next_part_cmd)
     jmp oscli
+}
+
+.wait_frames
+{
+    stx vsyncs
+    .loop
+    lda #19:jsr osbyte
+    dec vsyncs
+    bne loop
+    rts
+}
+
+.set_palette
+{
+    stx read_pal+1
+    sty read_pal+2
+
+    ldx #15
+    .loop
+    .read_pal
+    lda &ffff, x
+    sta &fe21
+    dex
+    bpl loop
+
+    rts
 }
 
 .get_char_def
@@ -403,6 +504,7 @@ ENDIF
     cmp #12     ; VDU 12 = cls
     bne not_vdu12
 
+    inc count
     lda #&ff
     sta cls_active
     sta plotted
@@ -715,13 +817,13 @@ ENDMACRO
     ldx #0
     .loop
     txa:tay
-    jsr wipe_line_Y
+    jsr stiple_line_Y
     dex
     bne loop
     rts
 }
 
-.wipe_line_Y
+.stiple_line_Y
 {
     lda screen_row_LO, Y
     sta writeptr
@@ -732,7 +834,11 @@ ENDMACRO
     and #1
     tay
     lda stipple, Y
-    FOR n,0,SCREEN_ROW_BYTES,8
+}
+\\ Fall through!
+.write_line_writeptr
+{
+    FOR n,0,SCREEN_ROW_BYTES-1,8
     ldy #LO(n)
     sta (writeptr), Y
     IF LO(n) = &F8
@@ -741,9 +847,6 @@ ENDMACRO
     NEXT
 
     rts
-
-    .stipple
-    EQUB &0A, &05
 }
 
 .def_char
@@ -789,6 +892,9 @@ EQUS 0
 EQUB %11101110, %01110111, %00110011, %00010001
 .glixel_byte1
 EQUB %00000000, %00000000, %11001100, %11101110
+
+.stipple
+EQUB &0A, &05
 
 .palette
 {
@@ -869,6 +975,66 @@ NEXT
 FOR c,0,79,1
 EQUB HI(c * 8)
 NEXT
+
+.whiteout_palette
+{
+	EQUB &00 + PAL_white
+	EQUB &10 + PAL_white
+	EQUB &20 + PAL_white
+	EQUB &30 + PAL_white
+	EQUB &40 + PAL_white
+	EQUB &50 + PAL_white
+	EQUB &60 + PAL_white
+	EQUB &70 + PAL_white
+	EQUB &80 + PAL_white
+	EQUB &90 + PAL_white
+	EQUB &A0 + PAL_white
+	EQUB &B0 + PAL_white
+	EQUB &C0 + PAL_white
+	EQUB &D0 + PAL_white
+	EQUB &E0 + PAL_white
+	EQUB &F0 + PAL_white
+}
+
+.withblack_palette
+{
+	EQUB &00 + PAL_black
+	EQUB &10 + PAL_black
+	EQUB &20 + PAL_white
+	EQUB &30 + PAL_white
+	EQUB &40 + PAL_black
+	EQUB &50 + PAL_black
+	EQUB &60 + PAL_white
+	EQUB &70 + PAL_white
+	EQUB &80 + PAL_white
+	EQUB &90 + PAL_white
+	EQUB &A0 + PAL_white
+	EQUB &B0 + PAL_white
+	EQUB &C0 + PAL_white
+	EQUB &D0 + PAL_white
+	EQUB &E0 + PAL_white
+	EQUB &F0 + PAL_white
+}
+
+.logo_palette
+{
+	EQUB &00 + PAL_black
+	EQUB &10 + PAL_black
+	EQUB &20 + PAL_red
+	EQUB &30 + PAL_red
+	EQUB &40 + PAL_black
+	EQUB &50 + PAL_black
+	EQUB &60 + PAL_red
+	EQUB &70 + PAL_red
+	EQUB &80 + PAL_yellow
+	EQUB &90 + PAL_yellow
+	EQUB &A0 + PAL_white
+	EQUB &B0 + PAL_white
+	EQUB &C0 + PAL_yellow
+	EQUB &D0 + PAL_yellow
+	EQUB &E0 + PAL_white
+	EQUB &F0 + PAL_white
+}
 
 k = 3
 
