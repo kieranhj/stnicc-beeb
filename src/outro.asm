@@ -107,8 +107,8 @@ STREAMING_tracks_per_disk = 79
 STREAMING_sectors_to_load = 10
 
 DISK1_drive_no = 0
-DISK1_first_track = 60
-DISK1_last_track = DISK1_first_track + 20
+DISK1_first_track = 30
+DISK1_last_track = DISK1_first_track + 50
 
 DISK2_first_track = 1
 DISK2_last_track = DISK2_first_track + STREAMING_tracks_per_disk
@@ -1028,7 +1028,7 @@ EQUB &20 + STREAMING_sectors_to_load		; sector size / number sectors = 256 / 10
 EQUB 0				; returned error value
 
 .drive_order
-EQUB 2,3,1,0
+EQUB 2,0			; only two discs now. WAS 3,1,0
 
 .colour_table
 EQUB &00, &0F, &F0, &FF
