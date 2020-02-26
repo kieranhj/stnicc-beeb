@@ -222,17 +222,17 @@ GUARD screen_addr
     bcc init_loop
 
     \\ Char defs
-    lda #'$'
+    lda #128+'$'
     ldx #LO(flux_def)
     ldy #HI(flux_def)
     jsr def_char
 
-    lda #'@'
+    lda #128+'@'
     ldx #LO(smiley_def)
     ldy #HI(smiley_def)
     jsr def_char
 
-    lda #'%'
+    lda #128+'%'
     ldx #LO(quarter_def)
     ldy #HI(quarter_def)
     jsr def_char
@@ -902,9 +902,9 @@ EQUS 12 ; cls
 EQUS 31,0,4,  "BBC MICRO"
 EQUS 31,0,12, "2MHz 6502"
 EQUS 31,0,20, "32K RAM"
-EQUS 31,0,28, "5% FLOPPY"
+EQUS 31,0,28, "5",128+'%'," FLOPPY"
 EQUS 31,16,44,"HALF THE"
-EQUS 31,16,52,"BITS...$"
+EQUS 31,16,52,"BITS...",128+'$'
 EQUS 12 ; cls
 EQUS 0
 
