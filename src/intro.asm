@@ -16,6 +16,7 @@ osbyte = &FFF4
 osword = &FFF1
 osfind = &FFCE
 osgbpb = &FFD1
+oscli  = &FFF7
 osargs = &FFDA
 
 IRQ1V = &204
@@ -29,6 +30,8 @@ PAL_green	= (2 EOR 7)
 PAL_cyan	= (6 EOR 7)
 PAL_yellow	= (3 EOR 7)
 PAL_white	= (7 EOR 7)
+
+ULA_Mode1   = &D8
 
 \ ******************************************************************
 \ *	MACROS
@@ -82,6 +85,7 @@ SCREEN_ROW_BYTES = SCREEN_WIDTH_PIXELS * 8 / 4
 SCREEN_SIZE_BYTES = (SCREEN_WIDTH_PIXELS * SCREEN_HEIGHT_PIXELS) / 4
 
 screen_addr = &3000
+screen_logo_addr = &4E00
 
 MAX_GLIXELS = 64
 LERP_FRAMES = 64
@@ -91,7 +95,7 @@ LERP_FRAMES = 64
 \ ******************************************************************
 
 ORG &00
-GUARD &A0
+GUARD &17
 
 .zp_start
 
@@ -120,6 +124,9 @@ GUARD &A0
 .lerps_active   skip 1
 .cls_active     skip 1
 
+.vsyncs         skip 1
+.next_slot      skip 1
+
 .zp_end
 
 \ ******************************************************************
@@ -142,6 +149,8 @@ GUARD screen_addr
 
 .main
 {
+    lda #8:sta &fe00:lda #&f0:sta &fe01          ; hide screen immediately
+
     ldx #&ff
     txs
 
@@ -163,23 +172,28 @@ GUARD screen_addr
 	STA &FE4E					; R14=Interrupt Enable (enable main_vsync and timer interrupt)
     CLI
 
-    \\ Set MODE 1
+    \\ Set MODE 1 w/out using OS.
 
-    lda #22
-    jsr oswrch
-    lda #1
-    jsr oswrch
+	\\ Set ULA to MODE 5
+	lda #ULA_Mode1
+	sta &248			; OS copy
+	sta &fe20
 
-    lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
+	\\ Set CRTC to MODE 1
+	ldx #0
+	.crtc_loop
+	stx &fe00
+	lda mode1_crtc_regs, X
+	sta &fe01
+	inx
+	cpx #14
+	bcc crtc_loop
 
     \\ Set pal
 
-    ldx #15
-    .pal_loop
-    lda palette, X
-    sta &fe21
-    dex
-    bpl pal_loop
+    ldx #LO(palette)
+    ldy #HI(palette)
+    jsr set_palette
 
     lda startx_table_LO
     sta xstart
@@ -208,17 +222,17 @@ GUARD screen_addr
     bcc init_loop
 
     \\ Char defs
-    lda #'$'
+    lda #128+'$'
     ldx #LO(flux_def)
     ldy #HI(flux_def)
     jsr def_char
 
-    lda #'@'
+    lda #128+'@'
     ldx #LO(smiley_def)
     ldy #HI(smiley_def)
     jsr def_char
 
-    lda #'%'
+    lda #128+'%'
     ldx #LO(quarter_def)
     ldy #HI(quarter_def)
     jsr def_char
@@ -229,6 +243,8 @@ GUARD screen_addr
 
     lda #19
     jsr osbyte
+
+    lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off, display on
 
     .loop
     lda #19
@@ -265,7 +281,11 @@ ENDIF
     lda lerps_active
     bne continue
 
-    jsr wipe_line_Y
+    lda count
+    cmp #2    
+    beq load_next_part
+
+    jsr stiple_line_Y
     dec cls_active
     bne continue
 
@@ -273,8 +293,139 @@ ENDIF
     jsr make_glixel
 
     .continue
-    inc count
     jmp loop
+
+    .load_next_part
+    \\ Show BBC specs
+    ldx #125:jsr wait_frames    ; 2.5s
+
+    \\ White out!
+    ldx #LO(whiteout_palette)
+    ldy #HI(whiteout_palette)
+    jsr set_palette
+
+    \\ CLS to solid white
+    {
+        ldx #0
+        .loop
+        lda screen_row_LO, X:sta writeptr
+        lda screen_row_HI, X:sta writeptr+1
+        lda #&ff
+        jsr write_line_writeptr
+        inx
+        bne loop
+    }
+
+    \\ Wait a beat
+    ldx #25:jsr wait_frames    ; 0.5s
+
+    \\ Safe to add black back
+    ldx #LO(withblack_palette)
+    ldy #HI(withblack_palette)
+    jsr set_palette
+
+    \\ Transition to wide screen
+    {
+        ldx #0
+        .loop
+        stx count
+        
+        ldx #1:jsr wait_frames  ; speed
+
+        ldx count
+        lda screen_row_LO, X:sta writeptr
+        lda screen_row_HI, X:sta writeptr+1
+        lda #0
+        jsr write_line_writeptr
+
+        sec
+        lda #255
+        sbc count
+        tax
+        lda screen_row_LO, X:sta writeptr
+        lda screen_row_HI, X:sta writeptr+1
+        lda #0
+        jsr write_line_writeptr
+
+        ldx count
+        inx
+        cpx #48
+        bne loop
+    }
+
+    \\ Wait a beat
+    ldx #50:jsr wait_frames    ; 1.0s
+
+    \\ Will be ~row 35 here - set for next cycle
+    lda #6:sta &fe00        ; vertical displayed
+    lda #26:sta &fe01
+
+    lda #7:sta &fe00        ; vertical position
+    lda #29:sta &fe01
+
+    \\ Vsync will happen at row 29 here
+    lda #19:jsr osbyte
+
+    lda #6:sta &fe00        ; vertical displayed
+    lda #20:sta &fe01
+
+    \\ White out!
+    ldx #LO(whiteout_palette)
+    ldy #HI(whiteout_palette)
+    jsr set_palette
+
+    \\ Display last part of screen RAM
+    lda #12:sta &fe00
+    lda #HI(screen_logo_addr/8)
+    sta &fe01
+
+    lda #13:sta &fe00
+    lda #LO(screen_logo_addr/8)
+    sta &fe01
+
+    \\ Decompress screen
+    ldx #LO(screen_exo)
+    ldy #HI(screen_exo)
+    jsr decrunch
+
+    lda #19:jsr osbyte
+
+    \\ Set palette
+    ldx #LO(logo_palette)
+    ldy #HI(logo_palette)
+    jsr set_palette
+
+    \\ Pause for dramatic effect
+    ldx #125:jsr wait_frames    ; 2.5s
+
+    \\ Load next part
+    ldx #LO(next_part_cmd)
+    ldy #HI(next_part_cmd)
+    jmp oscli
+}
+
+.wait_frames
+{
+    stx vsyncs
+    .loop
+    lda #19:jsr osbyte
+    dec vsyncs
+    bne loop
+    rts
+}
+
+.set_palette
+{
+    stx read_pal+1
+    sty read_pal+2
+
+    ldx #15
+    .loop
+    .read_pal
+    lda &ffff, x
+    sta &fe21
+    dex
+    bpl loop
 
     rts
 }
@@ -368,6 +519,7 @@ ENDIF
     cmp #12     ; VDU 12 = cls
     bne not_vdu12
 
+    inc count
     lda #&ff
     sta cls_active
     sta plotted
@@ -477,8 +629,8 @@ ENDIF
 .make_lerp
 {
     jsr get_next_slot
-    bcc found_slot
-    rts
+;    bcc found_slot
+;    rts
 
     .found_slot
     lda xstart
@@ -578,6 +730,18 @@ ENDIF
 
 .get_next_slot
 {
+IF 1
+    ldx next_slot
+    txa
+    clc
+    adc #1
+    cmp #MAX_GLIXELS
+    bcc ok
+    lda #0
+    .ok
+    sta next_slot
+    rts
+ELSE
     clc
     ldx #0
     .loop
@@ -588,6 +752,7 @@ ENDIF
     bcc loop
     .return
     rts
+ENDIF
 }
 
 MACRO MOVE_ROW
@@ -677,16 +842,16 @@ ENDMACRO
 
 .cls
 {
-    ldX #0
+    ldx #0
     .loop
     txa:tay
-    jsr wipe_line_Y
+    jsr stiple_line_Y
     dex
     bne loop
     rts
 }
 
-.wipe_line_Y
+.stiple_line_Y
 {
     lda screen_row_LO, Y
     sta writeptr
@@ -697,7 +862,11 @@ ENDMACRO
     and #1
     tay
     lda stipple, Y
-    FOR n,0,SCREEN_ROW_BYTES,8
+}
+\\ Fall through!
+.write_line_writeptr
+{
+    FOR n,0,SCREEN_ROW_BYTES-1,8
     ldy #LO(n)
     sta (writeptr), Y
     IF LO(n) = &F8
@@ -706,9 +875,6 @@ ENDMACRO
     NEXT
 
     rts
-
-    .stipple
-    EQUB &0A, &05
 }
 
 .def_char
@@ -736,17 +902,12 @@ EQUS 31,20,24,"*NOT*"
 EQUS 31,8,32, "A FALCON"
 EQUS 31,24,40,"DEMO"
 EQUS 12 ; cls
-EQUS 31,4,16, "THIS IS A"
-EQUS 31,12,24,"$ BIT $"
-EQUS 31,8,32, "SHIFTERS"
-EQUS 31,20,40,"DEMO!"
-EQUS 12 ; cls
-EQUS 31,4,8, "BBC Micro"
-EQUS 31,4,16,"2MHz 6502"
-EQUS 31,0,24,"No Blitter"
-EQUS 31,12,32,"ST data"
-EQUS 31,8,40,"Real 5%",'"'
-EQUS 31,4,48,"floppy @@"
+EQUS 31,0,4,  "BBC MICRO"
+EQUS 31,0,12, "2MHz 6502"
+EQUS 31,0,20, "32K RAM"
+EQUS 31,0,28, "5",128+'%'," FLOPPY"
+EQUS 31,16,44,"HALF THE"
+EQUS 31,16,52,"BITS...",128+'$'
 EQUS 12 ; cls
 EQUS 0
 
@@ -759,6 +920,9 @@ EQUS 0
 EQUB %11101110, %01110111, %00110011, %00010001
 .glixel_byte1
 EQUB %00000000, %00000000, %11001100, %11101110
+
+.stipple
+EQUB &0A, &05
 
 .palette
 {
@@ -810,6 +974,10 @@ EQUB %01100111
 EQUB %00000001
 EQUB %00000000
 
+.next_part_cmd
+EQUS "/LOW", 13
+
+include "src/exo.asm"
 
 PAGE_ALIGN
 .screen_row_LO
@@ -836,8 +1004,85 @@ FOR c,0,79,1
 EQUB HI(c * 8)
 NEXT
 
-k = 3
+.whiteout_palette
+{
+	EQUB &00 + PAL_white
+	EQUB &10 + PAL_white
+	EQUB &20 + PAL_white
+	EQUB &30 + PAL_white
+	EQUB &40 + PAL_white
+	EQUB &50 + PAL_white
+	EQUB &60 + PAL_white
+	EQUB &70 + PAL_white
+	EQUB &80 + PAL_white
+	EQUB &90 + PAL_white
+	EQUB &A0 + PAL_white
+	EQUB &B0 + PAL_white
+	EQUB &C0 + PAL_white
+	EQUB &D0 + PAL_white
+	EQUB &E0 + PAL_white
+	EQUB &F0 + PAL_white
+}
 
+.withblack_palette
+{
+	EQUB &00 + PAL_black
+	EQUB &10 + PAL_black
+	EQUB &20 + PAL_white
+	EQUB &30 + PAL_white
+	EQUB &40 + PAL_black
+	EQUB &50 + PAL_black
+	EQUB &60 + PAL_white
+	EQUB &70 + PAL_white
+	EQUB &80 + PAL_white
+	EQUB &90 + PAL_white
+	EQUB &A0 + PAL_white
+	EQUB &B0 + PAL_white
+	EQUB &C0 + PAL_white
+	EQUB &D0 + PAL_white
+	EQUB &E0 + PAL_white
+	EQUB &F0 + PAL_white
+}
+
+.logo_palette
+{
+	EQUB &00 + PAL_black
+	EQUB &10 + PAL_black
+	EQUB &20 + PAL_red
+	EQUB &30 + PAL_red
+	EQUB &40 + PAL_black
+	EQUB &50 + PAL_black
+	EQUB &60 + PAL_red
+	EQUB &70 + PAL_red
+	EQUB &80 + PAL_yellow
+	EQUB &90 + PAL_yellow
+	EQUB &A0 + PAL_white
+	EQUB &B0 + PAL_white
+	EQUB &C0 + PAL_yellow
+	EQUB &D0 + PAL_yellow
+	EQUB &E0 + PAL_white
+	EQUB &F0 + PAL_white
+}
+
+.mode1_crtc_regs
+{
+	EQUB 127    			; R0  horizontal total
+	EQUB 80					; R1  horizontal displayed
+	EQUB 98					; R2  horizontal position
+	EQUB &28				; R3  sync width
+	EQUB 38					; R4  vertical total
+	EQUB 0					; R5  vertical total adjust
+	EQUB 32					; R6  vertical displayed
+	EQUB 35					; R7  vertical position
+	EQUB &F0				; R8  no interlace; cursor off; display off
+	EQUB 7					; R9  scanlines per row
+	EQUB 32					; R10 cursor start
+	EQUB 8					; R11 cursor end
+	EQUB HI(screen_addr/8)	; R12 screen start address, high
+	EQUB LO(screen_addr/8)	; R13 screen start address, low
+}
+
+k = 3
 PAGE_ALIGN
 .startx_table_LO
 FOR n,0,255,1
@@ -882,6 +1127,9 @@ a = n *  4 * PI / 256
 x = 128 + 100 * COS(k * a) * SIN(a)
 EQUB HI(x << 6)
 NEXT
+
+.screen_exo
+INCBIN "build/logo_mode1.exo"
 
 \ ******************************************************************
 \ *	End address to be saved
@@ -928,4 +1176,4 @@ skip 9
 \ *	Save the code
 \ ******************************************************************
 
-SAVE "INTRO", start, end, main
+SAVE "build\INTRO", start, end, main

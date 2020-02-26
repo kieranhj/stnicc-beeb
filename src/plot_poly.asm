@@ -65,17 +65,14 @@ else
 
     \\ First byte starts X pixels in
     tax                                     ; 2c
-    lda span_colour                         ; 3c
-    and colour_mask_starting_at_pixel, X    ; 4c
-    sta ora_left_hand_byte+1                ; 4c
 
     \\ Read screen byte
     lda (writeptr), Y                       ; 5c
+    eor span_colour                         ; 3c
     \\ Mask out pixels to be drawn
-    and screen_mask_starting_at_pixel, X    ; 4c
-    \\ Mask in our colour pixels
-    .ora_left_hand_byte
-    ora #0                                  ; 2c
+    and colour_mask_starting_at_pixel, X    ; 4c
+    eor (writeptr), Y
+
     \\ Write to screen
     sta (writeptr), Y                       ; 6c
 
@@ -181,17 +178,13 @@ else
     beq return_here_from_plot_span          ; 2/3c
     tax                                     ; 2c
 
-    lda span_colour                         ; 3c
-    and screen_mask_starting_at_pixel, x    ; 4c
-    sta ora_right_hand_byte+1               ; 4c
-
     \\ Read screen byte
     lda (writeptr), Y                       ; 5c
+    eor span_colour                         ; 3c
     \\ Mask out pixels to be drawn
-    and colour_mask_starting_at_pixel, X    ; 4c
-    \\ Mask in our colour pixels
-    .ora_right_hand_byte
-    ora #0                                  ; 2c
+    and screen_mask_starting_at_pixel, X    ; 4c
+    eor (writeptr), Y
+
     \\ Write to screen
     sta (writeptr), Y                       ; 6c
 
@@ -368,15 +361,11 @@ endif
     tax                             ; 2c
 
     \\ Byte 1
-    lda colour_mask_short_0, X      ; 2c
-    and span_colour                 ; 3c
-    sta ora_byte1+1                 ; 4c
-
     ldy #0                          ; 2c
     lda (shortptr), Y               ; 5c
-    and screen_mask_short_0, X      ; 4c
-    .ora_byte1
-    ora #0                          ; 2c
+    eor span_colour                 ; 3c
+    and colour_mask_short_0, X      ; 4c
+    eor (shortptr), Y               ; 5c
     sta (shortptr), Y               ; 6c
 
     IF _DOUBLE_PLOT_Y
@@ -388,14 +377,11 @@ endif
     beq return_here_from_plot_span                        ; 2/3c
     CHECK_SAME_PAGE_AS return_here_from_plot_span
 
-    and span_colour                 ; 3c
-    sta ora_byte2+1                 ; 4c
-
     ldy #8                          ; 2c
     lda (shortptr), Y               ; 5c
-    and screen_mask_short_1, X      ; 4c
-    .ora_byte2
-    ora #0                          ; 2c
+    eor span_colour                 ; 3c
+    and colour_mask_short_1, X      ; 4c
+    eor (shortptr), Y               ; 5c
     sta (shortptr), Y               ; 6c
 
     IF _DOUBLE_PLOT_Y
@@ -408,14 +394,11 @@ IF _SHORT_SPAN_MAX_PIXELS > 5
     beq return_here_from_plot_span                        ; 2/3c
     CHECK_SAME_PAGE_AS return_here_from_plot_span
 
-    and span_colour                 ; 3c
-    sta ora_byte3+1                 ; 4c
-
     ldy #16                         ; 2c
     lda (shortptr), Y               ; 5c
-    and screen_mask_short_2, X       ; 4c
-    .ora_byte3
-    ora #0                          ; 2c
+    eor span_colour                 ; 3c
+    and colour_mask_short_2, X      ; 4c
+    eor (shortptr), Y               ; 5c
     sta (shortptr), Y               ; 6c
 
     IF _DOUBLE_PLOT_Y
@@ -429,14 +412,11 @@ IF _SHORT_SPAN_MAX_PIXELS > 9
     beq return_here_from_plot_span                        ; 2/3c
     CHECK_SAME_PAGE_AS return_here_from_plot_span
 
-    and span_colour                 ; 3c
-    sta ora_byte4+1                 ; 4c
-
     ldy #24                         ; 2c
     lda (shortptr), Y               ; 5c
-    and screen_mask_short_3, X      ; 4c
-    .ora_byte4
-    ora #0                          ; 2c
+    eor span_colour                 ; 3c
+    and colour_mask_short_3, X      ; 4c
+    eor (shortptr), Y               ; 5c
     sta (shortptr), Y               ; 6c
 
     IF _DOUBLE_PLOT_Y
@@ -468,7 +448,8 @@ ENDIF
     rts
 }
 
-\\ **
+; ALIGN TO AVOID CROSSING PAGE BOUNDARY
+skip &4
 
 MACRO UPDATE_SPAN_BUFFER_WITH_A must_set_carry
 {
@@ -718,6 +699,9 @@ ENDMACRO
 \ ******************************************************************
 
 if not(_NULA)
+; ALIGN TO AVOID CROSSING PAGE BOUNDARY
+skip 12
+
 .handle_beeb_palette
 {
     sta pal_descriptor
@@ -738,6 +722,7 @@ if not(_NULA)
     sta &fe21
     dex
     bne colour_loop
+    CHECK_SAME_PAGE_AS colour_loop
     .skip_colours
 
     \\ Process any poly_palette dither changes
@@ -767,6 +752,7 @@ if not(_NULA)
     ldx pal_dither_idx
     dex
     bne dither_loop
+    CHECK_SAME_PAGE_AS dither_loop
 
     .done_dither_loop
     jmp return_here_from_handle_beeb_palette
