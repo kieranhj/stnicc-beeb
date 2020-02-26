@@ -356,15 +356,18 @@ ENDIF
     \\ Wait a beat
     ldx #50:jsr wait_frames    ; 1.0s
 
-    \\ Set screen size
+    \\ Will be ~row 35 here - set for next cycle
     lda #6:sta &fe00        ; vertical displayed
-    lda #20:sta &fe01
+    lda #26:sta &fe01
 
     lda #7:sta &fe00        ; vertical position
     lda #29:sta &fe01
 
-    \\ How to stop vsync jump here?
-    ldx #2:jsr wait_frames
+    \\ Vsync will happen at row 29 here
+    lda #19:jsr osbyte
+
+    lda #6:sta &fe00        ; vertical displayed
+    lda #20:sta &fe01
 
     \\ White out!
     ldx #LO(whiteout_palette)
