@@ -648,11 +648,38 @@ ENDIF
 		.stream_ok
 		IF _PLOT_WIREFRAME
 		{
+			lda track_no
+			bmi enough_data_for_next_frame
+			
 			lda STREAM_ptr_HI
 			cmp load_to_HI
-			bne wire_ok
+			bcs stream_ptr_gt_load_to
+
+			\\ Stream Ptr < Load To
+			sec
+			lda load_to_HI
+			sbc STREAM_ptr_HI
+			cmp #4
+			bcs enough_data_for_next_frame
+
+			\\ Otherwise lock our buffer
 			lda #&ff:sta buffer_lock
-			.wire_ok
+			bne enough_data_for_next_frame
+
+			.stream_ptr_gt_load_to
+			\\ Stream Ptr > Load To
+			clc
+			lda load_to_HI
+			adc #HI(STREAM_buffer_size)
+			sec
+			sbc STREAM_ptr_HI
+			cmp #4
+			bcs enough_data_for_next_frame
+
+			\\ Otherwise lock our buffer
+			lda #&ff:sta buffer_lock
+
+			.enough_data_for_next_frame
 		}
 		ENDIF
 

@@ -51,6 +51,7 @@ osbyte = &FFF4
 osword = &FFF1
 osfind = &FFCE
 osgbpb = &FFD1
+oscli  = &FFF7
 osargs = &FFDA
 
 IRQ1V = &204
@@ -511,8 +512,10 @@ endif
 	CLI
 
 	\\ Exit gracefully (in theory)
-    \\ But not back to BASIC as we trashed all its workspace :D
-	RTS
+    \\ Load next part
+    ldx #LO(next_part_cmd)
+    ldy #HI(next_part_cmd)
+    jmp oscli
 }
 
 IF _DEBUG
@@ -1012,6 +1015,9 @@ EQUB 2,0			; only two discs now 3,1,0
 
 .colour_table
 EQUB &00, &0F, &F0, &FF
+
+.next_part_cmd
+EQUS "/OUTRO", 13
 
 include "src/plot_data.asm"
 
