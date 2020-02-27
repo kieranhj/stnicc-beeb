@@ -12,12 +12,12 @@ IF _DEBUG
 INTRO_SIZE = &1400
 EXE_SIZE = &2700
 NULA_SIZE = &2300
-OUTRO_SIZE = &700
+OUTRO_SIZE = &800
 ELSE
 INTRO_SIZE = &1400
 EXE_SIZE = &2600
 NULA_SIZE = &2100
-OUTRO_SIZE = &700
+OUTRO_SIZE = &800
 ENDIF
 
 \ ******************************************************************

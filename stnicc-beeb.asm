@@ -419,6 +419,9 @@ endif
 	\\ Clear the visible screen
 	jsr screen2_cls
 
+	\\ Set interrupts and handler
+	SEI										; disable interupts
+
 	\\ Wait for vsync
 	{
 		lda #2
@@ -427,10 +430,7 @@ endif
 		beq vsync1
 	}
 
-	\\ Set interrupts and handler
-	SEI										; disable interupts
-
-	\\ Close enough for our purposes
+	\\ Not stable but close enough for our purposes
 	; Write T1 low now (the timer will not be written until you write the high byte)
     LDA #LO(TimerValue):STA &FE44
     ; Get high byte ready so we can write it as quickly as possible at the right moment

@@ -88,6 +88,13 @@ PRINT "WARNING! Table or branch base address",~base, "may cross page boundary at
 ENDIF
 ENDMACRO
 
+MACRO SETBGCOL col
+	LDA #&00 + col:STA &FE21
+	LDA #&10 + col:STA &FE21
+	LDA #&40 + col:STA &FE21
+	LDA #&50 + col:STA &FE21
+ENDMACRO
+
 \ ******************************************************************
 \ *	GLOBAL constants
 \ ******************************************************************
@@ -132,6 +139,9 @@ FramePeriod = 312*64-2
 ; This is when we trigger the next frame draw during the frame
 ; Essentially how much time we give the main loop to stream the next track
 TimerValue = (32+200)*64 - 2*64
+
+Timer2Value = (32)*64 - 2*64
+Timer2Period = (128)*64
 
 \ ******************************************************************
 \ *	ZERO PAGE
@@ -195,6 +205,8 @@ ENDIF
 .screen_lock		skip 1
 .buffer_lock		skip 1
 
+.timer2_cycle		skip 1
+
 ; debug vars
 IF _DEBUG
 .pause_lock			skip 1
@@ -246,50 +258,13 @@ GUARD screen3_addr
     lda #1
     jsr oswrch
 
-	\\ Set palette
-	ldx #15
-	.pal_loop
-	lda mode5_palette, X
-	sta &fe21
-	dex
-	bpl pal_loop
-
-	\\ Clear the extra bit!
-	jsr screen2_cls
-
-	{
-		lda #2
-		.vsync1
-		bit &FE4D
-		beq vsync1 \ wait for vsync
-	}
-
-	\\ Close enough for our purposes
-	; Write T1 low now (the timer will not be written until you write the high byte)
-    LDA #LO(TimerValue):STA &FE44
-    ; Get high byte ready so we can write it as quickly as possible at the right moment
-    LDX #HI(TimerValue):STX &FE45             		; start T1 counting		; 4c +1/2c 
-
-  	; Latch T1 to interupt exactly every 50Hz frame
-	LDA #LO(FramePeriod):STA &FE46
-	LDA #HI(FramePeriod):STA &FE47
-
     \\ Resolution 256x200 => 128x200
-    lda #1:sta &fe00:lda #32:sta &fe01
-    lda #6:sta &fe00:lda #16:sta &fe01
     lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
 
     lda #12:sta &fe00
     lda #HI(screen2_addr/8):sta &fe01
     lda #13:sta &fe00
     lda #LO(screen2_addr/8):sta &fe01
-
-    \\ Load SWRAM data
-;    SWRAM_SELECT 4
-;    lda #HI(&8000)
-;    ldx #LO(filename0)
-;    ldy #HI(filename0)
-;    jsr disksys_load_file
 
     \\ Set stream pointer
     lda #LO(STREAM_buffer_start-1)
@@ -323,15 +298,38 @@ GUARD screen3_addr
     lda #HI(screen1_addr)
     sta draw_buffer_HI
 
-    \\ Clear screen
-    jsr screen_cls
+	\\ Set palette
+	ldx #15
+	.pal_loop
+	lda mode5_palette, X
+	sta &fe21
+	dex
+	bpl pal_loop
 
 	\\ Set interrupts and handler
 	SEI							; disable interupts
+
+	{
+		lda #2
+		.vsync1
+		bit &FE4D
+		beq vsync1 \ wait for vsync
+	}
+
+	\\ Close enough for our purposes
+	; Write T1 low now (the timer will not be written until you write the high byte)
+    LDA #LO(TimerValue):STA &FE44
+    ; Get high byte ready so we can write it as quickly as possible at the right moment
+    LDX #HI(TimerValue):STX &FE45            ; start T1 counting		; 4c +1/2c 
+
+  	; Latch T1 to interupt exactly every 50Hz frame
+	LDA #LO(FramePeriod):STA &FE46
+	LDA #HI(FramePeriod):STA &FE47
+
 	LDA #&7F					; A=01111111
 	STA &FE4E					; R14=Interrupt Enable (disable all interrupts)
 	STA &FE43					; R3=Data Direction Register "A" (set keyboard data direction)
-	LDA #&C2					; A=11000010
+	LDA #&E2					; A=11000010
 	STA &FE4E					; R14=Interrupt Enable (enable main_vsync and timer interrupt)
 
     LDA IRQ1V:STA old_irqv
@@ -585,19 +583,80 @@ ENDIF
 	lda #0
 	sta screen_lock
 
+ 	; Set T2 to fire in a bit...
+	LDA #LO(Timer2Value):STA &FE48
+	LDA #HI(Timer2Value):STA &FE49
+
 	\\ Vsync
     INC vsync_counter
     BNE no_carry
     INC vsync_counter+1
     .no_carry
+
+	\\ Swap frame buffers
+	jmp swap_frame_buffers
+	.^return_here_from_swap_frame_buffers
+
+	\\ Set CRTC regs
+    lda #1:sta &fe00:lda #32:sta &fe01		; Horizontal displayed
+	; could centre screen here?	
+
 	JMP return_to_os
 
 	.not_vsync
 	\\ Which interrupt?
 	LDA &FE4D
 	AND #&40			; timer 1
-	BEQ return_to_os
+	BEQ not_timer1
 
+	jmp is_timer1
+
+	.not_timer1
+	\\ Which interrupt?
+	LDA &FE4D
+	AND #&20			; timer 2
+	BEQ not_timer2		; return_to_os
+
+	\\ Acknowledge timer 2 interrupt
+	STA &FE4D
+
+	lda timer2_cycle
+	eor #1
+	sta timer2_cycle
+	beq second_cycle
+
+	\\ First cycle
+
+ 	; Set T2 to fire in a bit...
+	LDA #LO(Timer2Period):STA &FE48
+	LDA #HI(Timer2Period):STA &FE49
+
+    lda #4:sta &fe00:lda #15:sta &fe01		; Vertical total
+    lda #6:sta &fe00:lda #16:sta &fe01		; Vertical displayed
+	lda #7:sta &fe00:lda #&ff:sta &fe01		; No vsync
+
+	; Fixed screen address for *next* cycle
+    lda #12:sta &fe00
+    lda #HI(screen3_addr/8):sta &fe01
+    lda #13:sta &fe00
+    lda #LO(screen3_addr/8):sta &fe01
+
+	SETBGCOL PAL_red
+
+	.not_timer2
+	jmp return_to_os
+
+	.second_cycle
+	\\ Set up Vsync cycle
+	lda #1:sta &fe00:lda #80:sta &fe01		; Horizontal displayed
+    lda #4:sta &fe00:lda #22:sta &fe01		; Vertical total
+	lda #7:sta &fe00:lda #19:sta &fe01		; Vsync at 35 - 16
+
+	; TEST
+	SETBGCOL PAL_black
+	jmp return_to_os
+
+	.is_timer1
 	\\ Acknowledge timer 1 interrupt
 	STA &FE4D
 
@@ -700,9 +759,10 @@ ENDIF
 	\\ Set our screen lock until frame swap
 	lda #&ff:sta screen_lock
 
-	\\ Swap frame buffers
-	jmp swap_frame_buffers
-	.^return_here_from_swap_frame_buffers
+    \\ Toggle draw buffer but not screen buffer (do that in vsync)
+    lda draw_buffer_HI
+    eor #HI(screen1_addr EOR screen2_addr)
+    sta draw_buffer_HI
 
 	\\ Pass on to OS IRQ handler
 	.return_to_os
@@ -736,12 +796,8 @@ old_irqv = P%-2
 
 .swap_frame_buffers
 {
-    \\ Toggle draw buffer
-    lda draw_buffer_HI
-    eor #HI(screen1_addr EOR screen2_addr)
-    sta draw_buffer_HI
-
 	\\ Set screen buffer address in CRTC - not read until vsync
+    lda draw_buffer_HI
 	cmp #HI(screen1_addr)
     IF _DOUBLE_BUFFER
 	beq show_screen2
