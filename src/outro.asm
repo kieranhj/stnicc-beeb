@@ -600,6 +600,7 @@ ENDIF
 	\\ Set CRTC regs
     lda #1:sta &fe00:lda #32:sta &fe01		; Horizontal displayed
 	; could centre screen here?	
+;	lda #2:sta &fe00:lda #74:sta &fe01		; Horizontal sync - TBD
 
 	JMP return_to_os
 
@@ -649,6 +650,8 @@ ENDIF
 	.second_cycle
 	\\ Set up Vsync cycle
 	lda #1:sta &fe00:lda #80:sta &fe01		; Horizontal displayed
+	; could centre screen here?	
+;	lda #2:sta &fe00:lda #98:sta &fe01		; Horizontal sync - TBD
     lda #4:sta &fe00:lda #22:sta &fe01		; Vertical total
 	lda #7:sta &fe00:lda #19:sta &fe01		; Vsync at 35 - 16
 

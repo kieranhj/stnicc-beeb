@@ -403,10 +403,9 @@ How much RAM would be left over for a font in MODE 1?
 Say 40x glyphs at 12x16 pixels = 3x16 bytes = 40 * 48 bytes = 1920 bytes.
 
 TODO
-- Switch animation to IRQ2.
-- Set up IRQ1 for rupture:
-    - Top double buffered 32 columns x ~16 rows MODE 1
-    - Bottom single buffered 80 columns x 16 rows MODE 1
+- Set up IRQ2 for rupture:
+    - Top double buffered 32 columns x ~16 rows MODE 1 - done
+    - Bottom single buffered 80 columns x 16 rows MODE 1 - done
 - Plot 16x16 pixels using standard BBC glyphs (iconic)
 - Plot one glyph per vsync plus flashing "cursor" in 20x8 window
 
