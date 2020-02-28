@@ -105,6 +105,8 @@ SCREEN_WIDTH_PIXELS = 128
 SCREEN_HEIGHT_PIXELS = 128
 SCREEN_SIZE_BYTES = (SCREEN_WIDTH_PIXELS * SCREEN_HEIGHT_PIXELS) / 4
 
+CREDITS_ROW_BYTES = 640
+
 screen1_addr = &7000	; 4K
 screen2_addr = &6000	; 4k
 screen3_addr = &3800	; 10K
@@ -138,7 +140,7 @@ FramePeriod = 312*64-2
 
 ; This is when we trigger the next frame draw during the frame
 ; Essentially how much time we give the main loop to stream the next track
-TimerValue = (32+200)*64 - 2*64
+TimerValue = (32+64)*64 - 2*64
 
 Timer2Value = (32)*64 - 2*64
 Timer2Period = (128)*64
@@ -206,6 +208,13 @@ ENDIF
 .buffer_lock		skip 1
 
 .timer2_cycle		skip 1
+
+; credits vars
+.char_def			skip 9
+.glyphptr			skip 2
+.writeptr_copy		skip 2
+.text_ptr			skip 2
+.text_index			skip 1
 
 ; debug vars
 IF _DEBUG
@@ -305,6 +314,38 @@ GUARD screen3_addr
 	sta &fe21
 	dex
 	bpl pal_loop
+
+	ldx #0:ldy #0:jsr calc_writeptr_XY
+	ldx #LO(test_string):ldy #HI(test_string)
+	jsr plot_string_at_writeptr
+
+	ldx #1:ldy #2:jsr calc_writeptr_XY
+	ldx #LO(test_string):ldy #HI(test_string)
+	jsr plot_string_at_writeptr
+
+	ldx #2:ldy #4:jsr calc_writeptr_XY
+	ldx #LO(test_string):ldy #HI(test_string)
+	jsr plot_string_at_writeptr
+
+	ldx #3:ldy #6:jsr calc_writeptr_XY
+	ldx #LO(test_string):ldy #HI(test_string)
+	jsr plot_string_at_writeptr
+
+	ldx #20:ldy #8:jsr calc_writeptr_XY
+	ldx #LO(test_string):ldy #HI(test_string)
+	jsr plot_string_at_writeptr
+
+	ldx #19:ldy #10:jsr calc_writeptr_XY
+	ldx #LO(test_string):ldy #HI(test_string)
+	jsr plot_string_at_writeptr
+
+	ldx #18:ldy #12:jsr calc_writeptr_XY
+	ldx #LO(test_string):ldy #HI(test_string)
+	jsr plot_string_at_writeptr
+
+	ldx #17:ldy #14:jsr calc_writeptr_XY
+	ldx #LO(test_string):ldy #HI(test_string)
+	jsr plot_string_at_writeptr
 
 	\\ Set interrupts and handler
 	SEI							; disable interupts
@@ -656,12 +697,14 @@ ENDIF
 	lda #7:sta &fe00:lda #19:sta &fe01		; Vsync at 35 - 16
 
 	; TEST
-	SETBGCOL PAL_black
+	SETBGCOL PAL_blue
 	jmp return_to_os
 
 	.is_timer1
 	\\ Acknowledge timer 1 interrupt
 	STA &FE4D
+
+	SETBGCOL PAL_green
 
 	\\ If we're already busy just exit function
 	LDA decode_lock
@@ -845,6 +888,7 @@ old_irqv = P%-2
 \ *	PARSE A FRAME OF DATA FROM STNICCC STREAM
 \ ******************************************************************
 
+IF 1		; this also makes no sense!
 .deliberate_pause
 {
 	lda #2
@@ -860,6 +904,7 @@ old_irqv = P%-2
 	.pause_me equb 0
 	.several_times equb 0
 }
+ENDIF
 
 MACRO GET_BYTE
 {
@@ -871,11 +916,12 @@ MACRO GET_BYTE
 	\\ but doesn't always work yet. I guess when the track
 	\\ hasn't even been requested yet; we can't yield back
 	\\ to the main loop. Hmmmm.
-	lda STREAM_ptr_HI
-	cmp load_to_HI
-	bne no_carry
+;	lda STREAM_ptr_HI
+;	cmp load_to_HI
+;	bne no_carry
 
-	jsr deliberate_pause
+; This makes no sense!
+;	jsr deliberate_pause
 
     .no_carry
     lda (STREAM_ptr_LO), y
@@ -1046,6 +1092,123 @@ ENDIF
 
 INCLUDE "src/screen.asm"
 
+\ ******************************************************************
+\ *	CREDITS BIT
+\ ******************************************************************
+
+.get_char_def
+{
+    sta char_def
+    lda #10
+    ldx #LO(char_def)
+    ldy #HI(char_def)
+    jmp osword
+}
+
+.plot_glyph_at_writeptr
+{
+	lda glyphptr
+	sta writeptr_copy
+	lda glyphptr+1
+	sta writeptr_copy+1
+
+	ldx #1
+	.loop
+	lda char_def, X
+	pha
+	lsr a:lsr a:pha
+	lsr a:lsr a:pha
+	lsr a:lsr a
+	tay
+	lda two_bits_to_two_pixels, y
+	ldy #0:sta (glyphptr), Y
+	iny:sta (glyphptr), Y
+
+	pla:and #3:tay
+	lda two_bits_to_two_pixels, y
+	ldy #8:sta (glyphptr), Y
+	iny:sta (glyphptr), Y
+
+	pla:and #3:tay
+	lda two_bits_to_two_pixels, y
+	ldy #16:sta (glyphptr), Y
+	iny:sta (glyphptr), Y
+
+	pla:and #3:tay
+	lda two_bits_to_two_pixels, y
+	ldy #24:sta (glyphptr), Y
+	iny:sta (glyphptr), Y
+
+	clc
+	lda glyphptr
+	adc #2
+	sta glyphptr
+	lda glyphptr+1
+	adc #0
+	sta glyphptr+1
+
+	lda glyphptr
+	and #7
+	bne ok
+	clc
+	lda glyphptr
+	adc #LO(640-8)
+	sta glyphptr
+	lda glyphptr+1
+	adc #HI(640-8)
+	sta glyphptr+1
+	.ok
+
+	inx
+	cpx #9
+	bcc loop
+
+	clc
+	lda writeptr_copy
+	adc #4*8
+	sta glyphptr
+	lda writeptr_copy+1
+	adc #0
+	sta glyphptr+1
+	rts
+}
+
+.plot_char_at_writeptr
+{
+	jsr get_char_def
+	jmp plot_glyph_at_writeptr
+}
+
+.calc_writeptr_XY
+{
+	clc
+	lda screen_row_LO, Y
+	adc screen_col_LO, X
+	sta glyphptr
+	lda screen_row_HI, Y
+	adc screen_col_HI, X
+	sta glyphptr+1
+	rts
+}
+
+.plot_string_at_writeptr
+{
+	stx text_ptr
+	sty text_ptr+1
+
+	ldy #0
+	.loop
+	sty text_index
+	lda (text_ptr), Y
+	beq done_loop
+	jsr plot_char_at_writeptr
+	ldy text_index
+	iny
+	bne loop
+	.done_loop
+	rts
+}
+
 .fx_end
 
 \ ******************************************************************
@@ -1116,8 +1279,35 @@ EQUB 0				; returned error value
 .drive_order
 EQUB 2,0			; only two discs now. WAS 3,1,0
 
-.colour_table
-EQUB &00, &0F, &F0, &FF
+.two_bits_to_two_pixels
+EQUB %00000000, %00110011, %11001100, %11111111
+
+.screen_row_LO
+FOR y,0,15,1
+row=y:sl=0
+addr = row * CREDITS_ROW_BYTES + sl
+EQUB LO(screen3_addr + addr)
+NEXT
+
+.screen_row_HI
+FOR y,0,15,1
+row=y:sl=0
+addr = row * CREDITS_ROW_BYTES + sl
+EQUB HI(screen3_addr + addr)
+NEXT
+
+.screen_col_LO
+FOR c,0,79,1
+EQUB LO(c * 8)
+NEXT
+
+.screen_col_HI
+FOR c,0,79,1
+EQUB HI(c * 8)
+NEXT
+
+.test_string
+EQUS "Hello World!", 0
 
 .data_end
 

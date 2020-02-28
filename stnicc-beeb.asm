@@ -1013,9 +1013,6 @@ EQUB 0				; returned error value
 .drive_order
 EQUB 2,0			; only two discs now 3,1,0
 
-.colour_table
-EQUB &00, &0F, &F0, &FF
-
 .next_part_cmd
 EQUS "/OUTRO", 13
 
