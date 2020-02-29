@@ -441,3 +441,11 @@ Vsync at 35-16
 Vsync
 Set CRTC address to next buffer
 Horizontal displayed = 32
+
+IRQ1 seems to be most stable.
+Most critical register changes are at the start of the second cycle.
+Run second cycle on IRQ1 continuous
+Set first cycle on IRQ2 one shot
+Set plot on IRQ2 second value
+
+Think vsync is arriving late...

@@ -442,6 +442,7 @@ endif
 
 	LDA #&7F								; A=01111111
 	STA &FE4E								; R14=Interrupt Enable (disable all interrupts)
+	sta &fe6e								; User via
 	STA &FE43								; R3=Data Direction Register "A" (set keyboard data direction)
 	LDA #&C2								; A=11000010
 	STA &FE4E								; R14=Interrupt Enable (enable main_vsync and timer interrupt)
@@ -502,6 +503,8 @@ endif
 
     .track_load_error
 
+	lda #19:jsr osbyte
+
 	\\ Re-enable useful interupts
 	SEI
 	LDA #&D3					; A=11010011
@@ -510,6 +513,13 @@ endif
     LDA old_irqv:STA IRQ1V
     LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
 	CLI
+
+	IF _DEBUG
+	{
+	    .wait_for_Key
+	    lda #&79:ldx #&10:jsr osbyte:cpx #&ff:beq wait_for_Key
+	}
+	ENDIF
 
 	\\ Exit gracefully (in theory)
     \\ Load next part
@@ -1011,7 +1021,7 @@ EQUB &20 + STREAMING_sectors_to_load		; sector size / number sectors = 256 / 10
 EQUB 0				; returned error value
 
 .drive_order
-EQUB 2,0			; only two discs now 3,1,0
+EQUB 2,&FF,0		; only two discs now!
 
 .next_part_cmd
 EQUS "/OUTRO", 13
