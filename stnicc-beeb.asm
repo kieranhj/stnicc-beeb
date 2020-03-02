@@ -707,6 +707,9 @@ ENDIF
 	AND #2
 	BEQ not_vsync
 
+	\\ Acknowledge vsync interrupt
+	STA &FE4D
+
 	lda #0
 	sta screen_lock
 
@@ -835,13 +838,14 @@ ENDIF
 	jmp swap_frame_buffers
 	.^return_here_from_swap_frame_buffers
 
-	\\ Pass on to OS IRQ handler
+	\\ Don't pass on to OS IRQ handler :)
 	.return_to_os
 	PLA
 	STA &FC
-	JMP &FFFF
+	RTI
 }
-old_irqv = P%-2
+.old_irqv
+	EQUW &FFFF
 
 ; A=from page, Y=to page, X=number of pages
 .copy_pages

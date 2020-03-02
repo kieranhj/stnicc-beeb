@@ -449,3 +449,6 @@ Set first cycle on IRQ2 one shot
 Set plot on IRQ2 second value
 
 Think vsync is arriving late...
+
+Stop returning IRQ1V to the MOS
+Master @ LQ = &21BB = 10.4fps (apparent!)
