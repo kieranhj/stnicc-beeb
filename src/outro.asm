@@ -4,6 +4,7 @@
 \ ******************************************************************
 
 _DEBUG = TRUE
+_DEBUG_RASTERS = FALSE
 
 ; Display <drive no | sector no> <track no> <load to HI> <stream ptr HI>
 _SHOW_STREAMING_INFO = FALSE
@@ -89,10 +90,14 @@ ENDIF
 ENDMACRO
 
 MACRO SETBGCOL col
+IF _DEBUG_RASTERS
+{
 	LDA #&00 + col:STA &FE21
 	LDA #&10 + col:STA &FE21
 	LDA #&40 + col:STA &FE21
 	LDA #&50 + col:STA &FE21
+}
+ENDIF
 ENDMACRO
 
 \ ******************************************************************
@@ -102,13 +107,13 @@ ENDMACRO
 ; SCREEN constants
 SCREEN_ROW_BYTES = 256
 SCREEN_WIDTH_PIXELS = 128
-SCREEN_HEIGHT_PIXELS = 128
+SCREEN_HEIGHT_PIXELS = 14*8
 SCREEN_SIZE_BYTES = (SCREEN_WIDTH_PIXELS * SCREEN_HEIGHT_PIXELS) / 4
 
 CREDITS_ROW_BYTES = 640
 
-screen1_addr = &7000	; 4K
-screen2_addr = &6000	; 4k
+screen1_addr = &7200	; 4K
+screen2_addr = &6400	; 4k
 screen3_addr = &3800	; 10K
 
 ; STREAMING constants
@@ -140,9 +145,9 @@ FramePeriod = 312*64-2
 
 ; This is when we trigger the next frame draw during the frame
 ; Essentially how much time we give the main loop to stream the next track
-TimerValue = (32+127)*64 - 2*64
+TimerValue = (40 + 14*8 - 1)*64 - 2*64
 
-Timer2Value = (32)*64 - 2*64
+Timer2Value = (40)*64 - 2*64
 Timer2Period = (48)*64
 
 \ ******************************************************************
@@ -269,6 +274,7 @@ GUARD screen3_addr
 
     \\ Resolution 256x200 => 128x200
     lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
+	lda #7:sta &fe00:lda #34:sta &fe01	 ; vsync pos
 
     lda #12:sta &fe00
     lda #HI(screen2_addr/8):sta &fe01
@@ -315,35 +321,35 @@ GUARD screen3_addr
 	dex
 	bpl pal_loop
 
-	ldx #0:ldy #0:jsr calc_writeptr_XY
+	ldx #0:ldy #1:jsr calc_writeptr_XY
 	ldx #LO(test_string):ldy #HI(test_string)
 	jsr plot_string_at_writeptr
 
-	ldx #1:ldy #2:jsr calc_writeptr_XY
+	ldx #1:ldy #3:jsr calc_writeptr_XY
 	ldx #LO(test_string):ldy #HI(test_string)
 	jsr plot_string_at_writeptr
 
-	ldx #2:ldy #4:jsr calc_writeptr_XY
+	ldx #2:ldy #5:jsr calc_writeptr_XY
 	ldx #LO(test_string):ldy #HI(test_string)
 	jsr plot_string_at_writeptr
 
-	ldx #3:ldy #6:jsr calc_writeptr_XY
+	ldx #3:ldy #7:jsr calc_writeptr_XY
 	ldx #LO(test_string):ldy #HI(test_string)
 	jsr plot_string_at_writeptr
 
-	ldx #20:ldy #8:jsr calc_writeptr_XY
+	ldx #20:ldy #9:jsr calc_writeptr_XY
 	ldx #LO(test_string):ldy #HI(test_string)
 	jsr plot_string_at_writeptr
 
-	ldx #19:ldy #10:jsr calc_writeptr_XY
+	ldx #19:ldy #11:jsr calc_writeptr_XY
 	ldx #LO(test_string):ldy #HI(test_string)
 	jsr plot_string_at_writeptr
 
-	ldx #18:ldy #12:jsr calc_writeptr_XY
+	ldx #18:ldy #13:jsr calc_writeptr_XY
 	ldx #LO(test_string):ldy #HI(test_string)
 	jsr plot_string_at_writeptr
 
-	ldx #17:ldy #14:jsr calc_writeptr_XY
+	ldx #17:ldy #15:jsr calc_writeptr_XY
 	ldx #LO(test_string):ldy #HI(test_string)
 	jsr plot_string_at_writeptr
 
@@ -678,9 +684,9 @@ ENDIF
 	LDA #LO(Timer2Period):STA &FE48
 	LDA #HI(Timer2Period):STA &FE49
 
-    lda #4:sta &fe00:lda #15:sta &fe01		; Vertical total
-    lda #6:sta &fe00:lda #16:sta &fe01		; Vertical displayed
+    lda #4:sta &fe00:lda #13:sta &fe01		; Vertical total
 	lda #7:sta &fe00:lda #&ff:sta &fe01		; No vsync
+    lda #6:sta &fe00:lda #14:sta &fe01		; Vertical displayed
 
 	; Fixed screen address for *next* cycle
     lda #12:sta &fe00
@@ -698,8 +704,9 @@ ENDIF
 	lda #1:sta &fe00:lda #80:sta &fe01		; Horizontal displayed
 	; could centre screen here?	
 	; lda #2:sta &fe00:lda #98:sta &fe01	; Horizontal sync - TBD
-    lda #4:sta &fe00:lda #22:sta &fe01		; Vertical total
-	lda #7:sta &fe00:lda #19:sta &fe01		; Vsync at 35 - 16
+    lda #4:sta &fe00:lda #24:sta &fe01		; Vertical total
+	lda #7:sta &fe00:lda #20:sta &fe01		; Vsync
+    lda #6:sta &fe00:lda #17:sta &fe01		; Vertical displayed
 
 	; TEST
 	SETBGCOL PAL_blue
