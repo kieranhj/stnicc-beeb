@@ -443,6 +443,15 @@ GUARD screen3_addr
     LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
 	CLI
 
+	\\ Reset CRTC after rupture
+	ldx #13
+	.crtc_loop
+	stx &fe00
+	lda crtc_regs_default, X
+	sta &fe01
+	dex
+	bpl crtc_loop
+	
 	\\ Exit gracefully (in theory)
     \\ But not back to BASIC as we trashed all its workspace :D
 	RTS
@@ -1231,7 +1240,7 @@ INCLUDE "src/screen.asm"
 
 .data_start
 
-IF 0
+IF 1
 .crtc_regs_default
 {
 	EQUB 127				; R0  horizontal total
@@ -1242,12 +1251,12 @@ IF 0
 	EQUB 0					; R5  vertical total adjust
 	EQUB 32					; R6  vertical displayed
 	EQUB 35					; R7  vertical position; 35=top of screen
-	EQUB &0					; R8  interlace; &30 = HIDE SCREEN
+	EQUB &C0				; R8  interlace; &30 = HIDE SCREEN
 	EQUB 7					; R9  scanlines per row
 	EQUB 32					; R10 cursor start
 	EQUB 8					; R11 cursor end
-	EQUB HI(screen_addr/8)	; R12 screen start address, high
-	EQUB LO(screen_addr/8)	; R13 screen start address, low
+	EQUB HI(screen3_addr/8)	; R12 screen start address, high
+	EQUB LO(screen3_addr/8)	; R13 screen start address, low
 }
 ENDIF
 
