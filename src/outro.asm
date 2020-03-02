@@ -140,10 +140,10 @@ FramePeriod = 312*64-2
 
 ; This is when we trigger the next frame draw during the frame
 ; Essentially how much time we give the main loop to stream the next track
-TimerValue = (32+64)*64 - 2*64
+TimerValue = (32+127)*64 - 2*64
 
 Timer2Value = (32)*64 - 2*64
-Timer2Period = (128)*64
+Timer2Period = (48)*64
 
 \ ******************************************************************
 \ *	ZERO PAGE
@@ -621,6 +621,9 @@ ENDIF
 	AND #2
 	BEQ not_vsync
 
+	\\ Acknowledge vsync interrupt
+	STA &FE4D
+
 	lda #0
 	sta screen_lock
 
@@ -641,7 +644,7 @@ ENDIF
 	\\ Set CRTC regs
     lda #1:sta &fe00:lda #32:sta &fe01		; Horizontal displayed
 	; could centre screen here?	
-;	lda #2:sta &fe00:lda #74:sta &fe01		; Horizontal sync - TBD
+	; lda #2:sta &fe00:lda #74:sta &fe01	; Horizontal sync - TBD
 
 	JMP return_to_os
 
@@ -660,15 +663,17 @@ ENDIF
 	BEQ not_timer2		; return_to_os
 
 	\\ Acknowledge timer 2 interrupt
+	.is_timer2
 	STA &FE4D
 
 	lda timer2_cycle
 	eor #1
 	sta timer2_cycle
-	beq second_cycle
+	bne first_cycle
+	jmp do_plot
 
 	\\ First cycle
-
+	.first_cycle
  	; Set T2 to fire in a bit...
 	LDA #LO(Timer2Period):STA &FE48
 	LDA #HI(Timer2Period):STA &FE49
@@ -692,7 +697,7 @@ ENDIF
 	\\ Set up Vsync cycle
 	lda #1:sta &fe00:lda #80:sta &fe01		; Horizontal displayed
 	; could centre screen here?	
-;	lda #2:sta &fe00:lda #98:sta &fe01		; Horizontal sync - TBD
+	; lda #2:sta &fe00:lda #98:sta &fe01	; Horizontal sync - TBD
     lda #4:sta &fe00:lda #22:sta &fe01		; Vertical total
 	lda #7:sta &fe00:lda #19:sta &fe01		; Vsync at 35 - 16
 
@@ -703,7 +708,9 @@ ENDIF
 	.is_timer1
 	\\ Acknowledge timer 1 interrupt
 	STA &FE4D
+	jmp second_cycle
 
+	.do_plot
 	SETBGCOL PAL_green
 
 	\\ If we're already busy just exit function
@@ -814,9 +821,9 @@ ENDIF
 	.return_to_os
 	PLA
 	STA &FC
-	JMP &FFFF
+	RTI
 }
-old_irqv = P%-2
+.old_irqv EQUW &FFFF
 
 ; A=from page, Y=to page, X=number of pages
 .copy_pages
