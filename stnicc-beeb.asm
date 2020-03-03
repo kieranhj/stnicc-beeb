@@ -1052,6 +1052,7 @@ CHECK_SAME_PAGE_AS long_span_tables
 
 .additional_start
 
+INCLUDE "src/plot_line.asm"
 INCLUDE "src/debug.asm"
 INCLUDE "src/tests.asm"
 

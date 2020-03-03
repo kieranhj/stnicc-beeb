@@ -171,7 +171,7 @@ GUARD &A0
 
 ; vars for drawline
 ; loaded directly into X&Y
-IF _DEBUG
+IF _PLOT_WIREFRAME OR _DEBUG
 .startx             skip 1
 .starty             skip 1
 ENDIF
@@ -1340,6 +1340,7 @@ EQUS "Hello World!", 0
 
 .additional_start
 
+INCLUDE "src/plot_line.asm"
 INCLUDE "src/debug.asm"
 
 .additional_end
