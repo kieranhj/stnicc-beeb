@@ -111,6 +111,10 @@ SCREEN_HEIGHT_PIXELS = 14*8
 SCREEN_SIZE_BYTES = (SCREEN_WIDTH_PIXELS * SCREEN_HEIGHT_PIXELS) / 4
 
 CREDITS_ROW_BYTES = 640
+TEXT_BOX_COLS = 20
+TEXT_BOX_ROWS = 8
+CURSOR_SPEED = 25
+CURSOR_CODE = 128
 
 screen1_addr = &7200	; 4K
 screen2_addr = &6400	; 4k
@@ -217,9 +221,16 @@ ENDIF
 ; credits vars
 .char_def			skip 9
 .glyphptr			skip 2
-.writeptr_copy		skip 2
+.glyphptr_copy		skip 2
 .text_ptr			skip 2
 .text_index			skip 1
+.text_wait			skip 1
+.text_lock			skip 1
+.cursor_x			skip 1
+.cursor_y			skip 1
+.text_cls			skip 1
+.cursor_timer		skip 1
+.cursor_state		skip 1
 
 ; debug vars
 IF _DEBUG
@@ -233,8 +244,16 @@ ENDIF
 \ *	BSS DATA IN LOWER RAM
 \ ******************************************************************
 
-ORG &300
+; Can't use &300 until we remove any actual VDU calls
+ORG &400
 GUARD &800
+.reloc_to_start
+.screen_row_LO		skip 16
+.screen_row_HI		skip 16
+.screen_col_LO		skip 80
+.screen_col_HI		skip 80
+.test_string		skip 256
+.reloc_to_end
 
 ORG &E00
 GUARD &1000
@@ -264,6 +283,12 @@ GUARD screen3_addr
     inx
     cpx #&A0
     bne zp_loop
+
+	\\ Relocate data to lower RAM
+	lda #HI(reloc_from_start)
+	ldy #HI(reloc_to_start)
+	ldx #HI(reloc_to_end - reloc_to_start + &ff)
+	jsr copy_pages
 
     \\ Set MODE 5
 
@@ -321,37 +346,50 @@ GUARD screen3_addr
 	dex
 	bpl pal_loop
 
-	ldx #0:ldy #1:jsr calc_writeptr_XY
+IF 0
+	ldx #0:ldy #1:jsr calc_glyphptr_XY
 	ldx #LO(test_string):ldy #HI(test_string)
-	jsr plot_string_at_writeptr
+	jsr plot_string_at_ptr
 
-	ldx #1:ldy #3:jsr calc_writeptr_XY
+	ldx #1:ldy #3:jsr calc_glyphptr_XY
 	ldx #LO(test_string):ldy #HI(test_string)
-	jsr plot_string_at_writeptr
+	jsr plot_string_at_ptr
 
-	ldx #2:ldy #5:jsr calc_writeptr_XY
+	ldx #2:ldy #5:jsr calc_glyphptr_XY
 	ldx #LO(test_string):ldy #HI(test_string)
-	jsr plot_string_at_writeptr
+	jsr plot_string_at_ptr
 
-	ldx #3:ldy #7:jsr calc_writeptr_XY
+	ldx #3:ldy #7:jsr calc_glyphptr_XY
 	ldx #LO(test_string):ldy #HI(test_string)
-	jsr plot_string_at_writeptr
+	jsr plot_string_at_ptr
 
-	ldx #20:ldy #9:jsr calc_writeptr_XY
+	ldx #20:ldy #9:jsr calc_glyphptr_XY
 	ldx #LO(test_string):ldy #HI(test_string)
-	jsr plot_string_at_writeptr
+	jsr plot_string_at_ptr
 
-	ldx #19:ldy #11:jsr calc_writeptr_XY
+	ldx #19:ldy #11:jsr calc_glyphptr_XY
 	ldx #LO(test_string):ldy #HI(test_string)
-	jsr plot_string_at_writeptr
+	jsr plot_string_at_ptr
 
-	ldx #18:ldy #13:jsr calc_writeptr_XY
+	ldx #18:ldy #13:jsr calc_glyphptr_XY
 	ldx #LO(test_string):ldy #HI(test_string)
-	jsr plot_string_at_writeptr
+	jsr plot_string_at_ptr
 
-	ldx #17:ldy #15:jsr calc_writeptr_XY
+	ldx #17:ldy #15:jsr calc_glyphptr_XY
 	ldx #LO(test_string):ldy #HI(test_string)
-	jsr plot_string_at_writeptr
+	jsr plot_string_at_ptr
+ENDIF
+
+	\\ Init text system
+	ldx #0:ldy #1:jsr calc_glyphptr_XY
+	ldx #LO(test_string):ldy #HI(test_string)
+	stx text_ptr:sty text_ptr+1
+	lda #CURSOR_SPEED:sta cursor_timer
+
+	lda #CURSOR_CODE
+	ldx #LO(cursor_char_def)
+	ldy #HI(cursor_char_def)
+	jsr def_char
 
 	\\ Set interrupts and handler
 	SEI							; disable interupts
@@ -704,6 +742,28 @@ ENDIF
     lda #LO(screen3_addr/8):sta &fe01
 
 	SETBGCOL PAL_red
+
+	{
+		LDA text_lock
+		BNE not_timer2
+
+		\\ Don't re-enter this section
+		INC text_lock
+		\\ Store registers in case of interupts
+		TXA:PHA:TYA:PHA
+
+		\\ Do the slow bit!
+		CLI
+		jsr process_text
+		SEI
+
+		\\ Restore registers
+		PLA:TAY:PLA:TAX
+		\\ Remove our work lock
+		DEC text_lock
+	}
+
+	SETBGCOL PAL_black
 
 	.not_timer2
 	jmp return_to_os
@@ -1128,12 +1188,12 @@ INCLUDE "src/screen.asm"
     jmp osword
 }
 
-.plot_glyph_at_writeptr
+.plot_glyph_at_ptr
 {
 	lda glyphptr
-	sta writeptr_copy
+	sta glyphptr_copy
 	lda glyphptr+1
-	sta writeptr_copy+1
+	sta glyphptr_copy+1
 
 	ldx #1
 	.loop
@@ -1186,23 +1246,39 @@ INCLUDE "src/screen.asm"
 	cpx #9
 	bcc loop
 
-	clc
-	lda writeptr_copy
-	adc #4*8
+;	clc
+	lda glyphptr_copy
+;	adc #4*8
 	sta glyphptr
-	lda writeptr_copy+1
-	adc #0
+	lda glyphptr_copy+1
+;	adc #0
 	sta glyphptr+1
 	rts
 }
 
-.plot_char_at_writeptr
+.plot_char_at_ptr
 {
 	jsr get_char_def
-	jmp plot_glyph_at_writeptr
+	jmp plot_glyph_at_ptr
 }
 
-.calc_writeptr_XY
+.plot_char_at_cursor
+{
+	pha
+	jsr cursor_remove
+	jsr calc_cursor_XY
+	pla
+	jsr get_char_def
+	jsr plot_glyph_at_ptr
+	ldx cursor_x
+	inx
+	stx cursor_x
+	ldy cursor_y
+	jsr calc_cursor_XY
+	jmp cursor_redraw
+}
+
+.calc_glyphptr_XY
 {
 	clc
 	lda screen_row_LO, Y
@@ -1214,7 +1290,19 @@ INCLUDE "src/screen.asm"
 	rts
 }
 
-.plot_string_at_writeptr
+.calc_cursor_XY
+{
+	lda cursor_x
+	asl a: asl a
+	tax
+	lda cursor_y
+	asl a
+	tay
+	iny
+	jmp calc_glyphptr_XY
+}
+
+.plot_string_at_ptr
 {
 	stx text_ptr
 	sty text_ptr+1
@@ -1224,12 +1312,201 @@ INCLUDE "src/screen.asm"
 	sty text_index
 	lda (text_ptr), Y
 	beq done_loop
-	jsr plot_char_at_writeptr
+	jsr plot_char_at_ptr
 	ldy text_index
 	iny
 	bne loop
 	.done_loop
 	rts
+}
+
+MACRO TEXT_PTR_INC
+{
+	inc text_ptr
+	bne no_carry
+	inc text_ptr+1
+	.no_carry
+}
+ENDMACRO
+
+MACRO TEXT_PTR_ADC add
+{
+	clc
+	lda text_ptr
+	adc #add
+	sta text_ptr
+	bcc no_carry
+	inc text_ptr+1
+	.no_carry
+}
+ENDMACRO
+
+.set_cursor_XY
+{
+	txa:pha:tya:pha
+	jsr cursor_remove
+	pla:sta cursor_y
+	pla:sta cursor_x
+	jmp cursor_redraw
+}
+
+.process_text
+{
+	jsr cursor_update
+	
+	\\ Are we in a wait state?
+	lda text_wait
+	beq not_waiting
+	dec text_wait
+	rts
+
+	.not_waiting
+	lda text_cls
+	beq not_in_cls
+
+	lda #32
+	jsr plot_char_at_cursor
+	{
+		ldx cursor_x
+		cpx #TEXT_BOX_COLS
+		bcc x_ok
+		ldx #0
+		stx cursor_x
+		ldy cursor_y
+		iny
+		cpy #TEXT_BOX_ROWS
+		bcc y_ok
+		ldy #0
+		sty text_cls
+		.y_ok
+		sty cursor_y
+		jsr set_cursor_XY
+		.x_ok
+	}
+	rts
+
+	.not_in_cls
+	.read_next_char
+	ldy #0
+	lda (text_ptr), Y
+	beq eos
+
+	cmp #32
+	bcc vdu_code
+
+	\\ ASCII
+	jsr plot_char_at_cursor
+
+	.return
+	TEXT_PTR_INC
+	rts
+
+	.vdu_code
+	cmp #31
+	bne not_vdu31
+
+	\\ VDU 31, x, y
+	iny
+	lda (text_ptr), Y
+	tax
+	iny
+	lda (text_ptr), Y
+	tay
+	jsr set_cursor_XY
+
+	TEXT_PTR_ADC 3
+	bne read_next_char
+
+	.not_vdu31
+	cmp #12
+	bne not_cls
+
+	\\ CLS
+	ldx #0:ldy #0:jsr set_cursor_XY
+	lda #1:sta text_cls
+	bne return
+
+	.not_cls
+	cmp #1		; actually send next char to printer!
+	bne not_wait
+
+	iny
+	lda (text_ptr), Y
+	sta text_wait
+	TEXT_PTR_ADC 2
+	rts
+
+	.not_wait
+	\\ Unknown VDU code!
+	TEXT_PTR_INC
+	jmp read_next_char
+
+	.eos
+	lda #LO(test_string)
+	sta text_ptr
+	lda #HI(test_string)
+	sta text_ptr+1
+	rts
+}
+
+.cursor_update
+{
+	dec cursor_timer
+	bne same_state
+
+	jsr cursor_remove
+
+	\\ Toggle state
+	lda cursor_state
+	eor #1
+	sta cursor_state
+
+	jsr cursor_redraw
+
+	lda #CURSOR_SPEED
+	sta cursor_timer
+
+	.same_state
+	rts
+}
+
+.cursor_remove
+{
+	lda cursor_state
+	beq return
+	lda #' '
+	jsr plot_char_at_ptr
+	.return
+	rts
+}
+
+.cursor_redraw
+{
+	lda cursor_state
+	beq return
+	lda #CURSOR_CODE
+	jsr plot_char_at_ptr
+	.return
+	rts
+}
+
+.def_char
+{
+    stx loop+1
+    sty loop+2
+    pha
+    lda #23
+    jsr oswrch
+    pla
+    jsr oswrch
+    ldx #0
+    .loop
+    lda &ffff, X
+    jsr oswrch
+    inx
+    cpx #8
+    bcc loop
+    rts
 }
 
 .fx_end
@@ -1240,7 +1517,6 @@ INCLUDE "src/screen.asm"
 
 .data_start
 
-IF 1
 .crtc_regs_default
 {
 	EQUB 127				; R0  horizontal total
@@ -1258,7 +1534,6 @@ IF 1
 	EQUB HI(screen3_addr/8)	; R12 screen start address, high
 	EQUB LO(screen3_addr/8)	; R13 screen start address, low
 }
-ENDIF
 
 .mode5_palette
 {
@@ -1305,32 +1580,9 @@ EQUB 2,0			; only two discs now. WAS 3,1,0
 .two_bits_to_two_pixels
 EQUB %00000000, %00110011, %11001100, %11111111
 
-.screen_row_LO
-FOR y,0,15,1
-row=y:sl=0
-addr = row * CREDITS_ROW_BYTES + sl
-EQUB LO(screen3_addr + addr)
-NEXT
-
-.screen_row_HI
-FOR y,0,15,1
-row=y:sl=0
-addr = row * CREDITS_ROW_BYTES + sl
-EQUB HI(screen3_addr + addr)
-NEXT
-
-.screen_col_LO
-FOR c,0,79,1
-EQUB LO(c * 8)
-NEXT
-
-.screen_col_HI
-FOR c,0,79,1
-EQUB HI(c * 8)
-NEXT
-
-.test_string
-EQUS "Hello World!", 0
+.cursor_char_def
+EQUB &7F, &7F, &7F, &7F
+EQUB &7F, &7F, &7F, &00
 
 .data_end
 
@@ -1349,7 +1601,49 @@ INCLUDE "src/debug.asm"
 \ *	RELOCATABLE DATA OVERLAYING BSS DATA
 \ ******************************************************************
 
+PAGE_ALIGN
 .reloc_from_start
+.reloc_screen_row_LO
+FOR y,0,15,1
+row=y:sl=0
+addr = row * CREDITS_ROW_BYTES + sl
+EQUB LO(screen3_addr + addr)
+NEXT
+
+.reloc_screen_row_HI
+FOR y,0,15,1
+row=y:sl=0
+addr = row * CREDITS_ROW_BYTES + sl
+EQUB HI(screen3_addr + addr)
+NEXT
+
+.reloc_screen_col_LO
+FOR c,0,79,1
+EQUB LO(c * 8)
+NEXT
+
+.reloc_screen_col_HI
+FOR c,0,79,1
+EQUB HI(c * 8)
+NEXT
+
+.reloc_test_string
+EQUS 31, 0, 0, ">"
+EQUS 1, 150
+EQUS "Hello World!", 1, 50
+EQUS 31, 1, 1, "Second line!", 1, 50
+EQUS 31, 2, 2, "Third line..", 1, 50
+EQUS 31, 3, 3, "And so on...", 1, 50
+EQUS 31, 4, 4, ">BBC BASIC", 1, 50
+EQUS 12
+EQUS 31, 0, 0, "Next page", 1, 50
+EQUS 31, 1, 1, "Second line!", 1, 50
+EQUS 31, 2, 2, "Third line..", 1, 50
+EQUS 31, 3, 3, "And so on...", 1, 50
+EQUS 31, 4, 7, ">REPEAT", 1, 50
+EQUS 12
+EQUS 0
+
 .reloc_from_end
 
 \ ******************************************************************

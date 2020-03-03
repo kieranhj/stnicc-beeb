@@ -51,7 +51,7 @@ IF _PLOT_WIREFRAME
 	LSR A
 	LSR A
 	LSR A
-	SEC
+	SEC				; this is deliberate to move plotting down by one row.
 	ADC draw_buffer_HI
 	STA scrn+1
 	
