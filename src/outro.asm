@@ -252,7 +252,8 @@ GUARD &800
 .screen_row_HI		skip 16
 .screen_col_LO		skip 80
 .screen_col_HI		skip 80
-.test_string		skip 256
+.credits_text		skip &300
+.credits_end
 .reloc_to_end
 
 ORG &E00
@@ -354,7 +355,7 @@ GUARD screen3_addr
 
 	ldx #0:ldy #0:jsr set_cursor_XY
 	lda #CURSOR_SPEED:sta cursor_timer
-	ldx #LO(test_string):ldy #HI(test_string)
+	ldx #LO(credits_text):ldy #HI(credits_text)
 	stx text_ptr:sty text_ptr+1
 
 	\\ Set interrupts and handler
@@ -1258,6 +1259,28 @@ INCLUDE "src/screen.asm"
 	jmp cursor_redraw
 }
 
+.backspace_at_cursor
+{
+	jsr cursor_remove
+	ldx cursor_x
+	dex
+	bpl x_ok
+	ldx #TEXT_BOX_COLS-1
+
+	ldy cursor_y
+	dey
+	bpl y_ok
+	ldy #TEXT_BOX_ROWS-1
+	.y_ok
+	sty cursor_y
+
+	.x_ok
+	stx cursor_x
+
+	jsr calc_cursor_XY
+	jmp cursor_redraw
+}
+
 .calc_glyphptr_XY
 {
 	clc
@@ -1282,6 +1305,7 @@ INCLUDE "src/screen.asm"
 	jmp calc_glyphptr_XY
 }
 
+IF 0
 .plot_string_at_ptr
 {
 	stx text_ptr
@@ -1299,6 +1323,7 @@ INCLUDE "src/screen.asm"
 	.done_loop
 	rts
 }
+ENDIF
 
 MACRO TEXT_PTR_INC
 {
@@ -1375,11 +1400,9 @@ ENDMACRO
 	bne not_vdu31
 
 	\\ VDU 31, x, y
-	iny
-	lda (text_ptr), Y
+	iny:lda (text_ptr), Y
 	tax
-	iny
-	lda (text_ptr), Y
+	iny:lda (text_ptr), Y
 	tay
 	jsr set_cursor_XY
 
@@ -1399,21 +1422,44 @@ ENDMACRO
 	cmp #1		; actually send next char to printer!
 	bne not_wait
 
-	iny
-	lda (text_ptr), Y
+	iny:lda (text_ptr), Y
 	sta text_wait
 	TEXT_PTR_ADC 2
 	rts
 
 	.not_wait
+	cmp #13
+	bne not_cr
+	\\ Carriage return
+	{
+		ldx #0
+		ldy cursor_y
+		iny
+		cpy #TEXT_BOX_ROWS
+		bcc y_ok
+		ldy #0
+		.y_ok
+		sty cursor_y
+		jsr set_cursor_XY
+	}
+	jmp return
+
+	.not_cr
+	cmp #8
+	bne not_delete
+
+	jsr backspace_at_cursor
+	jmp return
+
+	.not_delete
 	\\ Unknown VDU code!
 	TEXT_PTR_INC
 	jmp read_next_char
 
 	.eos
-	lda #LO(test_string)
+	lda #LO(credits_text)
 	sta text_ptr
-	lda #HI(test_string)
+	lda #HI(credits_text)
 	sta text_ptr+1
 	rts
 }
@@ -1596,22 +1642,83 @@ FOR c,0,79,1
 EQUB HI(c * 8)
 NEXT
 
-.reloc_test_string
-EQUS 31, 0, 0, ">"
-EQUS 1, 150
-EQUS "Hello World!", 1, 50
-EQUS 31, 1, 1, "Second line!", 1, 50
-EQUS 31, 2, 2, "Third line..", 1, 50
-EQUS 31, 3, 3, "And so on...", 1, 50
-EQUS 31, 4, 4, ">BBC BASIC", 1, 50
-EQUS 12
-EQUS 31, 0, 0, "Next page", 1, 50
-EQUS 31, 1, 1, "Second line!", 1, 50
-EQUS 31, 2, 2, "Third line..", 1, 50
-EQUS 31, 3, 3, "And so on...", 1, 50
-EQUS 31, 4, 7, ">REPEAT", 1, 50
-EQUS 12
+.reloc_credits_text
+; Page 0
+;    |---------------------|
+EQUS 31, 0, 0, 1, 150
+EQUS "BBC Computer 32K"
+EQUS 31, 0, 2
+EQUS "Acorn DFS"
+EQUS 31, 0, 4
+EQUS "BASIC"
+EQUS 31, 0, 6
+EQUS ">", 1, 100
+EQUS 31, 5, 4, 8, 8, 8, 8, 8, 1, 50
+EQUS "BITSHIFTERS"
+EQUS 31, 1, 6, 1, 150, 12
+
+; Page 1
+;    |--------------------|
+EQUS "STNICCC-2000", 1, 50
+EQUS 8, 8, 8, 8, "BEEB", 1, 50, 13, 13
+EQUS "BBC Micro", 1, 50, 13
+EQUS ">", 1, 25
+EQUS "2MHz 6502 CPU", 1, 50, 13
+EQUS ">", 1, 25
+EQUS "32K + 32K RAM", 1, 50, 13
+EQUS ">", 1, 25
+EQUS "No VIC, no Blitter", 1, 50, 13
+EQUS ">", 1, 25
+EQUS "Just 3-bit colour!", 1, 50, 13
+EQUS ">", 1, 25
+EQUS "SN76489 sound chip", 1, 150, 12
+
+; Page 2
+;    |--------------------|
+EQUS "Sorry we were late", 13
+EQUS "to the STNICC party.", 1, 50
+EQUS 13
+EQUS "Squeezing a 16-bit", 13
+EQUS "1Mb demo into 8-bits"
+EQUS "and 64K took us some"
+EQUS "time!", 1, 100, 12
+
+; Page 3
+;    |--------------------|
+EQUS "CREDITS", 1, 50, 13, 13
+EQUS "Code:       kieranhj", 1, 25
+EQUS "Code:     Tom Seddon", 1, 25
+EQUS "Code:         Henley", 1, 25
+EQUS "Music:         Rhino"
+EQUS 1, 100, 12
+
+; Page 4
+;    |--------------------|
+EQUS "BITSHIFTERS THANKS", 1, 50, 13, 13
+EQUS "Oxygene", 13
+EQUS "Laxity", 13
+EQUS "<Compo proposer>", 13
+EQUS "<Acorn folks>", 13
+EQUS "Etc.", 13
+EQUS 1, 100, 12
+
+; Page 5
+;    |--------------------|
+EQUS "BITSHIFTERS GREETZ", 1, 50, 13, 13
+EQUS "RiFT", 13
+EQUS "DESiRE", 13
+EQUS "Polarity", 13
+EQUS "Slipstream", 13
+EQUS "Etc.", 13
+EQUS 1, 100, 12
+
+; Time for 9 pages max!
 EQUS 0
+.reloc_credits_end
+
+IF (P%-reloc_credits_text) > (credits_end-credits_text)
+	ERROR "Need more space for credits_text."
+ENDIF
 
 .reloc_from_end
 
@@ -1657,6 +1764,7 @@ PRINT "FX size = ", ~fx_end-fx_start
 PRINT "DATA size =",~data_end-data_start
 PRINT "ADDITIONAL size =",~additional_end-additional_start
 PRINT "RELOC size =",~reloc_from_end-reloc_from_start
+PRINT "CREDITS TEXT size =", (reloc_credits_end-reloc_credits_text), " allocated =",(credits_end-credits_text)
 PRINT "BSS size =",~bss_end-bss_start
 PRINT "------"
 PRINT "HIGH WATERMARK =", ~P%
