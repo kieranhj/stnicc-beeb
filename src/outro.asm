@@ -346,50 +346,16 @@ GUARD screen3_addr
 	dex
 	bpl pal_loop
 
-IF 0
-	ldx #0:ldy #1:jsr calc_glyphptr_XY
-	ldx #LO(test_string):ldy #HI(test_string)
-	jsr plot_string_at_ptr
-
-	ldx #1:ldy #3:jsr calc_glyphptr_XY
-	ldx #LO(test_string):ldy #HI(test_string)
-	jsr plot_string_at_ptr
-
-	ldx #2:ldy #5:jsr calc_glyphptr_XY
-	ldx #LO(test_string):ldy #HI(test_string)
-	jsr plot_string_at_ptr
-
-	ldx #3:ldy #7:jsr calc_glyphptr_XY
-	ldx #LO(test_string):ldy #HI(test_string)
-	jsr plot_string_at_ptr
-
-	ldx #20:ldy #9:jsr calc_glyphptr_XY
-	ldx #LO(test_string):ldy #HI(test_string)
-	jsr plot_string_at_ptr
-
-	ldx #19:ldy #11:jsr calc_glyphptr_XY
-	ldx #LO(test_string):ldy #HI(test_string)
-	jsr plot_string_at_ptr
-
-	ldx #18:ldy #13:jsr calc_glyphptr_XY
-	ldx #LO(test_string):ldy #HI(test_string)
-	jsr plot_string_at_ptr
-
-	ldx #17:ldy #15:jsr calc_glyphptr_XY
-	ldx #LO(test_string):ldy #HI(test_string)
-	jsr plot_string_at_ptr
-ENDIF
-
 	\\ Init text system
-	ldx #0:ldy #1:jsr calc_glyphptr_XY
-	ldx #LO(test_string):ldy #HI(test_string)
-	stx text_ptr:sty text_ptr+1
-	lda #CURSOR_SPEED:sta cursor_timer
-
 	lda #CURSOR_CODE
 	ldx #LO(cursor_char_def)
 	ldy #HI(cursor_char_def)
 	jsr def_char
+
+	ldx #0:ldy #0:jsr set_cursor_XY
+	lda #CURSOR_SPEED:sta cursor_timer
+	ldx #LO(test_string):ldy #HI(test_string)
+	stx text_ptr:sty text_ptr+1
 
 	\\ Set interrupts and handler
 	SEI							; disable interupts
@@ -1266,14 +1232,28 @@ INCLUDE "src/screen.asm"
 {
 	pha
 	jsr cursor_remove
-	jsr calc_cursor_XY
 	pla
 	jsr get_char_def
 	jsr plot_glyph_at_ptr
+
+	; Step cursor but check window extents
 	ldx cursor_x
 	inx
-	stx cursor_x
+	cpx #TEXT_BOX_COLS
+	bcc x_ok
+	ldx #0
+
 	ldy cursor_y
+	iny
+	cpy #TEXT_BOX_ROWS
+	bcc y_ok
+	ldy #0
+	.y_ok
+	sty cursor_y
+
+	.x_ok
+	stx cursor_x
+
 	jsr calc_cursor_XY
 	jmp cursor_redraw
 }
@@ -1347,6 +1327,7 @@ ENDMACRO
 	jsr cursor_remove
 	pla:sta cursor_y
 	pla:sta cursor_x
+	jsr calc_cursor_XY
 	jmp cursor_redraw
 }
 
@@ -1366,23 +1347,11 @@ ENDMACRO
 
 	lda #32
 	jsr plot_char_at_cursor
-	{
-		ldx cursor_x
-		cpx #TEXT_BOX_COLS
-		bcc x_ok
-		ldx #0
-		stx cursor_x
-		ldy cursor_y
-		iny
-		cpy #TEXT_BOX_ROWS
-		bcc y_ok
-		ldy #0
-		sty text_cls
-		.y_ok
-		sty cursor_y
-		jsr set_cursor_XY
-		.x_ok
-	}
+	lda cursor_x
+	ora cursor_y
+	bne still_cls		; stop when cursor wraps to 0,0
+	sta text_cls
+	.still_cls
 	rts
 
 	.not_in_cls
