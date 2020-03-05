@@ -503,7 +503,13 @@ endif
 
     .track_load_error
 
-	lda #19:jsr osbyte
+	\\ Wait for vsync
+	{
+		lda #2
+		.vsync1
+		bit &FE4D
+		beq vsync1
+	}
 
 	\\ Re-enable useful interupts
 	SEI
@@ -757,6 +763,11 @@ ENDIF
 		jsr parse_frame
 		sta eof_flag
 
+		cmp #POLY_DESC_END_OF_STREAM
+		bne not_eof
+		inc decode_lock		; lock us out of decoding the stream.
+
+		.not_eof
 		cmp #POLY_DESC_SKIP_TO_64K
 		bne stream_ok
 		

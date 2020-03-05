@@ -470,3 +470,6 @@ Use 2x 80x14 = 2x 4480 = 8960
 Plus 1x 80x18 = 5760
 Total = 14720 = &3980. Screen start &4680.
 Gives us 4K free.
+
+Apparently I didn't finish predividing the vertices by 2?!
+~~~
