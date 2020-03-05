@@ -452,3 +452,21 @@ Think vsync is arriving late...
 
 Stop returning IRQ1V to the MOS
 Master @ LQ = &21BB = 10.4fps (apparent!)
+
+OUTRO TODO
+~~~
+- Speed up CLS
+- Flicker?
+- BBC Micro timing (not Master)
+- End gracefully not crash
+- Chain from main sequence
+- Switch to MODE 4 might be simpler? (after all that...)
+
+MODE 4
+~~~
+Can avoid having to reset horizontal total.
+And less to draw.
+Use 2x 80x14 = 2x 4480 = 8960
+Plus 1x 80x18 = 5760
+Total = 14720 = &3980. Screen start &4680.
+Gives us 4K free.

@@ -699,7 +699,7 @@ ENDIF
 	LDA #HI(Timer2Period):STA &FE49
 
     lda #4:sta &fe00:lda #13:sta &fe01		; Vertical total
-	lda #7:sta &fe00:lda #&ff:sta &fe01		; No vsync
+	lda #7:sta &fe00:lda #20:sta &fe01		; Vsync > Vertical total
     lda #6:sta &fe00:lda #14:sta &fe01		; Vertical displayed
 
 	; Fixed screen address for *next* cycle
@@ -741,7 +741,6 @@ ENDIF
 	; could centre screen here?	
 	; lda #2:sta &fe00:lda #98:sta &fe01	; Horizontal sync - TBD
     lda #4:sta &fe00:lda #24:sta &fe01		; Vertical total
-	lda #7:sta &fe00:lda #20:sta &fe01		; Vsync
     lda #6:sta &fe00:lda #17:sta &fe01		; Vertical displayed
 
 	; TEST
