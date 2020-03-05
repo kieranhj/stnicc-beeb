@@ -1541,7 +1541,7 @@ ENDMACRO
 	EQUB 0					; R5  vertical total adjust
 	EQUB 32					; R6  vertical displayed
 	EQUB 35					; R7  vertical position; 35=top of screen
-	EQUB &C0				; R8  interlace; &30 = HIDE SCREEN
+	EQUB &F0				; R8  no interlace, no cursor, hide screen
 	EQUB 7					; R9  scanlines per row
 	EQUB 32					; R10 cursor start
 	EQUB 8					; R11 cursor end
