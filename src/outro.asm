@@ -67,8 +67,8 @@ MACRO SWRAM_SELECT bank
 LDA #bank: sta &f4: sta &fe30
 ENDMACRO
 
-MACRO MODE5_PIXELS a,b,c,d
-    EQUB (a AND 2) * &40 OR (a AND 1) * &08 OR (b AND 2) * &20 OR (b AND 1) * &04 OR (c AND 2) * &10 OR (c AND 1) * &02 OR (d AND 2) * &08 OR (d AND 1) * &01
+MACRO MODE4_PIXELS a,b,c,d
+    EQUB (a AND 1) * &08 OR (b AND 1) * &04 OR (c AND 1) * &02 OR (d AND 1) * &01
 ENDMACRO
 
 MACRO PAGE_ALIGN
@@ -94,8 +94,12 @@ IF _DEBUG_RASTERS
 {
 	LDA #&00 + col:STA &FE21
 	LDA #&10 + col:STA &FE21
+	LDA #&20 + col:STA &FE21
+	LDA #&30 + col:STA &FE21
 	LDA #&40 + col:STA &FE21
 	LDA #&50 + col:STA &FE21
+	LDA #&60 + col:STA &FE21
+	LDA #&70 + col:STA &FE21
 }
 ENDIF
 ENDMACRO
@@ -105,20 +109,19 @@ ENDMACRO
 \ ******************************************************************
 
 ; SCREEN constants
-SCREEN_ROW_BYTES = 256
-SCREEN_WIDTH_PIXELS = 128
+SCREEN_WIDTH_PIXELS = 320
 SCREEN_HEIGHT_PIXELS = 14*8
-SCREEN_SIZE_BYTES = (SCREEN_WIDTH_PIXELS * SCREEN_HEIGHT_PIXELS) / 4
+SCREEN_SIZE_BYTES = (SCREEN_WIDTH_PIXELS * SCREEN_HEIGHT_PIXELS) / 8
 
-CREDITS_ROW_BYTES = 640
+CREDITS_ROW_BYTES = 320
 TEXT_BOX_COLS = 20
 TEXT_BOX_ROWS = 8
 CURSOR_SPEED = 25
 CURSOR_CODE = 128
 
-screen1_addr = &7200	; 4K
-screen2_addr = &6400	; 4k
-screen3_addr = &3800	; 10K
+screen1_addr = &6E00
+screen2_addr = &5C00
+screen3_addr = &4500
 
 ; STREAMING constants
 STREAMING_tracks_per_disk = 79
@@ -149,7 +152,7 @@ FramePeriod = 312*64-2
 
 ; This is when we trigger the next frame draw during the frame
 ; Essentially how much time we give the main loop to stream the next track
-TimerValue = (40 + 14*8 - 1)*64 - 2*64
+TimerValue = (40 + 14*8)*64 - 2*64
 
 Timer2Value = (40)*64 - 2*64
 Timer2Period = (48)*64
@@ -291,14 +294,13 @@ GUARD screen3_addr
 	ldx #HI(reloc_to_end - reloc_to_start + &ff)
 	jsr copy_pages
 
-    \\ Set MODE 5
+    \\ Set MODE 4
 
     lda #22
     jsr oswrch
-    lda #1
+    lda #4
     jsr oswrch
 
-    \\ Resolution 256x200 => 128x200
     lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
 	lda #7:sta &fe00:lda #34:sta &fe01	 ; vsync pos
 
@@ -306,6 +308,20 @@ GUARD screen3_addr
     lda #HI(screen2_addr/8):sta &fe01
     lda #13:sta &fe00
     lda #LO(screen2_addr/8):sta &fe01
+
+	IF 0
+	{
+	    lda #HI(screen2_addr)
+	    sta draw_buffer_HI
+
+		lda #0:sta startx:sta starty
+		lda #255:sta endx:sta endy
+		jsr drawline
+
+        .wait_for_Key
+        lda #&79:ldx #&10:jsr osbyte:cpx #&ff:beq wait_for_Key
+	}
+	ENDIF
 
     \\ Set stream pointer
     lda #LO(STREAM_buffer_start-1)
@@ -342,7 +358,7 @@ GUARD screen3_addr
 	\\ Set palette
 	ldx #15
 	.pal_loop
-	lda mode5_palette, X
+	lda mode4_palette, X
 	sta &fe21
 	dex
 	bpl pal_loop
@@ -381,6 +397,8 @@ GUARD screen3_addr
 	LDA #&7F					; A=01111111
 	STA &FE4E					; R14=Interrupt Enable (disable all interrupts)
 	STA &FE43					; R3=Data Direction Register "A" (set keyboard data direction)
+	lda #&40					; A=01000000
+	sta &fe4b					; R11=ACR (Timer 1 continuous; Timer 2 one-shot)
 	LDA #&E2					; A=11000010
 	STA &FE4E					; R14=Interrupt Enable (enable main_vsync and timer interrupt)
 
@@ -661,8 +679,8 @@ ENDIF
 	jmp swap_frame_buffers
 	.^return_here_from_swap_frame_buffers
 
-	\\ Set CRTC regs
-    lda #1:sta &fe00:lda #32:sta &fe01		; Horizontal displayed
+	\\ Set CRTC regs?
+    ;lda #1:sta &fe00:lda #32:sta &fe01		; Horizontal displayed
 	; could centre screen here?	
 	; lda #2:sta &fe00:lda #74:sta &fe01	; Horizontal sync - TBD
 
@@ -680,7 +698,8 @@ ENDIF
 	\\ Which interrupt?
 	LDA &FE4D
 	AND #&20			; timer 2
-	BEQ not_timer2		; return_to_os
+	BNE is_timer2
+	jmp not_timer2		; return_to_os
 
 	\\ Acknowledge timer 2 interrupt
 	.is_timer2
@@ -737,7 +756,7 @@ ENDIF
 
 	.second_cycle
 	\\ Set up Vsync cycle
-	lda #1:sta &fe00:lda #80:sta &fe01		; Horizontal displayed
+;	lda #1:sta &fe00:lda #80:sta &fe01		; Horizontal displayed
 	; could centre screen here?	
 	; lda #2:sta &fe00:lda #98:sta &fe01	; Horizontal sync - TBD
     lda #4:sta &fe00:lda #24:sta &fe01		; Vertical total
@@ -1165,27 +1184,16 @@ INCLUDE "src/screen.asm"
 	.loop
 	lda char_def, X
 	pha
-	lsr a:lsr a:pha
-	lsr a:lsr a:pha
+	lsr a:lsr a
 	lsr a:lsr a
 	tay
-	lda two_bits_to_two_pixels, y
+	lda four_bits_to_four_pixels, y
 	ldy #0:sta (glyphptr), Y
 	iny:sta (glyphptr), Y
 
-	pla:and #3:tay
-	lda two_bits_to_two_pixels, y
+	pla:and #&f:tay
+	lda four_bits_to_four_pixels, y
 	ldy #8:sta (glyphptr), Y
-	iny:sta (glyphptr), Y
-
-	pla:and #3:tay
-	lda two_bits_to_two_pixels, y
-	ldy #16:sta (glyphptr), Y
-	iny:sta (glyphptr), Y
-
-	pla:and #3:tay
-	lda two_bits_to_two_pixels, y
-	ldy #24:sta (glyphptr), Y
 	iny:sta (glyphptr), Y
 
 	clc
@@ -1201,10 +1209,10 @@ INCLUDE "src/screen.asm"
 	bne ok
 	clc
 	lda glyphptr
-	adc #LO(640-8)
+	adc #LO(320-8)
 	sta glyphptr
 	lda glyphptr+1
-	adc #HI(640-8)
+	adc #HI(320-8)
 	sta glyphptr+1
 	.ok
 
@@ -1295,7 +1303,7 @@ INCLUDE "src/screen.asm"
 .calc_cursor_XY
 {
 	lda cursor_x
-	asl a: asl a
+	asl a
 	tax
 	lda cursor_y
 	asl a
@@ -1549,22 +1557,22 @@ ENDMACRO
 	EQUB LO(screen3_addr/8)	; R13 screen start address, low
 }
 
-.mode5_palette
+.mode4_palette
 {
 	EQUB &00 + PAL_black
 	EQUB &10 + PAL_black
-	EQUB &20 + PAL_red
-	EQUB &30 + PAL_red
+	EQUB &20 + PAL_black
+	EQUB &30 + PAL_black
 	EQUB &40 + PAL_black
 	EQUB &50 + PAL_black
-	EQUB &60 + PAL_red
-	EQUB &70 + PAL_red
-	EQUB &80 + PAL_yellow
-	EQUB &90 + PAL_yellow
+	EQUB &60 + PAL_black
+	EQUB &70 + PAL_black
+	EQUB &80 + PAL_white
+	EQUB &90 + PAL_white
 	EQUB &A0 + PAL_white
 	EQUB &B0 + PAL_white
-	EQUB &C0 + PAL_yellow
-	EQUB &D0 + PAL_yellow
+	EQUB &C0 + PAL_white
+	EQUB &D0 + PAL_white
 	EQUB &E0 + PAL_white
 	EQUB &F0 + PAL_white
 }
@@ -1594,6 +1602,15 @@ EQUB 2,0			; only two discs now. WAS 3,1,0
 .two_bits_to_two_pixels
 EQUB %00000000, %00110011, %11001100, %11111111
 
+.four_bits_to_four_pixels
+FOR b, 0, 15, 1
+b0 = b AND 1
+b1 = (b AND 2) >> 1
+b2 = (b AND 4) >> 2
+b3 = (b AND 8) >> 3
+EQUB b3 * &C0 + b2 * &30 + b1 * &0C + b0 * &03
+NEXT
+
 .cursor_char_def
 EQUB &7F, &7F, &7F, &7F
 EQUB &7F, &7F, &7F, &00
@@ -1606,8 +1623,8 @@ EQUB &7F, &7F, &7F, &00
 
 .additional_start
 
-INCLUDE "src/plot_line.asm"
-INCLUDE "src/debug.asm"
+INCLUDE "src/plot_line4.asm"
+INCLUDE "src/debug4.asm"
 
 .additional_end
 
