@@ -7,7 +7,7 @@ _DEBUG = TRUE
 _DEBUG_RASTERS = FALSE
 
 ; Display <drive no | sector no> <track no> <load to HI> <stream ptr HI>
-_SHOW_STREAMING_INFO = FALSE
+_SHOW_STREAMING_INFO = TRUE
 
 ; If set, show total vsync count, rather than just the count for the
 ; last frame. Intended for use in conjunction with _STOP_AT_FRAME.
@@ -513,11 +513,10 @@ ENDIF
 
 IF _SHOW_STREAMING_INFO
 
-	lda osword_params_drive
+	lda osword_params_sector
 	asl a:asl a:asl a:asl a
-	ora osword_params_sector
-
-	jsr debug_write_A_spc
+	ora osword_params_drive
+	jsr debug_write_A
 
 	lda osword_params_track
 	jsr debug_write_A_spc
@@ -1675,13 +1674,14 @@ EQUS 31, 1, 6, 1, 150, 12
 
 ; Page 1
 ;    |--------------------|
-EQUS "STNICCC-2000", 1, 50
+EQUS "ST-NICCC 2000", 1, 50
 EQUS 8, 8, 8, 8, "BEEB", 1, 50, 13, 13
-EQUS "BBC Micro", 1, 50, 13
 EQUS ">", 1, 25
 EQUS "2MHz 6502 CPU", 1, 50, 13
 EQUS ">", 1, 25
 EQUS "32K + 32K RAM", 1, 50, 13
+EQUS ">", 1, 25
+EQUS "5 1/4",'"', " floppy", 1, 50, 13
 EQUS ">", 1, 25
 EQUS "No VIC, no Blitter", 1, 50, 13
 EQUS ">", 1, 25

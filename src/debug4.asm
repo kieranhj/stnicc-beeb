@@ -4,6 +4,7 @@
 \ ******************************************************************
 
 IF _DEBUG
+IF 0
 .debug_plot_glyph
 {
 if _NULA
@@ -66,8 +67,9 @@ endif
 
     rts
 }
+ENDIF
 
-.plot_two_glyphs
+.plot_two_glyphs			; easier in MODE 4
 {
 	pha
 	and #&f0
@@ -118,7 +120,7 @@ endif
 {
     lda draw_buffer_HI
     sta debug_writeptr+1
-    lda #0
+    lda #WIREFRAME_CORNER_X
     sta debug_writeptr
 	rts
 }
