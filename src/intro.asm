@@ -222,17 +222,17 @@ GUARD screen_addr
     bcc init_loop
 
     \\ Char defs
-    lda #'$'
+    lda #128+'$'
     ldx #LO(flux_def)
     ldy #HI(flux_def)
     jsr def_char
 
-    lda #'@'
+    lda #128+'@'
     ldx #LO(smiley_def)
     ldy #HI(smiley_def)
     jsr def_char
 
-    lda #'%'
+    lda #128+'%'
     ldx #LO(quarter_def)
     ldy #HI(quarter_def)
     jsr def_char
@@ -356,15 +356,18 @@ ENDIF
     \\ Wait a beat
     ldx #50:jsr wait_frames    ; 1.0s
 
-    \\ Set screen size
+    \\ Will be ~row 35 here - set for next cycle
     lda #6:sta &fe00        ; vertical displayed
-    lda #20:sta &fe01
+    lda #26:sta &fe01
 
     lda #7:sta &fe00        ; vertical position
     lda #29:sta &fe01
 
-    \\ How to stop vsync jump here?
-    ldx #2:jsr wait_frames
+    \\ Vsync will happen at row 29 here
+    lda #19:jsr osbyte
+
+    lda #6:sta &fe00        ; vertical displayed
+    lda #20:sta &fe01
 
     \\ White out!
     ldx #LO(whiteout_palette)
@@ -902,9 +905,9 @@ EQUS 12 ; cls
 EQUS 31,0,4,  "BBC MICRO"
 EQUS 31,0,12, "2MHz 6502"
 EQUS 31,0,20, "32K RAM"
-EQUS 31,0,28, "5% FLOPPY"
+EQUS 31,0,28, "5",128+'%'," FLOPPY"
 EQUS 31,16,44,"HALF THE"
-EQUS 31,16,52,"BITS...$"
+EQUS 31,16,52,"BITS...",128+'$'
 EQUS 12 ; cls
 EQUS 0
 

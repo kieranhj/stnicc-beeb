@@ -386,3 +386,90 @@ This means lerp must be over a constant number of frames, rather than a constant
 Plot the 'pixels' EOR to move.
 'Pixels' have to be plotted to screen pixel accuracy.
 Maybe use term 'glixel' => glyph pixel?
+
+Outro
+~~~
+Wireframe render in quarter screen.
+Font text in opposite corner of the screen.
+Could this work in MODE 1?
+Need to double buffer the line draw but not enough RAM to double buffer the entire screen.
+Could just display a 40 column wide MODE 1 screen for the top / bottom half
+So 40x16 characters = 640 chars = 5K
+And double buffer this.
+Bottom half would be full 80 column MODE 1.
+Would need to rupture this screen whilst also doing the decode.
+'Just' need a timer in first and second halves of the screen.
+How much RAM would be left over for a font in MODE 1?
+Say 40x glyphs at 12x16 pixels = 3x16 bytes = 40 * 48 bytes = 1920 bytes.
+
+TODO
+- Set up IRQ2 for rupture:
+    - Top double buffered 32 columns x ~16 rows MODE 1 - done
+    - Bottom single buffered 80 columns x 16 rows MODE 1 - done
+- Plot 16x16 pixels using standard BBC glyphs (iconic)
+- Plot one glyph per vsync plus flashing "cursor" in 20x8 window
+
+Either scroll lines up (might be a pain with rupture?)
+Or erase lines quickly with "cursor". Can plot 160 chars in ~3 seconds.
+Fill window -> wait -> erase -> fill window -> etc.
+
+Sudden crazy thought about triple buffering...
+~~~
+Screen is 32 chars x 25 rows x 8 bytes per char = 6400 bytes = &1900 bytes
+Triple buffer = &1900 x 3 = &4800
+Stream buffer = 3x 2560 = &1E00
+Total RAM = &6600
+PAGE = &1A00..!
+Just move all code in SWRAM and run from there?!
+Still need to poll for rendering a new frame more than once per vsync...
+Does work if FramePeriod is set to 156 lines (but is slower, of course).
+
+Vertical Rupture
+First cycle:
+Vertical total = 16
+Vertical displayed = 16
+Horizontal displayed = 32
+No vsync
+Set CRTC address to fixed value
+
+Second cycle:
+Vertical total = 39-16
+Vertical displayed = 16
+Horizontal displayed = 80
+Vsync at 35-16
+
+Vsync
+Set CRTC address to next buffer
+Horizontal displayed = 32
+
+IRQ1 seems to be most stable.
+Most critical register changes are at the start of the second cycle.
+Run second cycle on IRQ1 continuous
+Set first cycle on IRQ2 one shot
+Set plot on IRQ2 second value
+
+Think vsync is arriving late...
+
+Stop returning IRQ1V to the MOS
+Master @ LQ = &21BB = 10.4fps (apparent!)
+
+OUTRO TODO
+~~~
+- Speed up CLS
+- Flicker?
+- BBC Micro timing (not Master)
+- End gracefully not crash
+- Chain from main sequence
+- Switch to MODE 4 might be simpler? (after all that...)
+
+MODE 4
+~~~
+Can avoid having to reset horizontal total.
+And less to draw.
+Use 2x 80x14 = 2x 4480 = 8960
+Plus 1x 80x18 = 5760
+Total = 14720 = &3980. Screen start &4680.
+Gives us 4K free.
+
+Apparently I didn't finish predividing the vertices by 2?!
+~~~

@@ -1,10 +1,10 @@
 \ -*- mode:beebasm -*-
 \ ******************************************************************
-\ *	STNICC BEEB
+\ *	STNICC BEEB OUTRO
 \ ******************************************************************
 
-_DEBUG = TRUE	; if you change me check the same in stnicc-build.asm
-_TESTS = FALSE
+_DEBUG = TRUE
+_DEBUG_RASTERS = FALSE
 
 ; Display <drive no | sector no> <track no> <load to HI> <stream ptr HI>
 _SHOW_STREAMING_INFO = FALSE
@@ -15,29 +15,19 @@ _SHOW_TOTAL_VSYNC_COUNTER = TRUE
 _STOP_AT_FRAME = -1
 ; Debug defines
 _DOUBLE_BUFFER = TRUE
-_PLOT_WIREFRAME = FALSE
-
-; Rendering defines
-_HALF_VERTICAL_RES = (_QUALITY < 2)
-_DOUBLE_PLOT_Y = (_QUALITY = 1)
-_WIDESCREEN = (_QUALITY = 2) AND FALSE
-_SKIP_ODD_FRAMES = FALSE
+_PLOT_WIREFRAME = TRUE
+_HALF_VERTICAL_RES = TRUE
+_NULA = FALSE
 
 PRINT "------"
-PRINT "STNICC-BEEB"
+PRINT "STNICC-BEEB OUTRO"
 PRINT "------"
-PRINT "_QUALITY =",_QUALITY
-PRINT "_NULA =",_NULA
 PRINT "_DEBUG =",_DEBUG
-PRINT "_TESTS =",_TESTS
 PRINT "_SHOW_STREAMING_INFO =",_SHOW_STREAMING_INFO
 PRINT "_SHOW_TOTAL_VSYNC_COUNTER =",_SHOW_TOTAL_VSYNC_COUNTER
 PRINT "_STOP_AT_FRAME =",_STOP_AT_FRAME
 PRINT "_DOUBLE_BUFFER =",_DOUBLE_BUFFER
 PRINT "_PLOT_WIREFRAME =",_PLOT_WIREFRAME
-PRINT "_HALF_VERTICAL_RES =",_HALF_VERTICAL_RES
-PRINT "_DOUBLE_PLOT_Y =",_DOUBLE_PLOT_Y
-PRINT "_WIDESCREEN =",_WIDESCREEN
 PRINT "------"
 
 \ ******************************************************************
@@ -51,7 +41,6 @@ osbyte = &FFF4
 osword = &FFF1
 osfind = &FFCE
 osgbpb = &FFD1
-oscli  = &FFF7
 osargs = &FFDA
 
 IRQ1V = &204
@@ -66,8 +55,6 @@ PAL_cyan	= (6 EOR 7)
 PAL_yellow	= (3 EOR 7)
 PAL_white	= (7 EOR 7)
 
-ULA_Mode5 	= &C4
-
 DFS_sector_size = 256
 DFS_sectors_per_track = 10
 DFS_track_size = (DFS_sectors_per_track * DFS_sector_size)
@@ -80,19 +67,8 @@ MACRO SWRAM_SELECT bank
 LDA #bank: sta &f4: sta &fe30
 ENDMACRO
 
-if _NULA
-MACRO MODE2_PIXELS a,b
-equb ((-(a!=0))*%10101010) or ((-(b!=0))*%01010101)
-ENDMACRO
-endif
-
 MACRO MODE5_PIXELS a,b,c,d
-if _NULA
-    MODE2_PIXELS a,b
-	MODE2_PIXELS c,d
-else
     EQUB (a AND 2) * &40 OR (a AND 1) * &08 OR (b AND 2) * &20 OR (b AND 1) * &04 OR (c AND 2) * &10 OR (c AND 1) * &02 OR (d AND 2) * &08 OR (d AND 1) * &01
-endif
 ENDMACRO
 
 MACRO PAGE_ALIGN
@@ -113,6 +89,17 @@ PRINT "WARNING! Table or branch base address",~base, "may cross page boundary at
 ENDIF
 ENDMACRO
 
+MACRO SETBGCOL col
+IF _DEBUG_RASTERS
+{
+	LDA #&00 + col:STA &FE21
+	LDA #&10 + col:STA &FE21
+	LDA #&40 + col:STA &FE21
+	LDA #&50 + col:STA &FE21
+}
+ENDIF
+ENDMACRO
+
 \ ******************************************************************
 \ *	GLOBAL constants
 \ ******************************************************************
@@ -120,15 +107,18 @@ ENDMACRO
 ; SCREEN constants
 SCREEN_ROW_BYTES = 256
 SCREEN_WIDTH_PIXELS = 128
-SCREEN_HEIGHT_PIXELS = 200
+SCREEN_HEIGHT_PIXELS = 14*8
 SCREEN_SIZE_BYTES = (SCREEN_WIDTH_PIXELS * SCREEN_HEIGHT_PIXELS) / 4
 
-WIDESCREEN_HEIGHT = 2 * SCREEN_WIDTH_PIXELS * 9 / 16
-WIDESCREEN_TOP = (SCREEN_HEIGHT_PIXELS/2) - (WIDESCREEN_HEIGHT/2)
-WIDESCREEN_BOTTOM = WIDESCREEN_TOP + WIDESCREEN_HEIGHT - 1
+CREDITS_ROW_BYTES = 640
+TEXT_BOX_COLS = 20
+TEXT_BOX_ROWS = 8
+CURSOR_SPEED = 25
+CURSOR_CODE = 128
 
-screen1_addr = &8000 - SCREEN_SIZE_BYTES
-screen2_addr = screen1_addr - SCREEN_SIZE_BYTES
+screen1_addr = &7200	; 4K
+screen2_addr = &6400	; 4k
+screen3_addr = &3800	; 10K
 
 ; STREAMING constants
 STREAMING_tracks_per_disk = 79
@@ -159,7 +149,10 @@ FramePeriod = 312*64-2
 
 ; This is when we trigger the next frame draw during the frame
 ; Essentially how much time we give the main loop to stream the next track
-TimerValue = (12)*64 - 2*64
+TimerValue = (40 + 14*8 - 1)*64 - 2*64
+
+Timer2Value = (40)*64 - 2*64
+Timer2Period = (48)*64
 
 \ ******************************************************************
 \ *	ZERO PAGE
@@ -182,7 +175,7 @@ GUARD &A0
 
 ; vars for drawline
 ; loaded directly into X&Y
-IF _DEBUG
+IF _PLOT_WIREFRAME OR _DEBUG
 .startx             skip 1
 .starty             skip 1
 ENDIF
@@ -199,19 +192,9 @@ ENDIF
 .poly_num_verts     skip 1
 ;.poly_colour        skip 1
 .poly_index         skip 1
-IF _HALF_VERTICAL_RES
-.span_y             skip 1
-ELSE
-.span_y		\\ alias for poly_y
-ENDIF
-.poly_y             skip 1
 
 .poly_verts_x       skip MAX_VERTS_PER_POLY+1
 .poly_verts_y       skip MAX_VERTS_PER_POLY+1
-
-; vars for span_buffer
-.span_buffer_min_y  skip 1
-.span_buffer_max_y  skip 1
 
 ; frame parser
 .frame_no           skip 2
@@ -220,14 +203,6 @@ ENDIF
 .indexed_num_verts  skip 1
 ;.poly_descriptor    skip 1
 .eof_flag			skip 1
-
-; palette vars
-.pal_ptr_LO			skip 1
-.pal_ptr_HI			skip 1
-.pal_descriptor		skip 1
-.pal_byte1			skip 1
-.pal_byte2			skip 1
-.pal_dither_idx		skip 1
 
 ; system vars
 .rom_bank           skip 1
@@ -241,6 +216,22 @@ ENDIF
 .screen_lock		skip 1
 .buffer_lock		skip 1
 
+.timer2_cycle		skip 1
+
+; credits vars
+.char_def			skip 9
+.glyphptr			skip 2
+.glyphptr_copy		skip 2
+.text_ptr			skip 2
+.text_index			skip 1
+.text_wait			skip 1
+.text_lock			skip 1
+.cursor_x			skip 1
+.cursor_y			skip 1
+.text_cls			skip 1
+.cursor_timer		skip 1
+.cursor_state		skip 1
+
 ; debug vars
 IF _DEBUG
 .pause_lock			skip 1
@@ -253,46 +244,27 @@ ENDIF
 \ *	BSS DATA IN LOWER RAM
 \ ******************************************************************
 
-ORG &300
+; Can't use &300 until we remove any actual VDU calls
+ORG &400
 GUARD &800
 .reloc_to_start
-.screen_row_LO
-skip &100
-.screen1_row_HI
-skip &100
-.screen2_row_HI
-skip &100
-.y_to_row
-skip &100
-PAGE_ALIGN  ; lazy
-if not(_NULA)
-.poly_palette
-skip &40
-.dither_table
-skip &40
-endif
-.screen_col_LO
-skip &80
+.screen_row_LO		skip 16
+.screen_row_HI		skip 16
+.screen_col_LO		skip 80
+.screen_col_HI		skip 80
+.credits_text		skip &300
+.credits_end
 .reloc_to_end
-
-ORG &A00
-GUARD &D00
-.palette_stream_buffer ; or use &E00?
-skip &300
 
 ORG &E00
 GUARD &1000
-.span_buffer_start
-skip &100
-.span_buffer_end
-skip &100
 
 \ ******************************************************************
 \ *	CODE START
 \ ******************************************************************
 
 ORG &1100
-GUARD screen2_addr
+GUARD screen3_addr
 
 .start
 
@@ -306,7 +278,7 @@ GUARD screen2_addr
 {
     \\ Init ZP
     lda #0
-    tax
+    ldx #0
     .zp_loop
     sta &00, x
     inx
@@ -319,12 +291,21 @@ GUARD screen2_addr
 	ldx #HI(reloc_to_end - reloc_to_start + &ff)
 	jsr copy_pages
 
-if not(_NULA)
-	lda #HI(palette_stream_start)
-	ldy #HI(palette_stream_buffer)
-	ldx #HI(palette_stream_end - palette_stream_start + &ff)
-	jsr copy_pages
-endif
+    \\ Set MODE 5
+
+    lda #22
+    jsr oswrch
+    lda #1
+    jsr oswrch
+
+    \\ Resolution 256x200 => 128x200
+    lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
+	lda #7:sta &fe00:lda #34:sta &fe01	 ; vsync pos
+
+    lda #12:sta &fe00
+    lda #HI(screen2_addr/8):sta &fe01
+    lda #13:sta &fe00
+    lda #LO(screen2_addr/8):sta &fe01
 
     \\ Set stream pointer
     lda #LO(STREAM_buffer_start-1)
@@ -354,83 +335,40 @@ endif
         .read_error
 	}
 
-    \\ Init early system
+    \\ Init system
     lda #HI(screen1_addr)
     sta draw_buffer_HI
 
-	lda #LO(palette_stream_buffer-1)
-	sta pal_ptr_LO
-	lda #HI(palette_stream_buffer-1)
-	sta pal_ptr_HI
-
-    jsr init_span_buffer
-
-	\\ Setup video
-	lda #8:sta &fe00:lda #&f0:sta &fe01		; hide screen
-
-	\\ Set ULA to MODE 5
-	lda #ULA_Mode5
-	sta &248			; OS copy
-	sta &fe20
-
-	\\ Set CRTC to MODE 5 => 128x200
-	ldx #0
-	.crtc_loop
-	stx &fe00
-	lda mode5_crtc_regs, X
-	sta &fe01
-	inx
-	cpx #14
-	bcc crtc_loop
-
-if _NULA
-	\\ Set NULA palette
-    lda #9:ldx #0:jsr osbyte
-	lda #10:ldx #0:jsr osbyte
-	lda #154:ldx #0:jsr osbyte
-
-	lda #$00
-	clc
-	.reset_palette_loop
-	pha
-	eor #$07:sta $fe21
-	pla
-	adc #$11
-	bcc reset_palette_loop
-
-; disable NuLA auxiliary palette
-	lda #$10
-	sta $fe22
-
-; set colour 0 to black
-    lda #$00
-	sta $fe23
-	sta $fe23
-else
-	\\ Set ULA palete for MODE 5
+	\\ Set palette
 	ldx #15
 	.pal_loop
 	lda mode5_palette, X
 	sta &fe21
 	dex
 	bpl pal_loop
-endif
 
-	\\ Clear the visible screen
-	jsr screen2_cls
+	\\ Init text system
+	lda #CURSOR_CODE
+	ldx #LO(cursor_char_def)
+	ldy #HI(cursor_char_def)
+	jsr def_char
+
+	ldx #0:ldy #0:jsr set_cursor_XY
+	lda #CURSOR_SPEED:sta cursor_timer
+	ldx #LO(credits_text):ldy #HI(credits_text)
+	stx text_ptr:sty text_ptr+1
 
 	\\ Set interrupts and handler
-	SEI										; disable interupts
+	SEI							; disable interupts
 
-	\\ Wait for vsync
 	{
 		lda #2
 		.vsync1
 		bit &FE4D
-		beq vsync1
+		beq vsync1 \ wait for vsync
 	}
 
-	\\ Not stable but close enough for our purposes
+	\\ Close enough for our purposes
 	; Write T1 low now (the timer will not be written until you write the high byte)
     LDA #LO(TimerValue):STA &FE44
     ; Get high byte ready so we can write it as quickly as possible at the right moment
@@ -440,22 +378,20 @@ endif
 	LDA #LO(FramePeriod):STA &FE46
 	LDA #HI(FramePeriod):STA &FE47
 
-	LDA #&7F								; A=01111111
-	STA &FE4E								; R14=Interrupt Enable (disable all interrupts)
-	sta &fe6e								; User via
-	STA &FE43								; R3=Data Direction Register "A" (set keyboard data direction)
-	LDA #&C2								; A=11000010
-	STA &FE4E								; R14=Interrupt Enable (enable main_vsync and timer interrupt)
+	LDA #&7F					; A=01111111
+	STA &FE4E					; R14=Interrupt Enable (disable all interrupts)
+	STA &FE43					; R3=Data Direction Register "A" (set keyboard data direction)
+	LDA #&E2					; A=11000010
+	STA &FE4E					; R14=Interrupt Enable (enable main_vsync and timer interrupt)
 
     LDA IRQ1V:STA old_irqv
     LDA IRQ1V+1:STA old_irqv+1
 
     LDA #LO(irq_handler):STA IRQ1V
     LDA #HI(irq_handler):STA IRQ1V+1		; set interrupt handler
-	CLI										; enable interupts
+	CLI							; enable interupts
 
 	\\ GO!
-	lda #8:sta &fe00:lda #&c0:sta &fe01		; show the screen!
 
     .loop
     \\ Debug
@@ -503,14 +439,6 @@ endif
 
     .track_load_error
 
-	\\ Wait for vsync
-	{
-		lda #2
-		.vsync1
-		bit &FE4D
-		beq vsync1
-	}
-
 	\\ Re-enable useful interupts
 	SEI
 	LDA #&D3					; A=11010011
@@ -520,18 +448,18 @@ endif
     LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
 	CLI
 
-	IF _DEBUG
-	{
-	    .wait_for_Key
-	    lda #&79:ldx #&10:jsr osbyte:cpx #&ff:beq wait_for_Key
-	}
-	ENDIF
-
+	\\ Reset CRTC after rupture
+	ldx #13
+	.crtc_loop
+	stx &fe00
+	lda crtc_regs_default, X
+	sta &fe01
+	dex
+	bpl crtc_loop
+	
 	\\ Exit gracefully (in theory)
-    \\ Load next part
-    ldx #LO(next_part_cmd)
-    ldy #HI(next_part_cmd)
-    jmp oscli
+    \\ But not back to BASIC as we trashed all its workspace :D
+	RTS
 }
 
 IF _DEBUG
@@ -719,21 +647,113 @@ ENDIF
 	lda #0
 	sta screen_lock
 
+ 	; Set T2 to fire in a bit...
+	LDA #LO(Timer2Value):STA &FE48
+	LDA #HI(Timer2Value):STA &FE49
+
 	\\ Vsync
     INC vsync_counter
     BNE no_carry
     INC vsync_counter+1
     .no_carry
+
+	\\ Swap frame buffers
+	jmp swap_frame_buffers
+	.^return_here_from_swap_frame_buffers
+
+	\\ Set CRTC regs
+    lda #1:sta &fe00:lda #32:sta &fe01		; Horizontal displayed
+	; could centre screen here?	
+	; lda #2:sta &fe00:lda #74:sta &fe01	; Horizontal sync - TBD
+
 	JMP return_to_os
 
 	.not_vsync
 	\\ Which interrupt?
 	LDA &FE4D
 	AND #&40			; timer 1
-	BEQ return_to_os
+	BEQ not_timer1
 
+	jmp is_timer1
+
+	.not_timer1
+	\\ Which interrupt?
+	LDA &FE4D
+	AND #&20			; timer 2
+	BEQ not_timer2		; return_to_os
+
+	\\ Acknowledge timer 2 interrupt
+	.is_timer2
+	STA &FE4D
+
+	lda timer2_cycle
+	eor #1
+	sta timer2_cycle
+	bne first_cycle
+	jmp do_plot
+
+	\\ First cycle
+	.first_cycle
+ 	; Set T2 to fire in a bit...
+	LDA #LO(Timer2Period):STA &FE48
+	LDA #HI(Timer2Period):STA &FE49
+
+    lda #4:sta &fe00:lda #13:sta &fe01		; Vertical total
+	lda #7:sta &fe00:lda #20:sta &fe01		; Vsync > Vertical total
+    lda #6:sta &fe00:lda #14:sta &fe01		; Vertical displayed
+
+	; Fixed screen address for *next* cycle
+    lda #12:sta &fe00
+    lda #HI(screen3_addr/8):sta &fe01
+    lda #13:sta &fe00
+    lda #LO(screen3_addr/8):sta &fe01
+
+	SETBGCOL PAL_red
+
+	{
+		LDA text_lock
+		BNE not_timer2
+
+		\\ Don't re-enter this section
+		INC text_lock
+		\\ Store registers in case of interupts
+		TXA:PHA:TYA:PHA
+
+		\\ Do the slow bit!
+		CLI
+		jsr process_text
+		SEI
+
+		\\ Restore registers
+		PLA:TAY:PLA:TAX
+		\\ Remove our work lock
+		DEC text_lock
+	}
+
+	SETBGCOL PAL_black
+
+	.not_timer2
+	jmp return_to_os
+
+	.second_cycle
+	\\ Set up Vsync cycle
+	lda #1:sta &fe00:lda #80:sta &fe01		; Horizontal displayed
+	; could centre screen here?	
+	; lda #2:sta &fe00:lda #98:sta &fe01	; Horizontal sync - TBD
+    lda #4:sta &fe00:lda #24:sta &fe01		; Vertical total
+    lda #6:sta &fe00:lda #17:sta &fe01		; Vertical displayed
+
+	; TEST
+	SETBGCOL PAL_blue
+	jmp return_to_os
+
+	.is_timer1
 	\\ Acknowledge timer 1 interrupt
 	STA &FE4D
+	jmp second_cycle
+
+	.do_plot
+	SETBGCOL PAL_green
 
 	\\ If we're already busy just exit function
 	LDA decode_lock
@@ -763,11 +783,6 @@ ENDIF
 		jsr parse_frame
 		sta eof_flag
 
-		cmp #POLY_DESC_END_OF_STREAM
-		bne not_eof
-		inc decode_lock		; lock us out of decoding the stream.
-
-		.not_eof
 		cmp #POLY_DESC_SKIP_TO_64K
 		bne stream_ok
 		
@@ -785,7 +800,7 @@ ENDIF
 		lda #&ff:sta buffer_lock
 
 		.stream_ok
-		IF _PLOT_WIREFRAME OR _SKIP_ODD_FRAMES
+		IF _PLOT_WIREFRAME
 		{
 			lda track_no
 			bmi enough_data_for_next_frame
@@ -836,27 +851,21 @@ ENDIF
 	\\ Remove our work lock
 	DEC decode_lock
 
-	IF _SKIP_ODD_FRAMES
-	lda frame_no
-    lsr a
-    bcs return_here_from_swap_frame_buffers
-	ENDIF
-
 	\\ Set our screen lock until frame swap
 	lda #&ff:sta screen_lock
 
-	\\ Swap frame buffers
-	jmp swap_frame_buffers
-	.^return_here_from_swap_frame_buffers
+    \\ Toggle draw buffer but not screen buffer (do that in vsync)
+    lda draw_buffer_HI
+    eor #HI(screen1_addr EOR screen2_addr)
+    sta draw_buffer_HI
 
-	\\ Don't pass on to OS IRQ handler :)
+	\\ Pass on to OS IRQ handler
 	.return_to_os
 	PLA
 	STA &FC
 	RTI
 }
-.old_irqv
-	EQUW &FFFF
+.old_irqv EQUW &FFFF
 
 ; A=from page, Y=to page, X=number of pages
 .copy_pages
@@ -882,12 +891,8 @@ ENDIF
 
 .swap_frame_buffers
 {
-    \\ Toggle draw buffer
-    lda draw_buffer_HI
-    eor #HI(screen1_addr EOR screen2_addr)
-    sta draw_buffer_HI
-
 	\\ Set screen buffer address in CRTC - not read until vsync
+    lda draw_buffer_HI
 	cmp #HI(screen1_addr)
     IF _DOUBLE_BUFFER
 	beq show_screen2
@@ -902,21 +907,9 @@ ENDIF
     lda #LO(screen1_addr/8):sta &fe01
 
 	\\ Draw screen 2
-	lda #HI(screen2_row_HI)
-	sta plot_long_span_set_screen+2
-	sta plot_short_span_set_screen+2
-
-		lda #LO(span_row_table_screen2_LO)
-		sta plot_span_set_row_table_LO+1
-		lda #HI(span_row_table_screen2_LO)
-		sta plot_span_set_row_table_LO+2
-		lda #LO(span_row_table_screen2_HI)
-		sta plot_span_set_row_table_HI+1
-		lda #HI(span_row_table_screen2_HI)
-		sta plot_span_set_row_table_HI+2
 
 	\\ Continue
-	bne continue
+	jmp continue
 
 	.show_screen2
 	\\ Show screen 2
@@ -926,18 +919,6 @@ ENDIF
     lda #LO(screen2_addr/8):sta &fe01
 
 	\\ Draw screen 1
-	lda #HI(screen1_row_HI)
-	sta plot_long_span_set_screen+2
-	sta plot_short_span_set_screen+2
-		
-		lda #LO(span_row_table_screen1_LO)
-		sta plot_span_set_row_table_LO+1
-		lda #HI(span_row_table_screen1_LO)
-		sta plot_span_set_row_table_LO+2
-		lda #LO(span_row_table_screen1_HI)
-		sta plot_span_set_row_table_HI+1
-		lda #HI(span_row_table_screen1_HI)
-		sta plot_span_set_row_table_HI+2
 
 	\\ Continue
 	.continue
@@ -952,22 +933,595 @@ ENDIF
 
 .fx_start
 
-if not(_NULA)
-MACRO GET_PAL_BYTE
+\ ******************************************************************
+\ *	PARSE A FRAME OF DATA FROM STNICCC STREAM
+\ ******************************************************************
+
+IF 1		; this also makes no sense!
+.deliberate_pause
 {
-    inc pal_ptr_LO
+	lda #2
+	sta several_times
+	lda #0
+	sta pause_me
+	.loop
+	dec pause_me
+	bne loop
+	dec several_times
+	bne loop
+	rts
+	.pause_me equb 0
+	.several_times equb 0
+}
+ENDIF
+
+MACRO GET_BYTE
+{
+    inc STREAM_ptr_LO
     bne no_carry
-    inc pal_ptr_HI
+    inc STREAM_ptr_HI
+
+	\\ This is an attempt to stop us running out of data
+	\\ but doesn't always work yet. I guess when the track
+	\\ hasn't even been requested yet; we can't yield back
+	\\ to the main loop. Hmmmm.
+;	lda STREAM_ptr_HI
+;	cmp load_to_HI
+;	bne no_carry
+
+; This makes no sense!
+;	jsr deliberate_pause
+
     .no_carry
-    lda (pal_ptr_LO), y
+    lda (STREAM_ptr_LO), y
 }
 ENDMACRO
-endif
 
-;INCLUDE "lib/disksys.asm"
-INCLUDE "src/parse_frame.asm"
-INCLUDE "src/plot_poly.asm"
+.parse_frame
+{
+    ldy #0
+    GET_BYTE
+    sta frame_flags
+
+    and #FLAG_CLEAR_SCREEN
+IF _PLOT_WIREFRAME = FALSE
+    beq no_clear_screen
+ENDIF
+
+    jsr screen_cls
+    .no_clear_screen
+
+    lda frame_flags
+    and #FLAG_CONTAINS_PALETTE
+    beq no_palette
+
+    \\ Read 16-bit palette mask
+    GET_BYTE
+    sta frame_bitmask+1
+    GET_BYTE
+    sta frame_bitmask
+
+    \\ Read palette words
+    ldx #15
+    .parse_palette_loop
+    asl frame_bitmask
+    rol frame_bitmask+1
+    bcc not_this_bit
+
+    \\ Discard our palette for now
+    GET_BYTE
+    GET_BYTE
+
+    .not_this_bit
+    dex
+    bpl parse_palette_loop
+
+    .no_palette
+
+    \\ Check whether we have indexed data
+    lda frame_flags
+    and #FLAG_INDEXED_DATA
+    beq read_poly_data
+
+    \\ Read indexed data (most common)
+    GET_BYTE
+    sta indexed_num_verts
+
+    \\ Next comes our array of vertices_x
+    GET_BYTE
+    
+    \\ calculate a ptr to the array
+    clc
+    lda STREAM_ptr_LO
+    sta read_verts_x+1
+    adc indexed_num_verts
+    sta STREAM_ptr_LO
+
+    lda STREAM_ptr_HI
+    sta read_verts_x+2
+    adc #0
+    sta STREAM_ptr_HI
+
+    \\ Next comes our array of vertices_y
+    dec indexed_num_verts
+
+    \\ calculate a ptr to the array
+    clc
+    lda STREAM_ptr_LO
+    sta read_verts_y+1
+    adc indexed_num_verts
+    sta STREAM_ptr_LO
+
+    lda STREAM_ptr_HI
+    sta read_verts_y+2
+    adc #0
+    sta STREAM_ptr_HI
+
+    ; note indexed_num_verts is actually one less than it should be but no longer used.
+
+    \\ Read polygon data
+    .read_poly_data
+    .^return_here_from_plot_poly
+    ldy #0
+
+    GET_BYTE
+    tax ; poly_descriptor
+    cmp #POLY_DESC_END_OF_STREAM
+    bcs parse_end_of_frame
+
+    and #&f
+    sta poly_num_verts
+
+	\\ We don't care about the colour of the poly
+
+    lda frame_flags
+    and #FLAG_INDEXED_DATA
+    beq non_indexed_data
+
+    \\ Read first vertex from the array
+
+    ldx #0
+    .read_poly_loop
+    ldy #0
+    GET_BYTE
+    tay
+
+    \\ Read the vertices directly from the stream data
+    .read_verts_x
+    lda &ffff, Y
+    sta poly_verts_x, X
+    .read_verts_y
+    lda &ffff, Y
+    IF _HALF_VERTICAL_RES
+    lsr a
+    ENDIF
+    sta poly_verts_y, X
+
+    \\ Next step would be to inline the poly loop here.
+
+    inx
+    cpx poly_num_verts
+    bcc read_poly_loop
+
+    jsr plot_poly_line
+    jmp read_poly_data
+
+    .non_indexed_data
+    ldx #0
+    .read_poly_ni_loop
+
+    \\ This can be changed to read the poly data directly.
+    GET_BYTE
+    lsr a
+    sta poly_verts_x, X
+    GET_BYTE
+    IF _HALF_VERTICAL_RES
+    lsr a
+    ENDIF
+    sta poly_verts_y, X
+
+    \\ Next step would be to inline the poly loop here.
+
+    inx
+    cpx poly_num_verts
+    bcc read_poly_ni_loop
+
+    jsr plot_poly_line
+    jmp read_poly_data
+
+    .parse_end_of_frame
+
+    inc frame_no
+    bne no_carry
+    inc frame_no+1
+    .no_carry
+
+    rts
+}
+
 INCLUDE "src/screen.asm"
+
+\ ******************************************************************
+\ *	CREDITS BIT
+\ ******************************************************************
+
+.get_char_def
+{
+    sta char_def
+    lda #10
+    ldx #LO(char_def)
+    ldy #HI(char_def)
+    jmp osword
+}
+
+.plot_glyph_at_ptr
+{
+	lda glyphptr
+	sta glyphptr_copy
+	lda glyphptr+1
+	sta glyphptr_copy+1
+
+	ldx #1
+	.loop
+	lda char_def, X
+	pha
+	lsr a:lsr a:pha
+	lsr a:lsr a:pha
+	lsr a:lsr a
+	tay
+	lda two_bits_to_two_pixels, y
+	ldy #0:sta (glyphptr), Y
+	iny:sta (glyphptr), Y
+
+	pla:and #3:tay
+	lda two_bits_to_two_pixels, y
+	ldy #8:sta (glyphptr), Y
+	iny:sta (glyphptr), Y
+
+	pla:and #3:tay
+	lda two_bits_to_two_pixels, y
+	ldy #16:sta (glyphptr), Y
+	iny:sta (glyphptr), Y
+
+	pla:and #3:tay
+	lda two_bits_to_two_pixels, y
+	ldy #24:sta (glyphptr), Y
+	iny:sta (glyphptr), Y
+
+	clc
+	lda glyphptr
+	adc #2
+	sta glyphptr
+	lda glyphptr+1
+	adc #0
+	sta glyphptr+1
+
+	lda glyphptr
+	and #7
+	bne ok
+	clc
+	lda glyphptr
+	adc #LO(640-8)
+	sta glyphptr
+	lda glyphptr+1
+	adc #HI(640-8)
+	sta glyphptr+1
+	.ok
+
+	inx
+	cpx #9
+	bcc loop
+
+;	clc
+	lda glyphptr_copy
+;	adc #4*8
+	sta glyphptr
+	lda glyphptr_copy+1
+;	adc #0
+	sta glyphptr+1
+	rts
+}
+
+.plot_char_at_ptr
+{
+	jsr get_char_def
+	jmp plot_glyph_at_ptr
+}
+
+.plot_char_at_cursor
+{
+	pha
+	jsr cursor_remove
+	pla
+	jsr get_char_def
+	jsr plot_glyph_at_ptr
+
+	; Step cursor but check window extents
+	ldx cursor_x
+	inx
+	cpx #TEXT_BOX_COLS
+	bcc x_ok
+	ldx #0
+
+	ldy cursor_y
+	iny
+	cpy #TEXT_BOX_ROWS
+	bcc y_ok
+	ldy #0
+	.y_ok
+	sty cursor_y
+
+	.x_ok
+	stx cursor_x
+
+	jsr calc_cursor_XY
+	jmp cursor_redraw
+}
+
+.backspace_at_cursor
+{
+	jsr cursor_remove
+	ldx cursor_x
+	dex
+	bpl x_ok
+	ldx #TEXT_BOX_COLS-1
+
+	ldy cursor_y
+	dey
+	bpl y_ok
+	ldy #TEXT_BOX_ROWS-1
+	.y_ok
+	sty cursor_y
+
+	.x_ok
+	stx cursor_x
+
+	jsr calc_cursor_XY
+	jmp cursor_redraw
+}
+
+.calc_glyphptr_XY
+{
+	clc
+	lda screen_row_LO, Y
+	adc screen_col_LO, X
+	sta glyphptr
+	lda screen_row_HI, Y
+	adc screen_col_HI, X
+	sta glyphptr+1
+	rts
+}
+
+.calc_cursor_XY
+{
+	lda cursor_x
+	asl a: asl a
+	tax
+	lda cursor_y
+	asl a
+	tay
+	iny
+	jmp calc_glyphptr_XY
+}
+
+IF 0
+.plot_string_at_ptr
+{
+	stx text_ptr
+	sty text_ptr+1
+
+	ldy #0
+	.loop
+	sty text_index
+	lda (text_ptr), Y
+	beq done_loop
+	jsr plot_char_at_ptr
+	ldy text_index
+	iny
+	bne loop
+	.done_loop
+	rts
+}
+ENDIF
+
+MACRO TEXT_PTR_INC
+{
+	inc text_ptr
+	bne no_carry
+	inc text_ptr+1
+	.no_carry
+}
+ENDMACRO
+
+MACRO TEXT_PTR_ADC add
+{
+	clc
+	lda text_ptr
+	adc #add
+	sta text_ptr
+	bcc no_carry
+	inc text_ptr+1
+	.no_carry
+}
+ENDMACRO
+
+.set_cursor_XY
+{
+	txa:pha:tya:pha
+	jsr cursor_remove
+	pla:sta cursor_y
+	pla:sta cursor_x
+	jsr calc_cursor_XY
+	jmp cursor_redraw
+}
+
+.process_text
+{
+	jsr cursor_update
+	
+	\\ Are we in a wait state?
+	lda text_wait
+	beq not_waiting
+	dec text_wait
+	rts
+
+	.not_waiting
+	lda text_cls
+	beq not_in_cls
+
+	lda #32
+	jsr plot_char_at_cursor
+	lda cursor_x
+	ora cursor_y
+	bne still_cls		; stop when cursor wraps to 0,0
+	sta text_cls
+	.still_cls
+	rts
+
+	.not_in_cls
+	.read_next_char
+	ldy #0
+	lda (text_ptr), Y
+	beq eos
+
+	cmp #32
+	bcc vdu_code
+
+	\\ ASCII
+	jsr plot_char_at_cursor
+
+	.return
+	TEXT_PTR_INC
+	rts
+
+	.vdu_code
+	cmp #31
+	bne not_vdu31
+
+	\\ VDU 31, x, y
+	iny:lda (text_ptr), Y
+	tax
+	iny:lda (text_ptr), Y
+	tay
+	jsr set_cursor_XY
+
+	TEXT_PTR_ADC 3
+	bne read_next_char
+
+	.not_vdu31
+	cmp #12
+	bne not_cls
+
+	\\ CLS
+	ldx #0:ldy #0:jsr set_cursor_XY
+	lda #1:sta text_cls
+	bne return
+
+	.not_cls
+	cmp #1		; actually send next char to printer!
+	bne not_wait
+
+	iny:lda (text_ptr), Y
+	sta text_wait
+	TEXT_PTR_ADC 2
+	rts
+
+	.not_wait
+	cmp #13
+	bne not_cr
+	\\ Carriage return
+	{
+		ldx #0
+		ldy cursor_y
+		iny
+		cpy #TEXT_BOX_ROWS
+		bcc y_ok
+		ldy #0
+		.y_ok
+		sty cursor_y
+		jsr set_cursor_XY
+	}
+	jmp return
+
+	.not_cr
+	cmp #8
+	bne not_delete
+
+	jsr backspace_at_cursor
+	jmp return
+
+	.not_delete
+	\\ Unknown VDU code!
+	TEXT_PTR_INC
+	jmp read_next_char
+
+	.eos
+	lda #LO(credits_text)
+	sta text_ptr
+	lda #HI(credits_text)
+	sta text_ptr+1
+	rts
+}
+
+.cursor_update
+{
+	dec cursor_timer
+	bne same_state
+
+	jsr cursor_remove
+
+	\\ Toggle state
+	lda cursor_state
+	eor #1
+	sta cursor_state
+
+	jsr cursor_redraw
+
+	lda #CURSOR_SPEED
+	sta cursor_timer
+
+	.same_state
+	rts
+}
+
+.cursor_remove
+{
+	lda cursor_state
+	beq return
+	lda #' '
+	jsr plot_char_at_ptr
+	.return
+	rts
+}
+
+.cursor_redraw
+{
+	lda cursor_state
+	beq return
+	lda #CURSOR_CODE
+	jsr plot_char_at_ptr
+	.return
+	rts
+}
+
+.def_char
+{
+    stx loop+1
+    sty loop+2
+    pha
+    lda #23
+    jsr oswrch
+    pla
+    jsr oswrch
+    ldx #0
+    .loop
+    lda &ffff, X
+    jsr oswrch
+    inx
+    cpx #8
+    bcc loop
+    rts
+}
 
 .fx_end
 
@@ -977,23 +1531,22 @@ INCLUDE "src/screen.asm"
 
 .data_start
 
-\\ Resolution 256x200 => 128x200
-.mode5_crtc_regs
+.crtc_regs_default
 {
-	EQUB 63					; R0  horizontal total
-	EQUB 32					; R1  horizontal displayed
-	EQUB 45					; R2  horizontal position
-	EQUB &24				; R3  sync width
+	EQUB 127				; R0  horizontal total
+	EQUB 80					; R1  horizontal displayed
+	EQUB 98					; R2  horizontal position
+	EQUB &28				; R3  sync width 40 = &28
 	EQUB 38					; R4  vertical total
 	EQUB 0					; R5  vertical total adjust
-	EQUB 25					; R6  vertical displayed
-	EQUB 31					; R7  vertical position
-	EQUB &F0				; R8  no interlace; cursor off; display off
+	EQUB 32					; R6  vertical displayed
+	EQUB 35					; R7  vertical position; 35=top of screen
+	EQUB &F0				; R8  no interlace, no cursor, hide screen
 	EQUB 7					; R9  scanlines per row
 	EQUB 32					; R10 cursor start
 	EQUB 8					; R11 cursor end
-	EQUB HI(screen2_addr/8)	; R12 screen start address, high
-	EQUB LO(screen2_addr/8)	; R13 screen start address, low
+	EQUB HI(screen3_addr/8)	; R12 screen start address, high
+	EQUB LO(screen3_addr/8)	; R13 screen start address, low
 }
 
 .mode5_palette
@@ -1036,24 +1589,14 @@ EQUB &20 + STREAMING_sectors_to_load		; sector size / number sectors = 256 / 10
 EQUB 0				; returned error value
 
 .drive_order
-EQUB 2,&FF,0		; only two discs now!
+EQUB 2,0			; only two discs now. WAS 3,1,0
 
-.next_part_cmd
-EQUS "/OUTRO", 13
+.two_bits_to_two_pixels
+EQUB %00000000, %00110011, %11001100, %11111111
 
-include "src/plot_data.asm"
-
-PAGE_ALIGN_FOR_SIZE 33*4
-.long_span_tables
-FOR col,0,32,1
-EQUB (32-col)*3					; +0,x for span_column_offset
-EQUB (col*8) AND 255			; +1,x for mult_8
-if not(_NULA)
-EQUB 0							; +2,x spare
-EQUB 0							; +3,x spare
-endif
-NEXT
-CHECK_SAME_PAGE_AS long_span_tables
+.cursor_char_def
+EQUB &7F, &7F, &7F, &7F
+EQUB &7F, &7F, &7F, &00
 
 .data_end
 
@@ -1065,7 +1608,6 @@ CHECK_SAME_PAGE_AS long_span_tables
 
 INCLUDE "src/plot_line.asm"
 INCLUDE "src/debug.asm"
-INCLUDE "src/tests.asm"
 
 .additional_end
 
@@ -1076,63 +1618,108 @@ INCLUDE "src/tests.asm"
 PAGE_ALIGN
 .reloc_from_start
 .reloc_screen_row_LO
-FOR n,0,255,1
-row=n DIV 8:sl=n MOD 8
-addr = row * SCREEN_ROW_BYTES + sl
-EQUB LO(screen1_addr + addr)
+FOR y,0,15,1
+row=y:sl=0
+addr = row * CREDITS_ROW_BYTES + sl
+EQUB LO(screen3_addr + addr)
 NEXT
-CHECK_SAME_PAGE_AS reloc_screen_row_LO
 
-.reloc_screen1_row_HI
-FOR n,0,255,1
-row=n DIV 8:sl=n MOD 8
-addr = row * SCREEN_ROW_BYTES + sl
-EQUB HI(screen1_addr + addr)
+.reloc_screen_row_HI
+FOR y,0,15,1
+row=y:sl=0
+addr = row * CREDITS_ROW_BYTES + sl
+EQUB HI(screen3_addr + addr)
 NEXT
-CHECK_SAME_PAGE_AS reloc_screen1_row_HI
-
-.reloc_screen2_row_HI
-FOR n,0,255,1
-row=n DIV 8:sl=n MOD 8
-addr = row * SCREEN_ROW_BYTES + sl
-EQUB HI(screen2_addr + addr)
-NEXT
-CHECK_SAME_PAGE_AS reloc_screen2_row_HI
-
-.reloc_y_to_row		; div_8
-FOR n,0,255,1
-row=n DIV 8
-EQUB row
-NEXT
-CHECK_SAME_PAGE_AS reloc_y_to_row
-
-\ ******************************************************************
-\ *	PALETTE DATA - MUST BE PAGE ALIGNED DUE TO SMC
-\ ******************************************************************
-
-PAGE_ALIGN  ; lazy
-if not(_NULA)
-include "src/palette.asm"
-endif
 
 .reloc_screen_col_LO
-FOR n,0,127,1
-if _NULA
-col=n DIV 2
-else
-col=n DIV 4
-endif
-EQUB LO(col*8)
+FOR c,0,79,1
+EQUB LO(c * 8)
 NEXT
-CHECK_SAME_PAGE_AS reloc_screen_col_LO
+
+.reloc_screen_col_HI
+FOR c,0,79,1
+EQUB HI(c * 8)
+NEXT
+
+.reloc_credits_text
+; Page 0
+;    |---------------------|
+EQUS 31, 0, 0, 1, 150
+EQUS "BBC Computer 32K"
+EQUS 31, 0, 2
+EQUS "Acorn DFS"
+EQUS 31, 0, 4
+EQUS "BASIC"
+EQUS 31, 0, 6
+EQUS ">", 1, 100
+EQUS 31, 5, 4, 8, 8, 8, 8, 8, 1, 50
+EQUS "BITSHIFTERS"
+EQUS 31, 1, 6, 1, 150, 12
+
+; Page 1
+;    |--------------------|
+EQUS "STNICCC-2000", 1, 50
+EQUS 8, 8, 8, 8, "BEEB", 1, 50, 13, 13
+EQUS "BBC Micro", 1, 50, 13
+EQUS ">", 1, 25
+EQUS "2MHz 6502 CPU", 1, 50, 13
+EQUS ">", 1, 25
+EQUS "32K + 32K RAM", 1, 50, 13
+EQUS ">", 1, 25
+EQUS "No VIC, no Blitter", 1, 50, 13
+EQUS ">", 1, 25
+EQUS "Just 3-bit colour!", 1, 50, 13
+EQUS ">", 1, 25
+EQUS "SN76489 sound chip", 1, 150, 12
+
+; Page 2
+;    |--------------------|
+EQUS "Sorry we were late", 13
+EQUS "to the STNICC party.", 1, 50
+EQUS 13
+EQUS "Squeezing a 16-bit", 13
+EQUS "1Mb demo into 8-bits"
+EQUS "and 64K took us some"
+EQUS "time!", 1, 100, 12
+
+; Page 3
+;    |--------------------|
+EQUS "CREDITS", 1, 50, 13, 13
+EQUS "Code:       kieranhj", 1, 25
+EQUS "Code:     Tom Seddon", 1, 25
+EQUS "Code:         Henley", 1, 25
+EQUS "Music:         Rhino"
+EQUS 1, 100, 12
+
+; Page 4
+;    |--------------------|
+EQUS "BITSHIFTERS THANKS", 1, 50, 13, 13
+EQUS "Oxygene", 13
+EQUS "Laxity", 13
+EQUS "<Compo proposer>", 13
+EQUS "<Acorn folks>", 13
+EQUS "Etc.", 13
+EQUS 1, 100, 12
+
+; Page 5
+;    |--------------------|
+EQUS "BITSHIFTERS GREETZ", 1, 50, 13, 13
+EQUS "RiFT", 13
+EQUS "DESiRE", 13
+EQUS "Polarity", 13
+EQUS "Slipstream", 13
+EQUS "Etc.", 13
+EQUS 1, 100, 12
+
+; Time for 9 pages max!
+EQUS 0
+.reloc_credits_end
+
+IF (P%-reloc_credits_text) > (credits_end-credits_text)
+	ERROR "Need more space for credits_text."
+ENDIF
 
 .reloc_from_end
-
-if not(_NULA)
-PAGE_ALIGN
-GUARD P%+&300
-include "src/palette_stream.asm"
-endif
 
 \ ******************************************************************
 \ *	End address to be saved
@@ -1144,15 +1731,7 @@ endif
 \ *	Save the code
 \ ******************************************************************
 
-IF _NULA
-SAVE "build/NULA", start, end, main
-ELIF _QUALITY == 2
-SAVE "build/HIGH", start, end, main
-ELIF _QUALITY == 1
-SAVE "build/MEDIUM", start, end, main
-ELIF _QUALITY == 0
-SAVE "build/LOW", start, end, main
-ENDIF
+SAVE "build/OUTRO", start, end, main
 
 \ ******************************************************************
 \ *	Space reserved for runtime buffers not preinitialised
@@ -1160,9 +1739,9 @@ ENDIF
 
 .bss_start
 
-CLEAR reloc_from_start, screen2_addr
+CLEAR reloc_from_start, screen3_addr
 ORG reloc_from_start
-GUARD screen2_addr
+GUARD screen3_addr
 
 PAGE_ALIGN
 .STREAM_buffer_start
@@ -1184,11 +1763,9 @@ PRINT "FX size = ", ~fx_end-fx_start
 PRINT "DATA size =",~data_end-data_start
 PRINT "ADDITIONAL size =",~additional_end-additional_start
 PRINT "RELOC size =",~reloc_from_end-reloc_from_start
-if not(_NULA)
-PRINT "PALETTE STREAM size =",~palette_stream_end-palette_stream_start
-endif
+PRINT "CREDITS TEXT size =", (reloc_credits_end-reloc_credits_text), " allocated =",(credits_end-credits_text)
 PRINT "BSS size =",~bss_end-bss_start
 PRINT "------"
 PRINT "HIGH WATERMARK =", ~P%
-PRINT "FREE =", ~screen2_addr-P%
+PRINT "FREE =", ~screen3_addr-P%
 PRINT "------"
