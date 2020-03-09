@@ -462,12 +462,9 @@ GUARD screen3_addr
 
 	\\ Check for errors
 	LDA error_flag
-	BNE track_load_error
+	BEQ loop
 
-	jmp loop
-
-    .track_load_error
-	
+	.track_load_error
 	\\ Wait for vsync
 	{
 		lda #2
