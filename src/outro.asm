@@ -1179,53 +1179,41 @@ INCLUDE "src/screen.asm"
 	lda glyphptr+1
 	sta glyphptr_copy+1
 
-	ldx #1
+	ldx #0
 	.loop
-	lda char_def, X
+	lda char_def+1, X
 	pha
 	lsr a:lsr a
 	lsr a:lsr a
 	tay
 	lda four_bits_to_four_pixels, y
-	ldy #0:sta (glyphptr), Y
-	iny:sta (glyphptr), Y
+	ldy #0:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
 
 	pla:and #&f:tay
 	lda four_bits_to_four_pixels, y
-	ldy #8:sta (glyphptr), Y
-	iny:sta (glyphptr), Y
+	ldy #8:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
 
-	clc
-	lda glyphptr
-	adc #2
-	sta glyphptr
-	lda glyphptr+1
-	adc #0
-	sta glyphptr+1
-
-	lda glyphptr
-	and #7
-	bne ok
-	clc
-	lda glyphptr
-	adc #LO(320-8)
-	sta glyphptr
-	lda glyphptr+1
-	adc #HI(320-8)
-	sta glyphptr+1
-	.ok
+	inc glyphptr_copy
+	inc glyphptr_copy
 
 	inx
-	cpx #9
+	cpx #4
+	bne ok
+
+	clc
+	lda glyphptr_copy
+	adc #LO(320-8)
+	sta glyphptr_copy
+	lda glyphptr_copy+1
+	adc #HI(320-8)
+	sta glyphptr_copy+1
+	.ok
+
+	cpx #8
 	bcc loop
 
-;	clc
-	lda glyphptr_copy
-;	adc #4*8
-	sta glyphptr
-	lda glyphptr_copy+1
-;	adc #0
-	sta glyphptr+1
 	rts
 }
 
@@ -1297,6 +1285,7 @@ INCLUDE "src/screen.asm"
 	iny:sta (glyphptr_copy), Y
 	dex
 	bmi done_loop
+	
 	clc
 	lda glyphptr_copy
 	adc #LO(320)
