@@ -41,6 +41,7 @@ osbyte = &FFF4
 osword = &FFF1
 osfind = &FFCE
 osgbpb = &FFD1
+oscli  = &FFF7
 osargs = &FFDA
 
 IRQ1V = &204
@@ -54,6 +55,8 @@ PAL_green	= (2 EOR 7)
 PAL_cyan	= (6 EOR 7)
 PAL_yellow	= (3 EOR 7)
 PAL_white	= (7 EOR 7)
+
+ULA_Mode4 	= &88
 
 DFS_sector_size = 256
 DFS_sectors_per_track = 10
@@ -124,9 +127,14 @@ CURSOR_CODE = 128
 WIREFRAME_CORNER_X = 96		; centred
 WIREFRAME_CORNER_Y = 1
 
+; NB. top screen from main part is &6700
+stnicc_screen1_addr = &6700
+
 screen1_addr = &6E00
 screen2_addr = &5C00
 screen3_addr = &4500
+
+end_screen_addr = &5800
 
 ; STREAMING constants
 STREAMING_tracks_per_disk = 79
@@ -299,33 +307,14 @@ GUARD screen3_addr
 	ldx #HI(reloc_to_end - reloc_to_start + &ff)
 	jsr copy_pages
 
-    \\ Set MODE 4
-
-    lda #22
-    jsr oswrch
-    lda #4
-    jsr oswrch
-
-    lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
-	lda #7:sta &fe00:lda #34:sta &fe01	 ; vsync pos
-
-    lda #12:sta &fe00
-    lda #HI(screen2_addr/8):sta &fe01
-    lda #13:sta &fe00
-    lda #LO(screen2_addr/8):sta &fe01
+	\\ Clear invisible screens here!
+	ldy #HI(screen3_addr)						; from page
+	ldx #HI(stnicc_screen1_addr - screen3_addr)	; number pages
+	jsr clear_pages
 
 	IF 0
-	{
-	    lda #HI(screen2_addr)
-	    sta draw_buffer_HI
-
-		lda #0:sta startx:sta starty
-		lda #255:sta endx:sta endy
-		jsr drawline
-
-        .wait_for_Key
-        lda #&79:ldx #&10:jsr osbyte:cpx #&ff:beq wait_for_Key
-	}
+    lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
+	lda #7:sta &fe00:lda #34:sta &fe01	 ; vsync pos
 	ENDIF
 
     \\ Set stream pointer
@@ -360,14 +349,6 @@ GUARD screen3_addr
     lda #HI(screen1_addr)
     sta draw_buffer_HI
 
-	\\ Set palette
-	ldx #15
-	.pal_loop
-	lda mode4_palette, X
-	sta &fe21
-	dex
-	bpl pal_loop
-
 	\\ Init text system
 	lda #CURSOR_CODE
 	ldx #LO(cursor_char_def)
@@ -378,6 +359,30 @@ GUARD screen3_addr
 	lda #CURSOR_SPEED:sta cursor_timer
 	ldx #LO(credits_text):ldy #HI(credits_text)
 	stx text_ptr:sty text_ptr+1
+
+	\\ Setup video
+	lda #8:sta &fe00:lda #&f0:sta &fe01		; hide screen
+
+	\\ Set ULA to MODE 4
+	lda #ULA_Mode4
+	sta &248			; OS copy
+	sta &fe20
+
+	\\ Set CRTC to MODE 4
+	jsr reset_crtc_regs
+
+	\\ Set palette
+	ldx #15
+	.pal_loop
+	lda mode4_palette, X
+	sta &fe21
+	dex
+	bpl pal_loop
+
+	\\ Clear visible screen here!
+	ldy #HI(stnicc_screen1_addr)			; from page
+	ldx #HI(&8000 - stnicc_screen1_addr)	; number pages
+	jsr clear_pages
 
 	\\ Set interrupts and handler
 	SEI							; disable interupts
@@ -415,6 +420,7 @@ GUARD screen3_addr
 	CLI							; enable interupts
 
 	\\ GO!
+	lda #8:sta &fe00:lda #&c0:sta &fe01		; show the screen!
 
     .loop
     \\ Debug
@@ -461,6 +467,14 @@ GUARD screen3_addr
 	jmp loop
 
     .track_load_error
+	
+	\\ Wait for vsync
+	{
+		lda #2
+		.vsync1
+		bit &FE4D
+		beq vsync1
+	}
 
 	\\ Re-enable useful interupts
 	SEI
@@ -471,15 +485,30 @@ GUARD screen3_addr
     LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
 	CLI
 
+	IF _DEBUG
+	{
+	    .wait_for_Key
+	    lda #&79:ldx #&10:jsr osbyte:cpx #&ff:beq wait_for_Key
+	}
+	ENDIF
+
+    \\ Load next part
+    ldx #LO(next_part_cmd)
+    ldy #HI(next_part_cmd)
+    jmp oscli
+}
+
+.reset_crtc_regs
+{
 	\\ Reset CRTC after rupture
 	ldx #13
 	.crtc_loop
 	stx &fe00
-	lda crtc_regs_default, X
+	lda crtc_mode4_regs, X
 	sta &fe01
 	dex
 	bpl crtc_loop
-	
+
 	\\ Exit gracefully (in theory)
     \\ But not back to BASIC as we trashed all its workspace :D
 	RTS
@@ -806,6 +835,11 @@ ENDIF
 		jsr parse_frame
 		sta eof_flag
 
+		cmp #POLY_DESC_END_OF_STREAM
+		bne not_eof
+		inc decode_lock		; lock us out of decoding the stream.
+
+		.not_eof
 		cmp #POLY_DESC_SKIP_TO_64K
 		bne stream_ok
 		
@@ -905,6 +939,25 @@ ENDIF
 	iny
 	bne page_loop
 	inc read_from+2
+	inc write_to+2
+	dex
+	bne page_loop
+
+	rts
+}
+
+; Y=to page, X=number of pages
+.clear_pages
+{
+	sty write_to+2
+
+	ldy #0
+	lda #0
+	.page_loop
+	.write_to
+	sta &ff00, Y
+	iny
+	bne page_loop
 	inc write_to+2
 	dex
 	bne page_loop
@@ -1614,22 +1667,22 @@ ENDMACRO
 
 .data_start
 
-.crtc_regs_default
+.crtc_mode4_regs
 {
-	EQUB 127				; R0  horizontal total
-	EQUB 80					; R1  horizontal displayed
-	EQUB 98					; R2  horizontal position
-	EQUB &28				; R3  sync width 40 = &28
+	EQUB 63					; R0  horizontal total
+	EQUB 40					; R1  horizontal displayed
+	EQUB 49					; R2  horizontal position
+	EQUB &24				; R3  sync width
 	EQUB 38					; R4  vertical total
 	EQUB 0					; R5  vertical total adjust
 	EQUB 32					; R6  vertical displayed
-	EQUB 35					; R7  vertical position; 35=top of screen
+	EQUB 34					; R7  vertical position; 35=top of screen
 	EQUB &F0				; R8  no interlace, no cursor, hide screen
 	EQUB 7					; R9  scanlines per row
 	EQUB 32					; R10 cursor start
 	EQUB 8					; R11 cursor end
-	EQUB HI(screen3_addr/8)	; R12 screen start address, high
-	EQUB LO(screen3_addr/8)	; R13 screen start address, low
+	EQUB HI(screen2_addr/8)	; R12 screen start address, high
+	EQUB LO(screen2_addr/8)	; R13 screen start address, low
 }
 
 .mode4_palette
@@ -1695,6 +1748,9 @@ EQUB &3F, &3F, &3F, &3F, &3F, &3F, &3F, &3F
 EQUB &FF, &FF, &FF, &FF, &FF, &FF, &FF, &FF
 EQUB &3F, &3F, &3F, &3F, &3F, &3F, &00, &00
 EQUB &FF, &FF, &FF, &FF, &FF, &FF, &00, &00
+
+.next_part_cmd
+EQUS "/INTRO", 13
 
 .data_end
 
