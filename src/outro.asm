@@ -1229,12 +1229,6 @@ INCLUDE "src/screen.asm"
 	rts
 }
 
-.plot_char_at_ptr
-{
-	jsr get_char_def
-	jmp plot_glyph_at_ptr
-}
-
 .plot_char_at_cursor
 {
 	pha
@@ -1316,6 +1310,40 @@ INCLUDE "src/screen.asm"
 	rts
 }
 
+.plot_block_at_ptr
+{
+	lda glyphptr
+	sta glyphptr_copy
+	lda glyphptr+1
+	sta glyphptr_copy+1
+
+	ldy #0
+	.loop1
+	lda block_mode4_data, Y
+	sta (glyphptr_copy), Y
+	iny
+	cpy #16
+	bcc loop1
+
+	clc
+	lda glyphptr_copy
+	adc #LO(320)
+	sta glyphptr_copy
+	lda glyphptr_copy+1
+	adc #HI(320)
+	sta glyphptr_copy+1
+
+	ldy #0
+	.loop2
+	lda block_mode4_data+16, Y
+	sta (glyphptr_copy), Y
+	iny
+	cpy #16
+	bcc loop2
+
+	rts
+}
+
 .backspace_at_cursor
 {
 	jsr plot_blank_at_ptr
@@ -1377,6 +1405,12 @@ IF 0
 	bne loop
 	.done_loop
 	rts
+}
+
+.plot_char_at_ptr
+{
+	jsr get_char_def
+	jmp plot_glyph_at_ptr
 }
 ENDIF
 
@@ -1554,8 +1588,7 @@ ENDMACRO
 {
 	lda cursor_state
 	beq return
-	lda #CURSOR_CODE
-	jsr plot_char_at_ptr
+	jsr plot_block_at_ptr
 	.return
 	rts
 }
@@ -1662,6 +1695,12 @@ NEXT
 .cursor_char_def
 EQUB &7F, &7F, &7F, &7F
 EQUB &7F, &7F, &7F, &00
+
+.block_mode4_data
+EQUB &3F, &3F, &3F, &3F, &3F, &3F, &3F, &3F
+EQUB &FF, &FF, &FF, &FF, &FF, &FF, &FF, &FF
+EQUB &3F, &3F, &3F, &3F, &3F, &3F, &00, &00
+EQUB &FF, &FF, &FF, &FF, &FF, &FF, &00, &00
 
 .data_end
 
