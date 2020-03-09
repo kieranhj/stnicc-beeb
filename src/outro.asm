@@ -1271,7 +1271,12 @@ INCLUDE "src/screen.asm"
 .wipe_char_at_cursor
 {
 	jsr cursor_remove
+	jsr plot_blank_at_ptr
+	jmp step_removed_cursor
+}
 
+.plot_blank_at_ptr
+{
 	lda glyphptr
 	sta glyphptr_copy
 	lda glyphptr+1
@@ -1297,7 +1302,7 @@ INCLUDE "src/screen.asm"
 	iny:sta (glyphptr_copy), Y
 	iny:sta (glyphptr_copy), Y
 	dex
-	bmi step_removed_cursor
+	bmi done_loop
 	clc
 	lda glyphptr_copy
 	adc #LO(320)
@@ -1306,11 +1311,16 @@ INCLUDE "src/screen.asm"
 	adc #HI(320)
 	sta glyphptr_copy+1
 	jmp loop
+
+	.done_loop
+	rts
 }
 
 .backspace_at_cursor
 {
-	jsr cursor_remove
+	jsr plot_blank_at_ptr
+
+	; step cursor backwards
 	ldx cursor_x
 	dex
 	bpl x_ok
@@ -1417,6 +1427,7 @@ ENDMACRO
 
 	jsr wipe_char_at_cursor
 	jsr wipe_char_at_cursor
+
 	lda cursor_x
 	ora cursor_y
 	bne still_cls		; stop when cursor wraps to 0,0
@@ -1534,8 +1545,7 @@ ENDMACRO
 {
 	lda cursor_state
 	beq return
-	lda #' '
-	jsr plot_char_at_ptr
+	jsr plot_blank_at_ptr
 	.return
 	rts
 }
