@@ -7,7 +7,7 @@ _DEBUG = TRUE
 _DEBUG_RASTERS = FALSE
 
 ; Display <drive no | sector no> <track no> <load to HI> <stream ptr HI>
-_SHOW_STREAMING_INFO = FALSE
+_SHOW_STREAMING_INFO = TRUE
 
 ; If set, show total vsync count, rather than just the count for the
 ; last frame. Intended for use in conjunction with _STOP_AT_FRAME.
@@ -41,6 +41,7 @@ osbyte = &FFF4
 osword = &FFF1
 osfind = &FFCE
 osgbpb = &FFD1
+oscli  = &FFF7
 osargs = &FFDA
 
 IRQ1V = &204
@@ -55,6 +56,8 @@ PAL_cyan	= (6 EOR 7)
 PAL_yellow	= (3 EOR 7)
 PAL_white	= (7 EOR 7)
 
+ULA_Mode4 	= &88
+
 DFS_sector_size = 256
 DFS_sectors_per_track = 10
 DFS_track_size = (DFS_sectors_per_track * DFS_sector_size)
@@ -67,8 +70,8 @@ MACRO SWRAM_SELECT bank
 LDA #bank: sta &f4: sta &fe30
 ENDMACRO
 
-MACRO MODE5_PIXELS a,b,c,d
-    EQUB (a AND 2) * &40 OR (a AND 1) * &08 OR (b AND 2) * &20 OR (b AND 1) * &04 OR (c AND 2) * &10 OR (c AND 1) * &02 OR (d AND 2) * &08 OR (d AND 1) * &01
+MACRO MODE4_PIXELS a,b,c,d
+    EQUB (a AND 1) * &08 OR (b AND 1) * &04 OR (c AND 1) * &02 OR (d AND 1) * &01
 ENDMACRO
 
 MACRO PAGE_ALIGN
@@ -94,8 +97,12 @@ IF _DEBUG_RASTERS
 {
 	LDA #&00 + col:STA &FE21
 	LDA #&10 + col:STA &FE21
+	LDA #&20 + col:STA &FE21
+	LDA #&30 + col:STA &FE21
 	LDA #&40 + col:STA &FE21
 	LDA #&50 + col:STA &FE21
+	LDA #&60 + col:STA &FE21
+	LDA #&70 + col:STA &FE21
 }
 ENDIF
 ENDMACRO
@@ -105,20 +112,29 @@ ENDMACRO
 \ ******************************************************************
 
 ; SCREEN constants
-SCREEN_ROW_BYTES = 256
-SCREEN_WIDTH_PIXELS = 128
+SCREEN_WIDTH_PIXELS = 320
 SCREEN_HEIGHT_PIXELS = 14*8
-SCREEN_SIZE_BYTES = (SCREEN_WIDTH_PIXELS * SCREEN_HEIGHT_PIXELS) / 4
+SCREEN_SIZE_BYTES = (SCREEN_WIDTH_PIXELS * SCREEN_HEIGHT_PIXELS) / 8
 
-CREDITS_ROW_BYTES = 640
+TOP_SCREEN_ROWS = 14
+
+MODE4_ROW_BYTES = 320
 TEXT_BOX_COLS = 20
 TEXT_BOX_ROWS = 8
 CURSOR_SPEED = 25
 CURSOR_CODE = 128
 
-screen1_addr = &7200	; 4K
-screen2_addr = &6400	; 4k
-screen3_addr = &3800	; 10K
+WIREFRAME_CORNER_X = 96		; centred
+WIREFRAME_CORNER_Y = 1
+
+; NB. top screen from main part is &6700
+stnicc_screen1_addr = &6700
+
+screen1_addr = &6E00
+screen2_addr = &5C00
+screen3_addr = &4500
+
+end_screen_addr = &5800
 
 ; STREAMING constants
 STREAMING_tracks_per_disk = 79
@@ -149,7 +165,7 @@ FramePeriod = 312*64-2
 
 ; This is when we trigger the next frame draw during the frame
 ; Essentially how much time we give the main loop to stream the next track
-TimerValue = (40 + 14*8 - 1)*64 - 2*64
+TimerValue = (40 + 14*8)*64 - 2*64
 
 Timer2Value = (40)*64 - 2*64
 Timer2Period = (48)*64
@@ -291,21 +307,15 @@ GUARD screen3_addr
 	ldx #HI(reloc_to_end - reloc_to_start + &ff)
 	jsr copy_pages
 
-    \\ Set MODE 5
+	\\ Clear invisible screens here!
+	ldy #HI(screen3_addr)						; from page
+	ldx #HI(stnicc_screen1_addr - screen3_addr)	; number pages
+	jsr clear_pages
 
-    lda #22
-    jsr oswrch
-    lda #1
-    jsr oswrch
-
-    \\ Resolution 256x200 => 128x200
+	IF 0
     lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
 	lda #7:sta &fe00:lda #34:sta &fe01	 ; vsync pos
-
-    lda #12:sta &fe00
-    lda #HI(screen2_addr/8):sta &fe01
-    lda #13:sta &fe00
-    lda #LO(screen2_addr/8):sta &fe01
+	ENDIF
 
     \\ Set stream pointer
     lda #LO(STREAM_buffer_start-1)
@@ -339,14 +349,6 @@ GUARD screen3_addr
     lda #HI(screen1_addr)
     sta draw_buffer_HI
 
-	\\ Set palette
-	ldx #15
-	.pal_loop
-	lda mode5_palette, X
-	sta &fe21
-	dex
-	bpl pal_loop
-
 	\\ Init text system
 	lda #CURSOR_CODE
 	ldx #LO(cursor_char_def)
@@ -357,6 +359,30 @@ GUARD screen3_addr
 	lda #CURSOR_SPEED:sta cursor_timer
 	ldx #LO(credits_text):ldy #HI(credits_text)
 	stx text_ptr:sty text_ptr+1
+
+	\\ Setup video
+	lda #8:sta &fe00:lda #&f0:sta &fe01		; hide screen
+
+	\\ Set ULA to MODE 4
+	lda #ULA_Mode4
+	sta &248			; OS copy
+	sta &fe20
+
+	\\ Set CRTC to MODE 4
+	jsr reset_crtc_regs
+
+	\\ Set palette
+	ldx #15
+	.pal_loop
+	lda mode4_palette, X
+	sta &fe21
+	dex
+	bpl pal_loop
+
+	\\ Clear visible screen here!
+	ldy #HI(stnicc_screen1_addr)			; from page
+	ldx #HI(&8000 - stnicc_screen1_addr)	; number pages
+	jsr clear_pages
 
 	\\ Set interrupts and handler
 	SEI							; disable interupts
@@ -381,6 +407,8 @@ GUARD screen3_addr
 	LDA #&7F					; A=01111111
 	STA &FE4E					; R14=Interrupt Enable (disable all interrupts)
 	STA &FE43					; R3=Data Direction Register "A" (set keyboard data direction)
+	lda #&40					; A=01000000
+	sta &fe4b					; R11=ACR (Timer 1 continuous; Timer 2 one-shot)
 	LDA #&E2					; A=11000010
 	STA &FE4E					; R14=Interrupt Enable (enable main_vsync and timer interrupt)
 
@@ -392,6 +420,7 @@ GUARD screen3_addr
 	CLI							; enable interupts
 
 	\\ GO!
+	lda #8:sta &fe00:lda #&c0:sta &fe01		; show the screen!
 
     .loop
     \\ Debug
@@ -433,11 +462,16 @@ GUARD screen3_addr
 
 	\\ Check for errors
 	LDA error_flag
-	BNE track_load_error
+	BEQ loop
 
-	jmp loop
-
-    .track_load_error
+	.track_load_error
+	\\ Wait for vsync
+	{
+		lda #2
+		.vsync1
+		bit &FE4D
+		beq vsync1
+	}
 
 	\\ Re-enable useful interupts
 	SEI
@@ -448,15 +482,30 @@ GUARD screen3_addr
     LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
 	CLI
 
+	IF _DEBUG
+	{
+	    .wait_for_Key
+	    lda #&79:ldx #&10:jsr osbyte:cpx #&ff:beq wait_for_Key
+	}
+	ENDIF
+
+    \\ Load next part
+    ldx #LO(next_part_cmd)
+    ldy #HI(next_part_cmd)
+    jmp oscli
+}
+
+.reset_crtc_regs
+{
 	\\ Reset CRTC after rupture
 	ldx #13
 	.crtc_loop
 	stx &fe00
-	lda crtc_regs_default, X
+	lda crtc_mode4_regs, X
 	sta &fe01
 	dex
 	bpl crtc_loop
-	
+
 	\\ Exit gracefully (in theory)
     \\ But not back to BASIC as we trashed all its workspace :D
 	RTS
@@ -495,11 +544,10 @@ ENDIF
 
 IF _SHOW_STREAMING_INFO
 
-	lda osword_params_drive
+	lda osword_params_sector
 	asl a:asl a:asl a:asl a
-	ora osword_params_sector
-
-	jsr debug_write_A_spc
+	ora osword_params_drive
+	jsr debug_write_A
 
 	lda osword_params_track
 	jsr debug_write_A_spc
@@ -661,8 +709,8 @@ ENDIF
 	jmp swap_frame_buffers
 	.^return_here_from_swap_frame_buffers
 
-	\\ Set CRTC regs
-    lda #1:sta &fe00:lda #32:sta &fe01		; Horizontal displayed
+	\\ Set CRTC regs?
+    ;lda #1:sta &fe00:lda #32:sta &fe01		; Horizontal displayed
 	; could centre screen here?	
 	; lda #2:sta &fe00:lda #74:sta &fe01	; Horizontal sync - TBD
 
@@ -680,7 +728,8 @@ ENDIF
 	\\ Which interrupt?
 	LDA &FE4D
 	AND #&20			; timer 2
-	BEQ not_timer2		; return_to_os
+	BNE is_timer2
+	jmp not_timer2		; return_to_os
 
 	\\ Acknowledge timer 2 interrupt
 	.is_timer2
@@ -737,7 +786,7 @@ ENDIF
 
 	.second_cycle
 	\\ Set up Vsync cycle
-	lda #1:sta &fe00:lda #80:sta &fe01		; Horizontal displayed
+;	lda #1:sta &fe00:lda #80:sta &fe01		; Horizontal displayed
 	; could centre screen here?	
 	; lda #2:sta &fe00:lda #98:sta &fe01	; Horizontal sync - TBD
     lda #4:sta &fe00:lda #24:sta &fe01		; Vertical total
@@ -783,6 +832,11 @@ ENDIF
 		jsr parse_frame
 		sta eof_flag
 
+		cmp #POLY_DESC_END_OF_STREAM
+		bne not_eof
+		inc decode_lock		; lock us out of decoding the stream.
+
+		.not_eof
 		cmp #POLY_DESC_SKIP_TO_64K
 		bne stream_ok
 		
@@ -882,6 +936,25 @@ ENDIF
 	iny
 	bne page_loop
 	inc read_from+2
+	inc write_to+2
+	dex
+	bne page_loop
+
+	rts
+}
+
+; Y=to page, X=number of pages
+.clear_pages
+{
+	sty write_to+2
+
+	ldy #0
+	lda #0
+	.page_loop
+	.write_to
+	sta &ff00, Y
+	iny
+	bne page_loop
 	inc write_to+2
 	dex
 	bne page_loop
@@ -1139,7 +1212,7 @@ ENDIF
     rts
 }
 
-INCLUDE "src/screen.asm"
+INCLUDE "src/screen4.asm"
 
 \ ******************************************************************
 \ *	CREDITS BIT
@@ -1161,71 +1234,42 @@ INCLUDE "src/screen.asm"
 	lda glyphptr+1
 	sta glyphptr_copy+1
 
-	ldx #1
+	ldx #0
 	.loop
-	lda char_def, X
+	lda char_def+1, X
 	pha
-	lsr a:lsr a:pha
-	lsr a:lsr a:pha
+	lsr a:lsr a
 	lsr a:lsr a
 	tay
-	lda two_bits_to_two_pixels, y
-	ldy #0:sta (glyphptr), Y
-	iny:sta (glyphptr), Y
+	lda four_bits_to_four_pixels, y
+	ldy #0:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
 
-	pla:and #3:tay
-	lda two_bits_to_two_pixels, y
-	ldy #8:sta (glyphptr), Y
-	iny:sta (glyphptr), Y
+	pla:and #&f:tay
+	lda four_bits_to_four_pixels, y
+	ldy #8:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
 
-	pla:and #3:tay
-	lda two_bits_to_two_pixels, y
-	ldy #16:sta (glyphptr), Y
-	iny:sta (glyphptr), Y
-
-	pla:and #3:tay
-	lda two_bits_to_two_pixels, y
-	ldy #24:sta (glyphptr), Y
-	iny:sta (glyphptr), Y
-
-	clc
-	lda glyphptr
-	adc #2
-	sta glyphptr
-	lda glyphptr+1
-	adc #0
-	sta glyphptr+1
-
-	lda glyphptr
-	and #7
-	bne ok
-	clc
-	lda glyphptr
-	adc #LO(640-8)
-	sta glyphptr
-	lda glyphptr+1
-	adc #HI(640-8)
-	sta glyphptr+1
-	.ok
+	inc glyphptr_copy
+	inc glyphptr_copy
 
 	inx
-	cpx #9
+	cpx #4
+	bne ok
+
+	clc
+	lda glyphptr_copy
+	adc #LO(MODE4_ROW_BYTES-8)
+	sta glyphptr_copy
+	lda glyphptr_copy+1
+	adc #HI(MODE4_ROW_BYTES-8)
+	sta glyphptr_copy+1
+	.ok
+
+	cpx #8
 	bcc loop
 
-;	clc
-	lda glyphptr_copy
-;	adc #4*8
-	sta glyphptr
-	lda glyphptr_copy+1
-;	adc #0
-	sta glyphptr+1
 	rts
-}
-
-.plot_char_at_ptr
-{
-	jsr get_char_def
-	jmp plot_glyph_at_ptr
 }
 
 .plot_char_at_cursor
@@ -1235,7 +1279,10 @@ INCLUDE "src/screen.asm"
 	pla
 	jsr get_char_def
 	jsr plot_glyph_at_ptr
-
+}
+\\ fall through
+.step_removed_cursor
+{
 	; Step cursor but check window extents
 	ldx cursor_x
 	inx
@@ -1258,9 +1305,94 @@ INCLUDE "src/screen.asm"
 	jmp cursor_redraw
 }
 
-.backspace_at_cursor
+.wipe_char_at_cursor
 {
 	jsr cursor_remove
+	jsr plot_blank_at_ptr
+	jmp step_removed_cursor
+}
+
+.plot_blank_at_ptr
+{
+	lda glyphptr
+	sta glyphptr_copy
+	lda glyphptr+1
+	sta glyphptr_copy+1
+
+	ldx #1
+	.loop
+	lda #0
+	tay:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	dex
+	bmi done_loop
+
+	clc
+	lda glyphptr_copy
+	adc #LO(MODE4_ROW_BYTES)
+	sta glyphptr_copy
+	lda glyphptr_copy+1
+	adc #HI(MODE4_ROW_BYTES)
+	sta glyphptr_copy+1
+	jmp loop
+
+	.done_loop
+	rts
+}
+
+.plot_block_at_ptr
+{
+	lda glyphptr
+	sta glyphptr_copy
+	lda glyphptr+1
+	sta glyphptr_copy+1
+
+	ldy #0
+	.loop1
+	lda block_mode4_data, Y
+	sta (glyphptr_copy), Y
+	iny
+	cpy #16
+	bcc loop1
+
+	clc
+	lda glyphptr_copy
+	adc #LO(MODE4_ROW_BYTES)
+	sta glyphptr_copy
+	lda glyphptr_copy+1
+	adc #HI(MODE4_ROW_BYTES)
+	sta glyphptr_copy+1
+
+	ldy #0
+	.loop2
+	lda block_mode4_data+16, Y
+	sta (glyphptr_copy), Y
+	iny
+	cpy #16
+	bcc loop2
+
+	rts
+}
+
+.backspace_at_cursor
+{
+	jsr plot_blank_at_ptr
+
+	; step cursor backwards
 	ldx cursor_x
 	dex
 	bpl x_ok
@@ -1280,8 +1412,16 @@ INCLUDE "src/screen.asm"
 	jmp cursor_redraw
 }
 
-.calc_glyphptr_XY
+.calc_cursor_XY
 {
+	lda cursor_x
+	asl a
+	tax
+	lda cursor_y
+	asl a
+	tay
+	iny
+	; calc_glyphptr_XY
 	clc
 	lda screen_row_LO, Y
 	adc screen_col_LO, X
@@ -1290,18 +1430,6 @@ INCLUDE "src/screen.asm"
 	adc screen_col_HI, X
 	sta glyphptr+1
 	rts
-}
-
-.calc_cursor_XY
-{
-	lda cursor_x
-	asl a: asl a
-	tax
-	lda cursor_y
-	asl a
-	tay
-	iny
-	jmp calc_glyphptr_XY
 }
 
 IF 0
@@ -1321,6 +1449,12 @@ IF 0
 	bne loop
 	.done_loop
 	rts
+}
+
+.plot_char_at_ptr
+{
+	jsr get_char_def
+	jmp plot_glyph_at_ptr
 }
 ENDIF
 
@@ -1369,8 +1503,9 @@ ENDMACRO
 	lda text_cls
 	beq not_in_cls
 
-	lda #32
-	jsr plot_char_at_cursor
+	jsr wipe_char_at_cursor
+	jsr wipe_char_at_cursor
+
 	lda cursor_x
 	ora cursor_y
 	bne still_cls		; stop when cursor wraps to 0,0
@@ -1488,8 +1623,7 @@ ENDMACRO
 {
 	lda cursor_state
 	beq return
-	lda #' '
-	jsr plot_char_at_ptr
+	jsr plot_blank_at_ptr
 	.return
 	rts
 }
@@ -1498,8 +1632,7 @@ ENDMACRO
 {
 	lda cursor_state
 	beq return
-	lda #CURSOR_CODE
-	jsr plot_char_at_ptr
+	jsr plot_block_at_ptr
 	.return
 	rts
 }
@@ -1531,40 +1664,40 @@ ENDMACRO
 
 .data_start
 
-.crtc_regs_default
+.crtc_mode4_regs
 {
-	EQUB 127				; R0  horizontal total
-	EQUB 80					; R1  horizontal displayed
-	EQUB 98					; R2  horizontal position
-	EQUB &28				; R3  sync width 40 = &28
+	EQUB 63					; R0  horizontal total
+	EQUB 40					; R1  horizontal displayed
+	EQUB 49					; R2  horizontal position
+	EQUB &24				; R3  sync width
 	EQUB 38					; R4  vertical total
 	EQUB 0					; R5  vertical total adjust
 	EQUB 32					; R6  vertical displayed
-	EQUB 35					; R7  vertical position; 35=top of screen
+	EQUB 34					; R7  vertical position; 35=top of screen
 	EQUB &F0				; R8  no interlace, no cursor, hide screen
 	EQUB 7					; R9  scanlines per row
 	EQUB 32					; R10 cursor start
 	EQUB 8					; R11 cursor end
-	EQUB HI(screen3_addr/8)	; R12 screen start address, high
-	EQUB LO(screen3_addr/8)	; R13 screen start address, low
+	EQUB HI(screen2_addr/8)	; R12 screen start address, high
+	EQUB LO(screen2_addr/8)	; R13 screen start address, low
 }
 
-.mode5_palette
+.mode4_palette
 {
 	EQUB &00 + PAL_black
 	EQUB &10 + PAL_black
-	EQUB &20 + PAL_red
-	EQUB &30 + PAL_red
+	EQUB &20 + PAL_black
+	EQUB &30 + PAL_black
 	EQUB &40 + PAL_black
 	EQUB &50 + PAL_black
-	EQUB &60 + PAL_red
-	EQUB &70 + PAL_red
-	EQUB &80 + PAL_yellow
-	EQUB &90 + PAL_yellow
+	EQUB &60 + PAL_black
+	EQUB &70 + PAL_black
+	EQUB &80 + PAL_white
+	EQUB &90 + PAL_white
 	EQUB &A0 + PAL_white
 	EQUB &B0 + PAL_white
-	EQUB &C0 + PAL_yellow
-	EQUB &D0 + PAL_yellow
+	EQUB &C0 + PAL_white
+	EQUB &D0 + PAL_white
 	EQUB &E0 + PAL_white
 	EQUB &F0 + PAL_white
 }
@@ -1594,9 +1727,27 @@ EQUB 2,0			; only two discs now. WAS 3,1,0
 .two_bits_to_two_pixels
 EQUB %00000000, %00110011, %11001100, %11111111
 
+.four_bits_to_four_pixels
+FOR b, 0, 15, 1
+b0 = b AND 1
+b1 = (b AND 2) >> 1
+b2 = (b AND 4) >> 2
+b3 = (b AND 8) >> 3
+EQUB b3 * &C0 + b2 * &30 + b1 * &0C + b0 * &03
+NEXT
+
 .cursor_char_def
 EQUB &7F, &7F, &7F, &7F
 EQUB &7F, &7F, &7F, &00
+
+.block_mode4_data
+EQUB &3F, &3F, &3F, &3F, &3F, &3F, &3F, &3F
+EQUB &FF, &FF, &FF, &FF, &FF, &FF, &FF, &FF
+EQUB &3F, &3F, &3F, &3F, &3F, &3F, &00, &00
+EQUB &FF, &FF, &FF, &FF, &FF, &FF, &00, &00
+
+.next_part_cmd
+EQUS "/INTRO", 13
 
 .data_end
 
@@ -1606,8 +1757,8 @@ EQUB &7F, &7F, &7F, &00
 
 .additional_start
 
-INCLUDE "src/plot_line.asm"
-INCLUDE "src/debug.asm"
+INCLUDE "src/plot_line4.asm"
+INCLUDE "src/debug4.asm"
 
 .additional_end
 
@@ -1620,14 +1771,14 @@ PAGE_ALIGN
 .reloc_screen_row_LO
 FOR y,0,15,1
 row=y:sl=0
-addr = row * CREDITS_ROW_BYTES + sl
+addr = row * MODE4_ROW_BYTES + sl
 EQUB LO(screen3_addr + addr)
 NEXT
 
 .reloc_screen_row_HI
 FOR y,0,15,1
 row=y:sl=0
-addr = row * CREDITS_ROW_BYTES + sl
+addr = row * MODE4_ROW_BYTES + sl
 EQUB HI(screen3_addr + addr)
 NEXT
 
@@ -1658,13 +1809,14 @@ EQUS 31, 1, 6, 1, 150, 12
 
 ; Page 1
 ;    |--------------------|
-EQUS "STNICCC-2000", 1, 50
+EQUS "ST-NICCC 2000", 1, 50
 EQUS 8, 8, 8, 8, "BEEB", 1, 50, 13, 13
-EQUS "BBC Micro", 1, 50, 13
 EQUS ">", 1, 25
 EQUS "2MHz 6502 CPU", 1, 50, 13
 EQUS ">", 1, 25
 EQUS "32K + 32K RAM", 1, 50, 13
+EQUS ">", 1, 25
+EQUS "5 1/4",'"', " floppy", 1, 50, 13
 EQUS ">", 1, 25
 EQUS "No VIC, no Blitter", 1, 50, 13
 EQUS ">", 1, 25

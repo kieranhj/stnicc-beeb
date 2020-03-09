@@ -456,11 +456,12 @@ Master @ LQ = &21BB = 10.4fps (apparent!)
 OUTRO TODO
 ~~~
 - Speed up CLS
-- Flicker?
-- BBC Micro timing (not Master)
-- End gracefully not crash
-- Chain from main sequence
-- Switch to MODE 4 might be simpler? (after all that...)
+- Flicker - done
+- BBC Micro timing (not Master) - done
+- End gracefully not black screen
+- Chain from main sequence - done
+- Switch to MODE 4 might be simpler? (after all that...) done
+- Sort out transition from previous part and screen clear
 
 MODE 4
 ~~~

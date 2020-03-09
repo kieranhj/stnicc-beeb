@@ -497,12 +497,9 @@ endif
 
 	\\ Check for errors
 	LDA error_flag
-	BNE track_load_error
-
-	jmp loop
+	BEQ loop
 
     .track_load_error
-
 	\\ Wait for vsync
 	{
 		lda #2
