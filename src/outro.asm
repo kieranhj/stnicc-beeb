@@ -1242,7 +1242,10 @@ INCLUDE "src/screen.asm"
 	pla
 	jsr get_char_def
 	jsr plot_glyph_at_ptr
-
+}
+\\ fall through
+.step_removed_cursor
+{
 	; Step cursor but check window extents
 	ldx cursor_x
 	inx
@@ -1263,6 +1266,46 @@ INCLUDE "src/screen.asm"
 
 	jsr calc_cursor_XY
 	jmp cursor_redraw
+}
+
+.wipe_char_at_cursor
+{
+	jsr cursor_remove
+
+	lda glyphptr
+	sta glyphptr_copy
+	lda glyphptr+1
+	sta glyphptr_copy+1
+
+	ldx #1
+	.loop
+	lda #0
+	tay:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+	dex
+	bmi step_removed_cursor
+	clc
+	lda glyphptr_copy
+	adc #LO(320)
+	sta glyphptr_copy
+	lda glyphptr_copy+1
+	adc #HI(320)
+	sta glyphptr_copy+1
+	jmp loop
 }
 
 .backspace_at_cursor
@@ -1287,18 +1330,6 @@ INCLUDE "src/screen.asm"
 	jmp cursor_redraw
 }
 
-.calc_glyphptr_XY
-{
-	clc
-	lda screen_row_LO, Y
-	adc screen_col_LO, X
-	sta glyphptr
-	lda screen_row_HI, Y
-	adc screen_col_HI, X
-	sta glyphptr+1
-	rts
-}
-
 .calc_cursor_XY
 {
 	lda cursor_x
@@ -1308,7 +1339,15 @@ INCLUDE "src/screen.asm"
 	asl a
 	tay
 	iny
-	jmp calc_glyphptr_XY
+	; calc_glyphptr_XY
+	clc
+	lda screen_row_LO, Y
+	adc screen_col_LO, X
+	sta glyphptr
+	lda screen_row_HI, Y
+	adc screen_col_HI, X
+	sta glyphptr+1
+	rts
 }
 
 IF 0
@@ -1376,8 +1415,8 @@ ENDMACRO
 	lda text_cls
 	beq not_in_cls
 
-	lda #32
-	jsr plot_char_at_cursor
+	jsr wipe_char_at_cursor
+	jsr wipe_char_at_cursor
 	lda cursor_x
 	ora cursor_y
 	bne still_cls		; stop when cursor wraps to 0,0
