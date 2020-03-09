@@ -113,11 +113,16 @@ SCREEN_WIDTH_PIXELS = 320
 SCREEN_HEIGHT_PIXELS = 14*8
 SCREEN_SIZE_BYTES = (SCREEN_WIDTH_PIXELS * SCREEN_HEIGHT_PIXELS) / 8
 
-CREDITS_ROW_BYTES = 320
+TOP_SCREEN_ROWS = 14
+
+MODE4_ROW_BYTES = 320
 TEXT_BOX_COLS = 20
 TEXT_BOX_ROWS = 8
 CURSOR_SPEED = 25
 CURSOR_CODE = 128
+
+WIREFRAME_CORNER_X = 96		; centred
+WIREFRAME_CORNER_Y = 1
 
 screen1_addr = &6E00
 screen2_addr = &5C00
@@ -1157,7 +1162,7 @@ ENDIF
     rts
 }
 
-INCLUDE "src/screen.asm"
+INCLUDE "src/screen4.asm"
 
 \ ******************************************************************
 \ *	CREDITS BIT
@@ -1204,10 +1209,10 @@ INCLUDE "src/screen.asm"
 
 	clc
 	lda glyphptr_copy
-	adc #LO(320-8)
+	adc #LO(MODE4_ROW_BYTES-8)
 	sta glyphptr_copy
 	lda glyphptr_copy+1
-	adc #HI(320-8)
+	adc #HI(MODE4_ROW_BYTES-8)
 	sta glyphptr_copy+1
 	.ok
 
@@ -1285,13 +1290,13 @@ INCLUDE "src/screen.asm"
 	iny:sta (glyphptr_copy), Y
 	dex
 	bmi done_loop
-	
+
 	clc
 	lda glyphptr_copy
-	adc #LO(320)
+	adc #LO(MODE4_ROW_BYTES)
 	sta glyphptr_copy
 	lda glyphptr_copy+1
-	adc #HI(320)
+	adc #HI(MODE4_ROW_BYTES)
 	sta glyphptr_copy+1
 	jmp loop
 
@@ -1316,10 +1321,10 @@ INCLUDE "src/screen.asm"
 
 	clc
 	lda glyphptr_copy
-	adc #LO(320)
+	adc #LO(MODE4_ROW_BYTES)
 	sta glyphptr_copy
 	lda glyphptr_copy+1
-	adc #HI(320)
+	adc #HI(MODE4_ROW_BYTES)
 	sta glyphptr_copy+1
 
 	ldy #0
@@ -1713,14 +1718,14 @@ PAGE_ALIGN
 .reloc_screen_row_LO
 FOR y,0,15,1
 row=y:sl=0
-addr = row * CREDITS_ROW_BYTES + sl
+addr = row * MODE4_ROW_BYTES + sl
 EQUB LO(screen3_addr + addr)
 NEXT
 
 .reloc_screen_row_HI
 FOR y,0,15,1
 row=y:sl=0
-addr = row * CREDITS_ROW_BYTES + sl
+addr = row * MODE4_ROW_BYTES + sl
 EQUB HI(screen3_addr + addr)
 NEXT
 

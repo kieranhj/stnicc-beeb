@@ -8,10 +8,10 @@ MACRO SCRN_INC_ROW
 	{
 		clc
 		lda scrn
-		adc #LO(320)
+		adc #LO(MODE4_ROW_BYTES)
 		sta scrn
 		lda scrn+1
-		adc #HI(320)
+		adc #HI(MODE4_ROW_BYTES)
 		sta scrn+1
 	}
 ENDMACRO
@@ -21,10 +21,10 @@ MACRO SCRN_DEC_ROW
 	{
 		sec
 		lda scrn
-		sbc #LO(320)
+		sbc #LO(MODE4_ROW_BYTES)
 		sta scrn
 		lda scrn+1
-		sbc #HI(320)
+		sbc #HI(MODE4_ROW_BYTES)
 		sta scrn+1
 	}
 ENDMACRO
@@ -328,17 +328,14 @@ IF _PLOT_WIREFRAME
 	EQUB 128, 64, 32, 16, 8, 4, 2, 1
 }
 
-WIREFRAME_CORNER_X = 96		; centred
-WIREFRAME_CORNER_Y = 1
-
 .scrn_row_LO
 FOR y, 0, 31, 1
-EQUB LO(WIREFRAME_CORNER_X + (y+WIREFRAME_CORNER_Y) * 320)
+EQUB LO(WIREFRAME_CORNER_X + (y+WIREFRAME_CORNER_Y) * MODE4_ROW_BYTES)
 NEXT
 
 .scrn_row_HI
 FOR y, 0, 31, 1
-EQUB HI(WIREFRAME_CORNER_X + (y+WIREFRAME_CORNER_Y) * 320)
+EQUB HI(WIREFRAME_CORNER_X + (y+WIREFRAME_CORNER_Y) * MODE4_ROW_BYTES)
 NEXT
 ENDIF
 
