@@ -247,6 +247,14 @@ IF _DEBUG
 .last_vsync         skip 1
 .debug_writeptr		skip 2
 ENDIF
+
+.clock_minutes		skip 1
+.clock_seconds		skip 1
+
+.char_def			skip 9
+.glyphptr			skip 2
+.glyphptr_copy		skip 2
+
 .zp_end
 
 \ ******************************************************************
@@ -516,6 +524,8 @@ endif
     LDA old_irqv:STA IRQ1V
     LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
 	CLI
+
+	jsr show_final_clock
 
 	IF _DEBUG
 	{
@@ -1063,6 +1073,149 @@ CHECK_SAME_PAGE_AS long_span_tables
 INCLUDE "src/plot_line.asm"
 INCLUDE "src/debug.asm"
 INCLUDE "src/tests.asm"
+
+.show_final_clock
+{
+	\\ Vsyncs * 2 = 100 ticks per second
+	clc
+	rol vsync_counter
+	rol vsync_counter+1
+
+	\\ Divide by 60*100 for minutes
+	ldx #0
+	.minute_loop
+	lda vsync_counter+1
+	cmp #HI(6000)+1
+	bcs minutes_Left
+	cmp #HI(6000)
+	bcc done_minutes
+	; equal
+	lda vsync_counter
+	cmp #LO(6000)
+	bcc done_minutes
+
+	.minutes_Left
+	sec
+	lda vsync_counter
+	sbc #LO(6000)
+	sta vsync_counter
+	lda vsync_counter+1
+	sbc #HI(6000)
+	sta vsync_counter+1
+	inx
+	bne minute_loop
+	.done_minutes
+	stx clock_minutes
+
+	ldx #0
+	.seconds_loop
+	lda vsync_counter+1
+	bne seconds_left
+	lda vsync_counter
+	cmp #LO(100)
+	bcc done_seconds
+
+	.seconds_left
+	sec
+	lda vsync_counter
+	sbc #LO(100)
+	sta vsync_counter
+	lda vsync_counter+1
+	sbc #HI(100)
+	sta vsync_counter+1
+	inx
+	bne seconds_loop
+	.done_seconds
+	stx clock_seconds
+
+	lda clock_minutes
+;	jsr plot_decimal
+	lda clock_seconds
+;	jsr plot_decimal
+	lda vsync_counter
+;	jsr plot_decimal
+
+	rts
+}
+
+IF 0
+.plot_decimal
+{
+	ldx #0
+	.digit_loop
+	cmp #10
+	bcc done_digits
+	sec
+	sbc #10
+	inx
+	bne digit_loop
+	.done_digits
+
+	pha
+	txa
+	clc
+	adc #'0'
+	jsr plot_char_at_ptr
+
+	pla
+	clc
+	adc #'0'
+	jmp plot_char_at_ptr
+}
+
+.plot_char_at_ptr
+{
+    sta char_def
+    lda #10
+    ldx #LO(char_def)
+    ldy #HI(char_def)
+    jsr osword
+
+	lda glyphptr
+	sta glyphptr_copy
+	lda glyphptr+1
+	sta glyphptr_copy+1
+
+	ldx #0
+	.loop
+	lda char_def+1, X
+	pha
+	lsr a:lsr a
+	lsr a:lsr a
+	tay
+	lda four_bits_to_four_pixels, y
+	ldy #0:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+
+	pla:and #&f:tay
+	lda four_bits_to_four_pixels, y
+	ldy #8:sta (glyphptr_copy), Y
+	iny:sta (glyphptr_copy), Y
+
+	inc glyphptr_copy
+	inc glyphptr_copy
+
+	inx
+	cpx #4
+	bne ok
+
+	clc
+	lda glyphptr_copy
+	adc #LO(MODE4_ROW_BYTES-8)
+	sta glyphptr_copy
+	lda glyphptr_copy+1
+	adc #HI(MODE4_ROW_BYTES-8)
+	sta glyphptr_copy+1
+	.ok
+
+	cpx #8
+	bcc loop
+
+	; increment glyphptr here
+
+	rts
+}
+ENDIF
 
 .additional_end
 
