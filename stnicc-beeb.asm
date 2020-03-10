@@ -67,6 +67,7 @@ PAL_yellow	= (3 EOR 7)
 PAL_white	= (7 EOR 7)
 
 ULA_Mode5 	= &C4
+ULA_Mode4 	= &88
 
 DFS_sector_size = 256
 DFS_sectors_per_track = 10
@@ -374,7 +375,7 @@ endif
     jsr init_span_buffer
 
 	\\ Setup video
-	lda #8:sta &fe00:lda #&f0:sta &fe01		; hide screen
+	jsr hide_screen
 
 	\\ Set ULA to MODE 5
 	lda #ULA_Mode5
@@ -415,13 +416,7 @@ if _NULA
 	sta $fe23
 	sta $fe23
 else
-	\\ Set ULA palete for MODE 5
-	ldx #15
-	.pal_loop
-	lda mode5_palette, X
-	sta &fe21
-	dex
-	bpl pal_loop
+	jsr set_palette
 endif
 
 	\\ Clear the visible screen
@@ -431,12 +426,7 @@ endif
 	SEI										; disable interupts
 
 	\\ Wait for vsync
-	{
-		lda #2
-		.vsync1
-		bit &FE4D
-		beq vsync1
-	}
+	jsr wait_for_vsync
 
 	\\ Not stable but close enough for our purposes
 	; Write T1 low now (the timer will not be written until you write the high byte)
@@ -463,7 +453,7 @@ endif
 	CLI										; enable interupts
 
 	\\ GO!
-	lda #8:sta &fe00:lda #&c0:sta &fe01		; show the screen!
+	jsr show_screen
 
     .loop
     \\ Debug
@@ -508,13 +498,8 @@ endif
 	BEQ loop
 
     .track_load_error
-	\\ Wait for vsync
-	{
-		lda #2
-		.vsync1
-		bit &FE4D
-		beq vsync1
-	}
+	ldx #50:jsr wait_X_frames
+	jsr hide_screen
 
 	\\ Re-enable useful interupts
 	SEI
@@ -525,7 +510,24 @@ endif
     LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
 	CLI
 
+	\\ Set MODE
+	lda #ULA_Mode4
+	sta &248			; OS copy
+	sta &fe20
+
+	ldx #LO(mode4_palette):stx pal_loop+1
+	ldy #HI(mode4_palette):sty pal_loop+2
+	jsr set_palette
+
+	\\ Show screen 1
+    lda #12:sta &fe00
+    lda #HI(screen1_addr/8):sta &fe01
+    lda #13:sta &fe00
+    lda #LO(screen1_addr/8):sta &fe01
+
+	jsr screen1_cls
 	jsr show_final_clock
+	jsr show_screen
 
 	IF _DEBUG
 	{
@@ -539,6 +541,43 @@ endif
     ldx #LO(next_part_cmd)
     ldy #HI(next_part_cmd)
     jmp oscli
+}
+
+.set_palette
+	\\ Set ULA palete for MODE 5
+	ldx #15
+	.pal_loop
+	lda mode5_palette, X
+	sta &fe21
+	dex
+	bpl pal_loop
+	rts
+
+.show_screen
+	lda #&c0
+	equb &2c		; BIT abs
+.hide_screen
+	lda #&f0
+{
+	ldx #8:stx &fe00:sta &fe01		; show the screen!
+	rts
+}
+
+.wait_for_vsync
+{
+	lda #2
+	.vsync1
+	bit &FE4D
+	beq vsync1
+	rts
+}
+
+.wait_X_frames
+{
+	jsr wait_for_vsync
+	dex
+	bne wait_X_frames
+	rts
 }
 
 IF _DEBUG
@@ -1023,6 +1062,26 @@ INCLUDE "src/screen.asm"
 	EQUB &F0 + PAL_white
 }
 
+.mode4_palette
+{
+	EQUB &00 + PAL_black
+	EQUB &10 + PAL_black
+	EQUB &20 + PAL_black
+	EQUB &30 + PAL_black
+	EQUB &40 + PAL_black
+	EQUB &50 + PAL_black
+	EQUB &60 + PAL_black
+	EQUB &70 + PAL_black
+	EQUB &80 + PAL_white
+	EQUB &90 + PAL_white
+	EQUB &A0 + PAL_white
+	EQUB &B0 + PAL_white
+	EQUB &C0 + PAL_white
+	EQUB &D0 + PAL_white
+	EQUB &E0 + PAL_white
+	EQUB &F0 + PAL_white
+}
+
 ;.filename0
 ;EQUS "00", 13
 
@@ -1061,6 +1120,15 @@ EQUB 0							; +3,x spare
 endif
 NEXT
 CHECK_SAME_PAGE_AS long_span_tables
+
+.four_bits_to_four_pixels
+FOR b, 0, 15, 1
+b0 = b AND 1
+b1 = (b AND 2) >> 1
+b2 = (b AND 4) >> 2
+b3 = (b AND 8) >> 3
+EQUB b3 * &C0 + b2 * &30 + b1 * &0C + b0 * &03
+NEXT
 
 .data_end
 
@@ -1128,17 +1196,20 @@ INCLUDE "src/tests.asm"
 	.done_seconds
 	stx clock_seconds
 
-	lda clock_minutes
-;	jsr plot_decimal
-	lda clock_seconds
-;	jsr plot_decimal
-	lda vsync_counter
-;	jsr plot_decimal
+	lda #LO(screen1_addr + 64):sta glyphptr
+	lda #HI(screen1_addr + 11*256):sta glyphptr+1
 
-	rts
+	lda clock_minutes
+	jsr plot_decimal
+	lda #':':jsr plot_char_at_ptr
+	lda clock_seconds
+	jsr plot_decimal
+	lda #'.':jsr plot_char_at_ptr
+	lda vsync_counter
+	jmp plot_decimal
 }
 
-IF 0
+IF 1
 .plot_decimal
 {
 	ldx #0
@@ -1162,6 +1233,8 @@ IF 0
 	adc #'0'
 	jmp plot_char_at_ptr
 }
+
+MODE4_ROW_BYTES = 256
 
 .plot_char_at_ptr
 {
@@ -1203,15 +1276,21 @@ IF 0
 	lda glyphptr_copy
 	adc #LO(MODE4_ROW_BYTES-8)
 	sta glyphptr_copy
-	lda glyphptr_copy+1
-	adc #HI(MODE4_ROW_BYTES-8)
-	sta glyphptr_copy+1
+	bcc ok
+	inc glyphptr_copy+1
 	.ok
 
 	cpx #8
 	bcc loop
 
 	; increment glyphptr here
+	clc
+	lda glyphptr
+	adc #16
+	sta glyphptr
+	bcc no_carry
+	inc glyphptr+1
+	.no_carry
 
 	rts
 }
