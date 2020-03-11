@@ -3,6 +3,13 @@
 \ *	CLOCK SCREEN
 \ ******************************************************************
 
+CLOCK_PAUSE = 50
+CLOCK_FLASHES = 5
+CLOCK_DELAY = 10
+
+CLOCK_X = 64
+CLOCK_ROW = 11
+
 .show_final_screen
 {
 	\\ Set MODE
@@ -14,7 +21,7 @@
 	ldy #HI(mode4_palette):sty pal_loop+2
 	jsr set_palette
 
-	\\ Show screen 1
+	\\ Display screen 1
     lda #12:sta &fe00
     lda #HI(screen1_addr/8):sta &fe01
     lda #13:sta &fe00
@@ -22,7 +29,27 @@
 
 	jsr screen1_cls
 	jsr show_final_clock
-	jmp show_screen
+	jsr show_screen
+    ldx #CLOCK_PAUSE
+    jsr wait_X_frames
+
+IF _QUALITY != 1        ; keep everything building even though we only care about LOW
+    lda #CLOCK_FLASHES
+    sta clock_flashes
+    .loop
+    ldx #CLOCK_DELAY
+    jsr wait_X_frames
+    jsr hide_screen
+
+    ldx #CLOCK_DELAY
+    jsr wait_X_frames
+    jsr show_screen
+
+    dec clock_flashes
+    bne loop
+ENDIF
+
+    rts
 }
 
 .show_final_clock
@@ -78,9 +105,12 @@
 	bne seconds_loop
 	.done_seconds
 	stx clock_seconds
-
-	lda #LO(screen1_addr + 64):sta glyphptr
-	lda #HI(screen1_addr + 11*256):sta glyphptr+1
+}
+\\ Fall through!
+.plot_clock
+{
+	lda #LO(screen1_addr + CLOCK_X):sta glyphptr
+	lda #HI(screen1_addr + CLOCK_ROW * MODE4_ROW_BYTES):sta glyphptr+1
 
 	lda clock_minutes
 	jsr plot_decimal

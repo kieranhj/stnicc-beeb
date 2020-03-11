@@ -257,6 +257,7 @@ ENDIF
 .vsync_final		skip 2
 .clock_minutes		skip 1
 .clock_seconds		skip 1
+.clock_flashes		skip 1
 
 .char_def			skip 9
 .glyphptr			skip 2
