@@ -699,7 +699,7 @@ ENDMACRO
 \ ******************************************************************
 
 if not(_NULA)
-WARNING_ALIGN 12
+BOUNDARY_ALIGN 12
 
 .handle_beeb_palette
 {
