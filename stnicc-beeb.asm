@@ -99,7 +99,12 @@ ENDMACRO
 MACRO PAGE_ALIGN
 H%=P%
 ALIGN &100
-PRINT "Lost ", P%-H%, "bytes"
+PRINT "Lost ", P%-H%, "bytes to PAGE alignment"
+ENDMACRO
+
+MACRO WARNING_ALIGN b
+skip b
+PRINT "Lost ",b , "bytes to avoid crossing PAGE boundary"
 ENDMACRO
 
 MACRO PAGE_ALIGN_FOR_SIZE size
@@ -249,6 +254,7 @@ IF _DEBUG
 .debug_writeptr		skip 2
 ENDIF
 
+.vsync_final		skip 2
 .clock_minutes		skip 1
 .clock_seconds		skip 1
 
@@ -498,6 +504,9 @@ endif
 	BEQ loop
 
     .track_load_error
+	lda vsync_counter:sta vsync_final
+	lda vsync_counter+1:sta vsync_final+1
+
 	ldx #50:jsr wait_X_frames
 	jsr hide_screen
 
@@ -510,24 +519,7 @@ endif
     LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
 	CLI
 
-	\\ Set MODE
-	lda #ULA_Mode4
-	sta &248			; OS copy
-	sta &fe20
-
-	ldx #LO(mode4_palette):stx pal_loop+1
-	ldy #HI(mode4_palette):sty pal_loop+2
-	jsr set_palette
-
-	\\ Show screen 1
-    lda #12:sta &fe00
-    lda #HI(screen1_addr/8):sta &fe01
-    lda #13:sta &fe00
-    lda #LO(screen1_addr/8):sta &fe01
-
-	jsr screen1_cls
-	jsr show_final_clock
-	jsr show_screen
+	jsr show_final_screen
 
 	IF _DEBUG
 	{
@@ -560,23 +552,6 @@ endif
 	lda #&f0
 {
 	ldx #8:stx &fe00:sta &fe01		; show the screen!
-	rts
-}
-
-.wait_for_vsync
-{
-	lda #2
-	.vsync1
-	bit &FE4D
-	beq vsync1
-	rts
-}
-
-.wait_X_frames
-{
-	jsr wait_for_vsync
-	dex
-	bne wait_X_frames
 	rts
 }
 
@@ -1142,34 +1117,56 @@ INCLUDE "src/plot_line.asm"
 INCLUDE "src/debug.asm"
 INCLUDE "src/tests.asm"
 
+.show_final_screen
+{
+	\\ Set MODE
+	lda #ULA_Mode4
+	sta &248			; OS copy
+	sta &fe20
+
+	ldx #LO(mode4_palette):stx pal_loop+1
+	ldy #HI(mode4_palette):sty pal_loop+2
+	jsr set_palette
+
+	\\ Show screen 1
+    lda #12:sta &fe00
+    lda #HI(screen1_addr/8):sta &fe01
+    lda #13:sta &fe00
+    lda #LO(screen1_addr/8):sta &fe01
+
+	jsr screen1_cls
+	jsr show_final_clock
+	jmp show_screen
+}
+
 .show_final_clock
 {
 	\\ Vsyncs * 2 = 100 ticks per second
 	clc
-	rol vsync_counter
-	rol vsync_counter+1
+	rol vsync_final
+	rol vsync_final+1
 
 	\\ Divide by 60*100 for minutes
 	ldx #0
 	.minute_loop
-	lda vsync_counter+1
+	lda vsync_final+1
 	cmp #HI(6000)+1
 	bcs minutes_Left
 	cmp #HI(6000)
 	bcc done_minutes
 	; equal
-	lda vsync_counter
+	lda vsync_final
 	cmp #LO(6000)
 	bcc done_minutes
 
 	.minutes_Left
 	sec
-	lda vsync_counter
+	lda vsync_final
 	sbc #LO(6000)
-	sta vsync_counter
-	lda vsync_counter+1
+	sta vsync_final
+	lda vsync_final+1
 	sbc #HI(6000)
-	sta vsync_counter+1
+	sta vsync_final+1
 	inx
 	bne minute_loop
 	.done_minutes
@@ -1177,20 +1174,20 @@ INCLUDE "src/tests.asm"
 
 	ldx #0
 	.seconds_loop
-	lda vsync_counter+1
+	lda vsync_final+1
 	bne seconds_left
-	lda vsync_counter
+	lda vsync_final
 	cmp #LO(100)
 	bcc done_seconds
 
 	.seconds_left
 	sec
-	lda vsync_counter
+	lda vsync_final
 	sbc #LO(100)
-	sta vsync_counter
-	lda vsync_counter+1
+	sta vsync_final
+	lda vsync_final+1
 	sbc #HI(100)
-	sta vsync_counter+1
+	sta vsync_final+1
 	inx
 	bne seconds_loop
 	.done_seconds
@@ -1205,11 +1202,10 @@ INCLUDE "src/tests.asm"
 	lda clock_seconds
 	jsr plot_decimal
 	lda #'.':jsr plot_char_at_ptr
-	lda vsync_counter
+	lda vsync_final
 	jmp plot_decimal
 }
 
-IF 1
 .plot_decimal
 {
 	ldx #0
@@ -1294,7 +1290,23 @@ MODE4_ROW_BYTES = 256
 
 	rts
 }
-ENDIF
+
+.wait_for_vsync
+{
+	lda #2
+	.vsync1
+	bit &FE4D
+	beq vsync1
+	rts
+}
+
+.wait_X_frames
+{
+	jsr wait_for_vsync
+	dex
+	bne wait_X_frames
+	rts
+}
 
 .additional_end
 
