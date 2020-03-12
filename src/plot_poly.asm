@@ -699,8 +699,7 @@ ENDMACRO
 \ ******************************************************************
 
 if not(_NULA)
-; ALIGN TO AVOID CROSSING PAGE BOUNDARY
-skip 12
+BOUNDARY_ALIGN 12
 
 .handle_beeb_palette
 {

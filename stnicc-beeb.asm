@@ -67,6 +67,7 @@ PAL_yellow	= (3 EOR 7)
 PAL_white	= (7 EOR 7)
 
 ULA_Mode5 	= &C4
+ULA_Mode4 	= &88
 
 DFS_sector_size = 256
 DFS_sectors_per_track = 10
@@ -98,7 +99,12 @@ ENDMACRO
 MACRO PAGE_ALIGN
 H%=P%
 ALIGN &100
-PRINT "Lost ", P%-H%, "bytes"
+PRINT "Lost ", P%-H%, "bytes to PAGE alignment"
+ENDMACRO
+
+MACRO BOUNDARY_ALIGN b
+skip b
+PRINT "Lost ",b , "bytes to avoid crossing PAGE boundary"
 ENDMACRO
 
 MACRO PAGE_ALIGN_FOR_SIZE size
@@ -247,6 +253,16 @@ IF _DEBUG
 .last_vsync         skip 1
 .debug_writeptr		skip 2
 ENDIF
+
+.vsync_final		skip 2
+.clock_minutes		skip 1
+.clock_seconds		skip 1
+.clock_flashes		skip 1
+
+.char_def			skip 9
+.glyphptr			skip 2
+.glyphptr_copy		skip 2
+
 .zp_end
 
 \ ******************************************************************
@@ -366,7 +382,7 @@ endif
     jsr init_span_buffer
 
 	\\ Setup video
-	lda #8:sta &fe00:lda #&f0:sta &fe01		; hide screen
+	jsr hide_screen
 
 	\\ Set ULA to MODE 5
 	lda #ULA_Mode5
@@ -407,13 +423,7 @@ if _NULA
 	sta $fe23
 	sta $fe23
 else
-	\\ Set ULA palete for MODE 5
-	ldx #15
-	.pal_loop
-	lda mode5_palette, X
-	sta &fe21
-	dex
-	bpl pal_loop
+	jsr set_palette
 endif
 
 	\\ Clear the visible screen
@@ -423,12 +433,7 @@ endif
 	SEI										; disable interupts
 
 	\\ Wait for vsync
-	{
-		lda #2
-		.vsync1
-		bit &FE4D
-		beq vsync1
-	}
+	jsr wait_for_vsync
 
 	\\ Not stable but close enough for our purposes
 	; Write T1 low now (the timer will not be written until you write the high byte)
@@ -455,7 +460,7 @@ endif
 	CLI										; enable interupts
 
 	\\ GO!
-	lda #8:sta &fe00:lda #&c0:sta &fe01		; show the screen!
+	jsr show_screen
 
     .loop
     \\ Debug
@@ -500,13 +505,11 @@ endif
 	BEQ loop
 
     .track_load_error
-	\\ Wait for vsync
-	{
-		lda #2
-		.vsync1
-		bit &FE4D
-		beq vsync1
-	}
+	lda vsync_counter:sta vsync_final
+	lda vsync_counter+1:sta vsync_final+1
+
+	ldx #50:jsr wait_X_frames
+	jsr hide_screen
 
 	\\ Re-enable useful interupts
 	SEI
@@ -516,6 +519,8 @@ endif
     LDA old_irqv:STA IRQ1V
     LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
 	CLI
+
+	jsr show_final_screen
 
 	IF _DEBUG
 	{
@@ -529,6 +534,26 @@ endif
     ldx #LO(next_part_cmd)
     ldy #HI(next_part_cmd)
     jmp oscli
+}
+
+.set_palette
+	\\ Set ULA palete for MODE 5
+	ldx #15
+	.pal_loop
+	lda mode5_palette, X
+	sta &fe21
+	dex
+	bpl pal_loop
+	rts
+
+.show_screen
+	lda #&c0
+	equb &2c		; BIT abs
+.hide_screen
+	lda #&f0
+{
+	ldx #8:stx &fe00:sta &fe01		; show the screen!
+	rts
 }
 
 IF _DEBUG
@@ -1013,6 +1038,26 @@ INCLUDE "src/screen.asm"
 	EQUB &F0 + PAL_white
 }
 
+.mode4_palette
+{
+	EQUB &00 + PAL_black
+	EQUB &10 + PAL_black
+	EQUB &20 + PAL_black
+	EQUB &30 + PAL_black
+	EQUB &40 + PAL_black
+	EQUB &50 + PAL_black
+	EQUB &60 + PAL_black
+	EQUB &70 + PAL_black
+	EQUB &80 + PAL_white
+	EQUB &90 + PAL_white
+	EQUB &A0 + PAL_white
+	EQUB &B0 + PAL_white
+	EQUB &C0 + PAL_white
+	EQUB &D0 + PAL_white
+	EQUB &E0 + PAL_white
+	EQUB &F0 + PAL_white
+}
+
 ;.filename0
 ;EQUS "00", 13
 
@@ -1052,6 +1097,15 @@ endif
 NEXT
 CHECK_SAME_PAGE_AS long_span_tables
 
+.four_bits_to_four_pixels
+FOR b, 0, 15, 1
+b0 = b AND 1
+b1 = (b AND 2) >> 1
+b2 = (b AND 4) >> 2
+b3 = (b AND 8) >> 3
+EQUB b3 * &C0 + b2 * &30 + b1 * &0C + b0 * &03
+NEXT
+
 .data_end
 
 \ ******************************************************************
@@ -1063,6 +1117,7 @@ CHECK_SAME_PAGE_AS long_span_tables
 INCLUDE "src/plot_line.asm"
 INCLUDE "src/debug.asm"
 INCLUDE "src/tests.asm"
+INCLUDE "src/clock.asm"
 
 .additional_end
 

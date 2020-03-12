@@ -128,7 +128,3 @@ PAGE_ALIGN_FOR_SIZE 52
 SHORT_MASK_TABLE 0,3
 CHECK_SAME_PAGE_AS colour_mask_short_3
 ENDIF
-
-; WTAF? Without this long_span_tables ends up a page lower and crashes?!
-; Might be to do with EXE size. 
-skip 3*52
