@@ -522,13 +522,6 @@ endif
 
 	jsr show_final_screen
 
-	IF _DEBUG
-	{
-	    .wait_for_Key
-	    lda #&79:ldx #&10:jsr osbyte:cpx #&ff:beq wait_for_Key
-	}
-	ENDIF
-
 	\\ Exit gracefully (in theory)
     \\ Load next part
     ldx #LO(next_part_cmd)
