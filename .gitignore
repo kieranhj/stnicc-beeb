@@ -3,3 +3,4 @@ build
 /TAGS
 /.dir-locals.el
 intro.txt
+data/out.txt

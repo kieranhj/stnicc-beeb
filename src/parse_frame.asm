@@ -235,9 +235,7 @@ endif
     sta poly_verts_x, X
     .read_verts_y
     lda &ffff, Y
-    IF _HALF_VERTICAL_RES
-    lsr a
-    ENDIF
+    ; _HALF_VERTICAL_RES
     sta poly_verts_y, X
 
     \\ Next step would be to inline the poly loop here.
@@ -264,12 +262,9 @@ ENDIF
 
     \\ This can be changed to read the poly data directly.
     GET_BYTE
-    lsr a
     sta poly_verts_x, X
     GET_BYTE
-    IF _HALF_VERTICAL_RES
-    lsr a
-    ENDIF
+    ; _HALF_VERTICAL_RES
     sta poly_verts_y, X
 
     \\ Next step would be to inline the poly loop here.

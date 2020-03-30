@@ -36,9 +36,13 @@ class Vertex:
     def get_size(self):
         return 2
 
-    def write(self, data):
-        data.append(self._x)
-        data.append(self._y)
+    def write(self, data, beeb):
+        if beeb == True:
+            data.append(self._x / 2)
+            data.append(self._y / 2)
+        else:
+            data.append(self._x)
+            data.append(self._y)
         # print "      ({0}, {1})".format(self._x, self._y)
 
     def equals(self, v):
@@ -70,7 +74,7 @@ class Polygon:
         # 1 byte descriptor + 2 bytes per vertex coordinates
         return 1 + 2 * self.get_num_verts()
 
-    def write(self, indexed, vert_array, data):
+    def write(self, indexed, vert_array, data, beeb):
         # Write poly descriptor
         poly_descriptor = (self._colour_index << 4) + self.get_num_verts()
         # print "    Poly descriptor: {0:2x}".format(poly_descriptor)
@@ -86,7 +90,7 @@ class Polygon:
                         data.append(vert_array.index(u))
                         break
             else:
-                v.write(data)
+                v.write(data, beeb)
 
 class Palette:
 
@@ -233,11 +237,11 @@ class Frame:
                 for v in self._vertices:
                     data.append(v._x / 2)
                 for v in self._vertices:
-                    data.append(v._y)
+                    data.append(v._y / 2)
             else:
                 # Write interleaved
                 for v in self._vertices:
-                    v.write(data)
+                    v.write(data, beeb)
 
         else:
             print "    Non-indexed data!"
@@ -247,7 +251,7 @@ class Frame:
 
         # Write each poly
         for p in self._polygons:
-            p.write(self._flags & FLAG_INDEXED_DATA, self._vertices, data)
+            p.write(self._flags & FLAG_INDEXED_DATA, self._vertices, data, beeb)
 
         print "    Data size: {0}".format(self.get_size())
 
