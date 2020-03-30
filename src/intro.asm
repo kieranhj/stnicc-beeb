@@ -129,6 +129,12 @@ GUARD &17
 .cls_active     skip 1
 
 .next_slot      skip 1
+
+ORG &30
+GUARD &70
+
+.vsync_count    skip 1
+.last_vsync     skip 1
 .music_enabled  skip 1
 
 .zp_end
@@ -172,7 +178,7 @@ GUARD screen_addr
 	LDA #&7F					; A=01111111
 	STA &FE4E					; R14=Interrupt Enable (disable all interrupts)
 	STA &FE43					; R3=Data Direction Register "A" (set keyboard data direction)
-	LDA #&C2					; A=11000010
+	LDA #&82					; A=11000010
 	STA &FE4E					; R14=Interrupt Enable (enable main_vsync and timer interrupt)
 
     LDA IRQ1V:STA old_irqv
@@ -264,14 +270,20 @@ GUARD screen_addr
     \\ Start music player
     inc music_enabled
 
-    lda #19
-    jsr osbyte
+    jsr wait_for_vsync
 
     lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off, display on
 
     .loop
-    lda #19
-    jsr osbyte
+
+    {
+        lda last_vsync
+        .vsync1
+        cmp vsync_count
+        beq vsync1
+        lda vsync_count
+        sta last_vsync
+    }
 
     SET_BGCOL PAL_red
     jsr lerp_glixels
@@ -387,7 +399,7 @@ ENDIF
     lda #29:sta &fe01
 
     \\ Vsync will happen at row 29 here
-    lda #19:jsr osbyte
+    jsr wait_for_vsync
 
     lda #6:sta &fe00        ; vertical displayed
     lda #20:sta &fe01
@@ -411,7 +423,7 @@ ENDIF
     ldy #HI(screen_exo)
     jsr decrunch
 
-    lda #19:jsr osbyte
+    jsr wait_for_vsync
 
     \\ Set palette
     ldx #LO(logo_palette)
@@ -442,7 +454,9 @@ ENDIF
 	BEQ return_to_os
 
 	\\ Acknowledge vsync interrupt
-;	STA &FE4D
+	STA &FE4D
+
+    inc vsync_count
 
     lda music_enabled
     beq return_to_os
@@ -456,15 +470,25 @@ ENDIF
 	.return_to_os
 	PLA
 	STA &FC
-	JMP &FFFF
+	RTI
 }
-old_irqv = P%-2
+
+.old_irqv   EQUW &FFFF
+
+.wait_for_vsync
+{
+	lda #2
+	.vsync1
+	bit &FE4D
+	beq vsync1
+	rts
+}
 
 .wait_frames
 {
     stx vsyncs
     .loop
-    lda #19:jsr osbyte
+    jsr wait_for_vsync
     dec vsyncs
     bne loop
     rts
