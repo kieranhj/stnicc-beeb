@@ -87,6 +87,8 @@ SCREEN_SIZE_BYTES = (SCREEN_WIDTH_PIXELS * SCREEN_HEIGHT_PIXELS) / 4
 screen_addr = &3000
 screen_logo_addr = &4E00
 
+swram_load_to = &4000
+
 MAX_GLIXELS = 64
 LERP_FRAMES = 64
 
@@ -171,6 +173,13 @@ GUARD screen_addr
 	LDA #&C2					; A=11000010
 	STA &FE4E					; R14=Interrupt Enable (enable main_vsync and timer interrupt)
     CLI
+
+    \\ DO SWRAM LOAD HERE
+    SWRAM_SELECT 4
+    ldx #LO(music_filename)
+    ldy #HI(music_filename)
+    lda #HI(&8000)
+    jsr disksys_load_file
 
     \\ Set MODE 1 w/out using OS.
 
@@ -977,7 +986,11 @@ EQUB %00000000
 .next_part_cmd
 EQUS "/LOW", 13
 
+.music_filename
+EQUS "MUSIC", 13
+
 include "src/exo.asm"
+include "lib/disksys.asm"
 
 PAGE_ALIGN
 .screen_row_LO

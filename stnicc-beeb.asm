@@ -172,7 +172,7 @@ TimerValue = (12)*64 - 2*64
 \ ******************************************************************
 
 ORG &00
-GUARD &A0
+GUARD &80
 
 .zp_start
 .STREAM_ptr_LO      skip 1
@@ -1223,7 +1223,7 @@ SKIP STREAM_buffer_size
 PRINT "------"
 PRINT "STNICC-BEEB"
 PRINT "------"
-PRINT "ZP size =", ~zp_end-zp_start, "(",~&C0-zp_end,"free)"
+PRINT "ZP size =", ~zp_end-zp_start, "(",~&80-zp_end,"free)"
 PRINT "MAIN size =", ~main_end-main_start
 PRINT "FX size = ", ~fx_end-fx_start
 PRINT "DATA size =",~data_end-data_start
