@@ -1048,20 +1048,20 @@ NEXT
 {
 	EQUB &00 + PAL_black
 	EQUB &10 + PAL_black
-	EQUB &20 + PAL_red
-	EQUB &30 + PAL_red
+	EQUB &20 + PAL_blue
+	EQUB &30 + PAL_blue
 	EQUB &40 + PAL_black
 	EQUB &50 + PAL_black
-	EQUB &60 + PAL_red
-	EQUB &70 + PAL_red
+	EQUB &60 + PAL_blue
+	EQUB &70 + PAL_blue
 	EQUB &80 + PAL_yellow
 	EQUB &90 + PAL_yellow
-	EQUB &A0 + PAL_white
-	EQUB &B0 + PAL_white
+	EQUB &A0 + PAL_cyan
+	EQUB &B0 + PAL_cyan
 	EQUB &C0 + PAL_yellow
 	EQUB &D0 + PAL_yellow
-	EQUB &E0 + PAL_white
-	EQUB &F0 + PAL_white
+	EQUB &E0 + PAL_cyan
+	EQUB &F0 + PAL_cyan
 }
 
 .mode1_crtc_regs
