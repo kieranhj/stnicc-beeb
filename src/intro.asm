@@ -189,6 +189,7 @@ GUARD screen_addr
     lda #HI(&8000)
     jsr disksys_load_file
 
+    SWRAM_SELECT 4
     jsr MUSIC_JUMP_INIT_INTRO
 
     \\ Set MODE 1 w/out using OS.
@@ -441,11 +442,12 @@ ENDIF
 	BEQ return_to_os
 
 	\\ Acknowledge vsync interrupt
-	STA &FE4D
+;	STA &FE4D
 
-    lda music_filename
+    lda music_enabled
     beq return_to_os
 
+    SWRAM_SELECT 4
     txa:pha:tya:pha
     jsr MUSIC_JUMP_VGM_UPDATE
     pla:tay:pla:tax
