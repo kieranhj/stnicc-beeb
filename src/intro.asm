@@ -5,6 +5,8 @@
 
 _DEBUG_RASTERS = FALSE
 
+INCLUDE "src/music.h.asm"
+
 \ ******************************************************************
 \ *	OS defines
 \ ******************************************************************
@@ -126,8 +128,8 @@ GUARD &17
 .lerps_active   skip 1
 .cls_active     skip 1
 
-.vsyncs         skip 1
 .next_slot      skip 1
+.music_enabled  skip 1
 
 .zp_end
 
@@ -172,6 +174,12 @@ GUARD screen_addr
 	STA &FE43					; R3=Data Direction Register "A" (set keyboard data direction)
 	LDA #&C2					; A=11000010
 	STA &FE4E					; R14=Interrupt Enable (enable main_vsync and timer interrupt)
+
+    LDA IRQ1V:STA old_irqv
+    LDA IRQ1V+1:STA old_irqv+1
+
+    LDA #LO(irq_handler):STA IRQ1V
+    LDA #HI(irq_handler):STA IRQ1V+1		; set interrupt handler
     CLI
 
     \\ DO SWRAM LOAD HERE
@@ -180,6 +188,8 @@ GUARD screen_addr
     ldy #HI(music_filename)
     lda #HI(&8000)
     jsr disksys_load_file
+
+    jsr MUSIC_JUMP_INIT_INTRO
 
     \\ Set MODE 1 w/out using OS.
 
@@ -249,6 +259,9 @@ GUARD screen_addr
     jsr cls
     lda #50         ; can use this as a lazy timer
     sta cls_active
+
+    \\ Start music player
+    inc music_enabled
 
     lda #19
     jsr osbyte
@@ -407,11 +420,43 @@ ENDIF
     \\ Pause for dramatic effect
     ldx #125:jsr wait_frames    ; 2.5s
 
+    SEI
+    LDA old_irqv:STA IRQ1V
+    LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
+    CLI
+
     \\ Load next part
     ldx #LO(next_part_cmd)
     ldy #HI(next_part_cmd)
     jmp oscli
 }
+
+.irq_handler
+{
+	LDA &FC
+	PHA
+
+	LDA &FE4D
+	AND #2
+	BEQ return_to_os
+
+	\\ Acknowledge vsync interrupt
+	STA &FE4D
+
+    lda music_filename
+    beq return_to_os
+
+    txa:pha:tya:pha
+    jsr MUSIC_JUMP_VGM_UPDATE
+    pla:tay:pla:tax
+
+	\\ Don't pass on to OS IRQ handler :)
+	.return_to_os
+	PLA
+	STA &FC
+	JMP &FFFF
+}
+old_irqv = P%-2
 
 .wait_frames
 {
@@ -421,6 +466,9 @@ ENDIF
     dec vsyncs
     bne loop
     rts
+
+.vsyncs
+    skip 1
 }
 
 .set_palette
