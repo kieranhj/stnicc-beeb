@@ -70,6 +70,7 @@ GUARD &C000
     jmp init_main_theme
     jmp init_outro_theme
     jmp vgm_update
+    jmp sn_reset
 }
 
 .init_intro_theme

@@ -436,6 +436,7 @@ ENDIF
     SEI
     LDA old_irqv:STA IRQ1V
     LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
+    jsr MUSIC_JUMP_SN_RESET
     CLI
 
     \\ Load next part
