@@ -16,6 +16,7 @@ _STOP_AT_FRAME = -1
 ; Debug defines
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
+_ENABLE_MUSIC = TRUE
 
 ; Rendering defines
 _HALF_VERTICAL_RES = (_QUALITY < 2)
@@ -39,6 +40,8 @@ PRINT "_HALF_VERTICAL_RES =",_HALF_VERTICAL_RES
 PRINT "_DOUBLE_PLOT_Y =",_DOUBLE_PLOT_Y
 PRINT "_WIDESCREEN =",_WIDESCREEN
 PRINT "------"
+
+include "src/music.h.asm"
 
 \ ******************************************************************
 \ *	OS defines
@@ -263,6 +266,9 @@ ENDIF
 .glyphptr			skip 2
 .glyphptr_copy		skip 2
 
+.music_enabled		skip 1
+.music_lock			skip 1
+
 .zp_end
 
 \ ******************************************************************
@@ -381,12 +387,16 @@ endif
 
     jsr init_span_buffer
 
+	\\ Init music
+	SWRAM_SELECT 4
+	jsr MUSIC_JUMP_INIT_MAIN
+
 	\\ Setup video
 	jsr hide_screen
 
 	\\ Set ULA to MODE 5
 	lda #ULA_Mode5
-	sta &248			; OS copy
+;	sta &248			; OS copy
 	sta &fe20
 
 	\\ Set CRTC to MODE 5 => 128x200
@@ -460,6 +470,7 @@ endif
 	CLI										; enable interupts
 
 	\\ GO!
+	inc music_enabled
 	jsr show_screen
 
     .loop
@@ -739,6 +750,24 @@ ENDIF
     BNE no_carry
     INC vsync_counter+1
     .no_carry
+
+	IF _ENABLE_MUSIC
+    lda music_enabled
+    beq return_to_os
+
+	lda music_lock
+	bne return_to_os
+
+	inc music_lock
+	lda &fe30:pha
+    SWRAM_SELECT 4
+    txa:pha:tya:pha
+    jsr MUSIC_JUMP_VGM_UPDATE
+    pla:tay:pla:tax
+	pla:sta &f4:sta &fe30
+	dec music_lock
+	ENDIF
+
 	JMP return_to_os
 
 	.not_vsync
@@ -1205,9 +1234,9 @@ ENDIF
 
 .bss_start
 
-CLEAR reloc_from_start, screen2_addr
+CLEAR reloc_from_start, &8000;screen2_addr
 ORG reloc_from_start
-GUARD screen2_addr
+GUARD &8000;screen2_addr
 
 PAGE_ALIGN
 .STREAM_buffer_start
