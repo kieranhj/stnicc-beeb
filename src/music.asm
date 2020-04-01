@@ -106,9 +106,11 @@ INCLUDE "lib/vgcplayer.asm"
 .data_start
 PAGE_ALIGN
 .vgc_data_intro_theme
+INCBIN "build/intro_theme.vgc"
 .vgc_data_main_theme
-.vgc_data_outro_theme
 INCBIN "build/main_theme.vgc"
+.vgc_data_outro_theme
+INCBIN "build/outro_theme.vgc"
 .data_end
 .end
 
