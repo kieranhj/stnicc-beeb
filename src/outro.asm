@@ -18,6 +18,7 @@ _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = TRUE
 _HALF_VERTICAL_RES = TRUE
 _NULA = FALSE
+_ENABLE_MUSIC = TRUE
 
 PRINT "------"
 PRINT "STNICC-BEEB OUTRO"
@@ -29,6 +30,8 @@ PRINT "_STOP_AT_FRAME =",_STOP_AT_FRAME
 PRINT "_DOUBLE_BUFFER =",_DOUBLE_BUFFER
 PRINT "_PLOT_WIREFRAME =",_PLOT_WIREFRAME
 PRINT "------"
+
+include "src/music.h.asm"
 
 \ ******************************************************************
 \ *	OS defines
@@ -254,6 +257,10 @@ IF _DEBUG
 .last_vsync         skip 1
 .debug_writeptr		skip 2
 ENDIF
+
+.music_enabled		skip 1
+.music_lock			skip 1
+
 .zp_end
 
 \ ******************************************************************
@@ -360,6 +367,10 @@ GUARD screen3_addr
 	ldx #LO(credits_text):ldy #HI(credits_text)
 	stx text_ptr:sty text_ptr+1
 
+	\\ Init music
+	SWRAM_SELECT 4
+	jsr MUSIC_JUMP_INIT_OUTRO
+
 	\\ Setup video
 	lda #8:sta &fe00:lda #&f0:sta &fe01		; hide screen
 
@@ -420,6 +431,7 @@ GUARD screen3_addr
 	CLI							; enable interupts
 
 	\\ GO!
+	inc music_enabled
 	lda #8:sta &fe00:lda #&c0:sta &fe01		; show the screen!
 
     .loop
@@ -481,6 +493,8 @@ GUARD screen3_addr
     LDA old_irqv:STA IRQ1V
     LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
 	CLI
+
+	jsr MUSIC_JUMP_SN_RESET
 
 	IF _DEBUG
 	{
@@ -709,10 +723,23 @@ ENDIF
 	jmp swap_frame_buffers
 	.^return_here_from_swap_frame_buffers
 
-	\\ Set CRTC regs?
-    ;lda #1:sta &fe00:lda #32:sta &fe01		; Horizontal displayed
-	; could centre screen here?	
-	; lda #2:sta &fe00:lda #74:sta &fe01	; Horizontal sync - TBD
+	IF _ENABLE_MUSIC
+    lda music_enabled
+    beq no_music
+
+	lda music_lock
+	bne no_music
+
+	inc music_lock
+	lda &fe30:pha
+    SWRAM_SELECT 4
+    txa:pha:tya:pha
+    jsr MUSIC_JUMP_VGM_UPDATE
+    pla:tay:pla:tax
+	pla:sta &f4:sta &fe30
+	dec music_lock
+	.no_music
+	ENDIF
 
 	JMP return_to_os
 
