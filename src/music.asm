@@ -108,7 +108,7 @@ PAGE_ALIGN
 .vgc_data_intro_theme
 .vgc_data_main_theme
 .vgc_data_outro_theme
-INCBIN "data/STNICCC_BBC_Rhino_03.vgc"
+INCBIN "build/main_theme.vgc"
 .data_end
 .end
 
