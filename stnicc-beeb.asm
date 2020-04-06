@@ -3,7 +3,7 @@
 \ *	STNICC BEEB
 \ ******************************************************************
 
-_DEBUG = TRUE	; if you change me check the same in stnicc-build.asm
+_DEBUG = FALSE	; if you change me check the same in stnicc-build.asm
 _TESTS = FALSE
 
 ; Display <drive no | sector no> <track no> <load to HI> <stream ptr HI>
@@ -519,7 +519,7 @@ endif
 	lda vsync_counter:sta vsync_final
 	lda vsync_counter+1:sta vsync_final+1
 
-	ldx #50:jsr wait_X_frames
+	ldx #10:jsr wait_X_frames
 	jsr hide_screen
 
 	\\ Re-enable useful interupts
@@ -531,6 +531,8 @@ endif
     LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
 	CLI
 
+	SWRAM_SELECT 4
+	jsr MUSIC_JUMP_SN_RESET
 	jsr show_final_screen
 
 	\\ Exit gracefully (in theory)

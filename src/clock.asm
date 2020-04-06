@@ -4,7 +4,7 @@
 \ ******************************************************************
 
 CLOCK_PAUSE = 50
-CLOCK_FLASHES = 5
+CLOCK_FLASHES = 3
 CLOCK_DELAY = 10
 
 CLOCK_X = 64

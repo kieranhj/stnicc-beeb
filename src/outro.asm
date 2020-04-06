@@ -494,9 +494,12 @@ GUARD screen3_addr
     LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
 	CLI
 
+	SWRAM_SELECT 4
 	jsr MUSIC_JUMP_SN_RESET
 
-	IF _DEBUG
+	lda #8:sta &fe00:lda #&f0:sta &fe01		; hide screen
+
+	IF 0
 	{
 	    .wait_for_Key
 	    lda #&79:ldx #&10:jsr osbyte:cpx #&ff:beq wait_for_Key
@@ -1037,7 +1040,7 @@ ENDIF
 \ *	PARSE A FRAME OF DATA FROM STNICCC STREAM
 \ ******************************************************************
 
-IF 1		; this also makes no sense!
+IF 0		; this also makes no sense!
 .deliberate_pause
 {
 	lda #2

@@ -3,7 +3,7 @@
 \ *	STNICC BEEB
 \ ******************************************************************
 
-_DEBUG = TRUE   ; if you change me check the same in stnicc-beeb.asm
+_DEBUG = FALSE   ; if you change me check the same in stnicc-beeb.asm
 LOAD_ADDRESS = &1100
 EXEC_ADDRESS = &1100
 
@@ -16,8 +16,8 @@ OUTRO_SIZE = &F00
 MUSIC_SIZE = &2300
 ELSE
 INTRO_SIZE = &1A00
-EXE_SIZE = &2600
-NULA_SIZE = &2300
+EXE_SIZE = &2700
+NULA_SIZE = &2200
 OUTRO_SIZE = &F00
 MUSIC_SIZE = &2300
 ENDIF

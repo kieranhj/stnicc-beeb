@@ -474,7 +474,6 @@ ENDIF
     lda music_enabled
     beq return_to_os
 
-    SWRAM_SELECT 4
     txa:pha:tya:pha
     jsr MUSIC_JUMP_VGM_UPDATE
     pla:tay:pla:tax
