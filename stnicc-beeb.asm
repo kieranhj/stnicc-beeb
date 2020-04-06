@@ -436,8 +436,8 @@ else
 	jsr set_palette
 endif
 
-	\\ Clear the visible screen
-	jsr screen2_cls
+	\\ Clear all screens
+	jsr screen_clear_full
 
 	\\ Set interrupts and handler
 	SEI										; disable interupts
@@ -1140,6 +1140,22 @@ INCLUDE "src/plot_line.asm"
 INCLUDE "src/debug.asm"
 INCLUDE "src/tests.asm"
 INCLUDE "src/clock.asm"
+
+.screen_clear_full
+{
+	lda #0
+	tax
+	.loop
+	sta screen2_addr, X
+	inx
+	bne loop
+	ldy loop+2
+	iny
+	sty loop+2
+	bpl loop
+	.return
+	rts
+}
 
 .additional_end
 
