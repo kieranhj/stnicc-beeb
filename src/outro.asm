@@ -269,13 +269,13 @@ ENDIF
 
 ; Can't use &300 until we remove any actual VDU calls
 ORG &400
-GUARD &800
+GUARD &900
 .reloc_to_start
 .screen_row_LO		skip 16
 .screen_row_HI		skip 16
 .screen_col_LO		skip 80
 .screen_col_HI		skip 80
-.credits_text		skip &300
+.credits_text		skip &400
 .credits_end
 .reloc_to_end
 
@@ -1839,7 +1839,7 @@ EQUS 8, 8, 8, 8, "BEEB", 1, 50, 13, 13
 EQUS ">", 1, 25
 EQUS "2MHz 6502 CPU", 1, 50, 13
 EQUS ">", 1, 25
-EQUS "32K + 32K RAM", 1, 50, 13
+EQUS "32K RAM + 16K SWRAM", 1, 50
 EQUS ">", 1, 25
 EQUS "5 1/4",'"', " floppy", 1, 50, 13
 EQUS ">", 1, 25
@@ -1851,41 +1851,55 @@ EQUS "SN76489 sound chip", 1, 150, 12
 
 ; Page 2
 ;    |--------------------|
-EQUS "Sorry we were late", 13
-EQUS "to the STNICC party.", 1, 50
-EQUS 13
+EQUS "Sorry we are a year", 13
+EQUS "late to the STNICC", 13
+EQUS "patarty", 1, 25
+EQUS 8, 8, 8, 8, 8, "rty.", 1, 50
+EQUS 13, 13
 EQUS "Squeezing a 16-bit", 13
-EQUS "1Mb demo into 8-bits"
-EQUS "and 64K took us some"
-EQUS "time!", 1, 100, 12
+EQUS "1 Mb demo into", 13
+EQUS "8-bits and 48K took", 13
+EQUS "us some time...!", 1, 100, 12
 
 ; Page 3
 ;    |--------------------|
 EQUS "CREDITS", 1, 50, 13, 13
-EQUS "Code:       kieranhj", 1, 25
-EQUS "Code:     Tom Seddon", 1, 25
-EQUS "Code:         Henley", 1, 25
-EQUS "Music:         Rhino"
+EQUS "Code:       kieranhj", 1, 50
+EQUS "Code:     Tom Seddon", 1, 50
+EQUS "Code:         Henley", 1, 50
+EQUS "Logo by:    Dethmunk"
 EQUS 1, 100, 12
 
 ; Page 4
 ;    |--------------------|
-EQUS "BITSHIFTERS THANKS", 1, 50, 13, 13
-EQUS "Oxygene", 13
-EQUS "Laxity", 13
-EQUS "<Compo proposer>", 13
-EQUS "<Acorn folks>", 13
-EQUS "Etc.", 13
+EQUS "MUSIC", 1, 50, 13, 13
+EQUS "All music composed"
+EQUS 31,1,3,"by Rhino of Torment", 1, 50
+EQUS 13
+EQUS "Checknobank by"
+EQUS 31,4,6,"Laxity / Kefrens", 1, 50
 EQUS 1, 100, 12
 
 ; Page 5
 ;    |--------------------|
+EQUS "BITSHIFTERS THANKS", 1, 50, 13, 13
+EQUS "Leonard   /  Oxygene", 1, 25
+EQUS "Heaven    /   Desire", 1, 25
+EQUS "Axis      /   Oxyron"
+EQUS 1, 100, 12
+
+; Page 6
+;    |--------------------|
 EQUS "BITSHIFTERS GREETZ", 1, 50, 13, 13
-EQUS "RiFT", 13
-EQUS "DESiRE", 13
-EQUS "Polarity", 13
-EQUS "Slipstream", 13
-EQUS "Etc.", 13
+EQUS "CRTC", 1, 25, 13
+EQUS 31,14,3, "DESiRE", 1, 25
+EQUS "Inverse Phase", 1, 25, 13
+EQUS 31,8,5, "HOOY-PROGRAM", 1, 25
+EQUS "Logicoma", 1, 25
+EQUS 31,12,6, "Polarity", 1, 25
+EQUS "Rift", 1, 25
+EQUS 31,10,7, "Slipstream", 1, 25
+EQUS "YM Rockerz"
 EQUS 1, 100, 12
 
 ; Time for 9 pages max!
