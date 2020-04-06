@@ -264,7 +264,7 @@ GUARD screen_addr
     jsr def_char
 
     jsr cls
-    lda #50         ; can use this as a lazy timer
+    lda #48         ; can use this as a lazy timer
     sta cls_active
 
     \\ Start music player
@@ -322,6 +322,18 @@ ENDIF
 
     jsr stiple_line_Y
     dec cls_active
+    beq do_text
+    ldy cls_active
+    jsr stiple_line_Y
+    dec cls_active
+    beq do_text
+    ldy cls_active
+    jsr stiple_line_Y
+    dec cls_active
+    beq do_text
+    ldy cls_active
+    jsr stiple_line_Y
+    dec cls_active
     bne continue
 
     .do_text
@@ -332,7 +344,7 @@ ENDIF
 
     .load_next_part
     \\ Show BBC specs
-    ldx #125:jsr wait_frames    ; 2.5s
+    ldx #100:jsr wait_frames    ; 2s
 
     \\ White out!
     ldx #LO(whiteout_palette)
@@ -389,7 +401,7 @@ ENDIF
     }
 
     \\ Wait a beat
-    ldx #50:jsr wait_frames    ; 1.0s
+    ldx #25:jsr wait_frames    ; 0.5s
 
     \\ Will be ~row 35 here - set for next cycle
     lda #6:sta &fe00        ; vertical displayed
@@ -431,7 +443,7 @@ ENDIF
     jsr set_palette
 
     \\ Pause for dramatic effect
-    ldx #125:jsr wait_frames    ; 2.5s
+    ldx #100:jsr wait_frames    ; 2s
 
     SEI
     LDA old_irqv:STA IRQ1V
@@ -487,15 +499,11 @@ ENDIF
 
 .wait_frames
 {
-    stx vsyncs
     .loop
     jsr wait_for_vsync
-    dec vsyncs
+    dex
     bne loop
     rts
-
-.vsyncs
-    skip 1
 }
 
 .set_palette
@@ -986,12 +994,11 @@ EQUS 31,20,24,"*NOT*"
 EQUS 31,8,32, "A FALCON"
 EQUS 31,24,40,"DEMO"
 EQUS 12 ; cls
-EQUS 31,0,4,  "BBC MICRO"
-EQUS 31,0,12, "2MHz 6502"
-EQUS 31,0,20, "32K RAM"
-EQUS 31,0,28, "5",128+'%'," FLOPPY"
-EQUS 31,16,44,"HALF THE"
-EQUS 31,16,52,"BITS...",128+'$'
+EQUS 31,4,8,  "BBC MICRO"
+EQUS 31,4,16, "2MHz 6502"
+EQUS 31,12,24,"48K RAM"
+EQUS 31,4,32, "5",128+'%'," FLOPPY"
+EQUS 31,36,48,128+'$'
 EQUS 12 ; cls
 EQUS 0
 
