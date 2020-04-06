@@ -269,10 +269,10 @@ ENDMACRO
     ; ^== UPDATE ANY PALETTE ENTRY STILL CONTAINING COLOUR 3 ==v
     PALETTE_UPDATE 3, 3, 2, 10         ; [3] = [4, 6, 5] (5)
     PALETTE_UPDATE 5, 3, 2, 14         ; [5] = [5, 7, 6] (6)
-    PALETTE_UPDATE 7, 3, 2, 6          ; [7] = [3, 5, 3] (3.7)
-    PALETTE_UPDATE 9, 3, 2, 12         ; [9] = [5, 7, 5] (5.7)
+    PALETTE_UPDATE 7, 3, 2, 7          ; [7] = [3, 5, 3] (3.7)
+    PALETTE_UPDATE 9, 3, 2, 13         ; [9] = [5, 7, 5] (5.7)
     ; add some yellow to the light ones?
-    PALETTE_UPDATE 10, 0, 2, 4        ; [10] = [1, 3, 2] (2)
+    PALETTE_UPDATE 10, 0, 2, 4;6        ; [10] = [1, 3, 2] (2)
     PALETTE_UPDATE 11, 0, 2, 8        ; [11] = [2, 4, 3] (3)
     PALETTE_UPDATE 12, 3, 2, 8        ; [12] = [3, 5, 4] (4)
 
@@ -284,10 +284,10 @@ ENDMACRO
     PALETTE_FRAME_NO_CHANGE                                             ; [917]
     PALETTE_FRAME_JUST_UPDATES 2                                        ; [919]
     PALETTE_UPDATE 1, 0, 2, 7         ; [1] = [2, 4, 2]
-    PALETTE_UPDATE 6, 0, 2, 12        ; [6] = [4, 6, 4]
+    PALETTE_UPDATE 6, 0, 2, 12;10        ; [6] = [4, 6, 4]
 
     PALETTE_FRAME_JUST_UPDATES 2                                        ; [927]
-    PALETTE_UPDATE 14, 0, 2, 4       ; [14] = [0, 2, 1]
+    PALETTE_UPDATE 14, 0, 2, 3       ; [14] = [0, 2, 1]
     PALETTE_UPDATE 15, 3, 2, 15      ; [15] = [6, 7, 6]
 
     PALETTE_FRAME_JUST_UPDATES 1                                        ; [935]
