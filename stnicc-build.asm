@@ -3,21 +3,23 @@
 \ *	STNICC BEEB
 \ ******************************************************************
 
-_DEBUG = TRUE   ; if you change me check the same in stnicc-beeb.asm
+_DEBUG = FALSE   ; if you change me check the same in stnicc-beeb.asm
 LOAD_ADDRESS = &1100
 EXEC_ADDRESS = &1100
 
 \\ NEED A BETTER WAY OF DOING THIS!
 IF _DEBUG
-INTRO_SIZE = &1900
+INTRO_SIZE = &1A00
 EXE_SIZE = &2700
 NULA_SIZE = &2400
-OUTRO_SIZE = &F00
+OUTRO_SIZE = &1100
+MUSIC_SIZE = &2300
 ELSE
-INTRO_SIZE = &1900
-EXE_SIZE = &2600
-NULA_SIZE = &2300
-OUTRO_SIZE = &F00
+INTRO_SIZE = &1A00
+EXE_SIZE = &2700
+NULA_SIZE = &2200
+OUTRO_SIZE = &1100
+MUSIC_SIZE = &2300
 ENDIF
 
 \ ******************************************************************
@@ -25,33 +27,12 @@ ENDIF
 \ ******************************************************************
 
 PUTFILE "build/INTRO", "INTRO", LOAD_ADDRESS, EXEC_ADDRESS
+PUTFILE "build/MUSIC", "MUSIC", &8000, &8000
 PUTFILE "build/LOW", "LOW", LOAD_ADDRESS, EXEC_ADDRESS
 ;PUTFILE "build/HIGH", "HIGH", LOAD_ADDRESS, EXEC_ADDRESS
 ;PUTFILE "build/MEDIUM", "MEDIUM", LOAD_ADDRESS, EXEC_ADDRESS
 PUTFILE "build/NULA", "NULA", LOAD_ADDRESS, EXEC_ADDRESS
 PUTFILE "build/OUTRO", "OUTRO", LOAD_ADDRESS, EXEC_ADDRESS
-
-\ ******************************************************************
-\ *	SWRAM
-\ ******************************************************************
-
-CLEAR 0, &FFFF
-ORG &8000
-GUARD &C000
-.bank0_start
-
-.bank0_end
-
-PRINT "------"
-PRINT "BANK 0"
-PRINT "------"
-PRINT "TOTAL size =", ~bank0_end-bank0_start
-PRINT "------"
-PRINT "HIGH WATERMARK =", ~P%
-PRINT "FREE =", ~&C000-P%
-PRINT "------"
-
-;SAVE "BANK0", bank0_start, bank0_end
 
 \ ******************************************************************
 \ *	DISC LAYOUT
@@ -63,7 +44,7 @@ DFS_track_size = (DFS_sectors_per_track * DFS_sector_size)
 
 DISK1_first_track = 30      ; 50 tracks on first disc
 
-exe_size = EXE_SIZE + NULA_SIZE + INTRO_SIZE + OUTRO_SIZE     ; +SWRAM size
+exe_size = EXE_SIZE + NULA_SIZE + INTRO_SIZE + OUTRO_SIZE + MUSIC_SIZE
 PRINT "EXE size = ",~exe_size
 ; We know that Catalog + !Boot = &300
 ; Need to make a dummy file so 00 is at sector 20=track 2

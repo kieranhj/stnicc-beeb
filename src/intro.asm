@@ -5,6 +5,8 @@
 
 _DEBUG_RASTERS = FALSE
 
+INCLUDE "src/music.h.asm"
+
 \ ******************************************************************
 \ *	OS defines
 \ ******************************************************************
@@ -87,6 +89,8 @@ SCREEN_SIZE_BYTES = (SCREEN_WIDTH_PIXELS * SCREEN_HEIGHT_PIXELS) / 4
 screen_addr = &3000
 screen_logo_addr = &4E00
 
+swram_load_to = &4000
+
 MAX_GLIXELS = 64
 LERP_FRAMES = 64
 
@@ -124,8 +128,14 @@ GUARD &17
 .lerps_active   skip 1
 .cls_active     skip 1
 
-.vsyncs         skip 1
 .next_slot      skip 1
+
+ORG &30
+GUARD &70
+
+.vsync_count    skip 1
+.last_vsync     skip 1
+.music_enabled  skip 1
 
 .zp_end
 
@@ -168,9 +178,25 @@ GUARD screen_addr
 	LDA #&7F					; A=01111111
 	STA &FE4E					; R14=Interrupt Enable (disable all interrupts)
 	STA &FE43					; R3=Data Direction Register "A" (set keyboard data direction)
-	LDA #&C2					; A=11000010
+	LDA #&82					; A=11000010
 	STA &FE4E					; R14=Interrupt Enable (enable main_vsync and timer interrupt)
+
+    LDA IRQ1V:STA old_irqv
+    LDA IRQ1V+1:STA old_irqv+1
+
+    LDA #LO(irq_handler):STA IRQ1V
+    LDA #HI(irq_handler):STA IRQ1V+1		; set interrupt handler
     CLI
+
+    \\ DO SWRAM LOAD HERE
+    SWRAM_SELECT 4
+    ldx #LO(music_filename)
+    ldy #HI(music_filename)
+    lda #HI(&8000)
+    jsr disksys_load_file
+
+    SWRAM_SELECT 4
+    jsr MUSIC_JUMP_INIT_INTRO
 
     \\ Set MODE 1 w/out using OS.
 
@@ -238,17 +264,26 @@ GUARD screen_addr
     jsr def_char
 
     jsr cls
-    lda #50         ; can use this as a lazy timer
+    lda #48         ; can use this as a lazy timer
     sta cls_active
 
-    lda #19
-    jsr osbyte
+    \\ Start music player
+    inc music_enabled
+
+    jsr wait_for_vsync
 
     lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off, display on
 
     .loop
-    lda #19
-    jsr osbyte
+
+    {
+        lda last_vsync
+        .vsync1
+        cmp vsync_count
+        beq vsync1
+        lda vsync_count
+        sta last_vsync
+    }
 
     SET_BGCOL PAL_red
     jsr lerp_glixels
@@ -287,6 +322,18 @@ ENDIF
 
     jsr stiple_line_Y
     dec cls_active
+    beq do_text
+    ldy cls_active
+    jsr stiple_line_Y
+    dec cls_active
+    beq do_text
+    ldy cls_active
+    jsr stiple_line_Y
+    dec cls_active
+    beq do_text
+    ldy cls_active
+    jsr stiple_line_Y
+    dec cls_active
     bne continue
 
     .do_text
@@ -297,7 +344,7 @@ ENDIF
 
     .load_next_part
     \\ Show BBC specs
-    ldx #125:jsr wait_frames    ; 2.5s
+    ldx #100:jsr wait_frames    ; 2s
 
     \\ White out!
     ldx #LO(whiteout_palette)
@@ -354,7 +401,7 @@ ENDIF
     }
 
     \\ Wait a beat
-    ldx #50:jsr wait_frames    ; 1.0s
+    ldx #25:jsr wait_frames    ; 0.5s
 
     \\ Will be ~row 35 here - set for next cycle
     lda #6:sta &fe00        ; vertical displayed
@@ -364,7 +411,7 @@ ENDIF
     lda #29:sta &fe01
 
     \\ Vsync will happen at row 29 here
-    lda #19:jsr osbyte
+    jsr wait_for_vsync
 
     lda #6:sta &fe00        ; vertical displayed
     lda #20:sta &fe01
@@ -388,7 +435,7 @@ ENDIF
     ldy #HI(screen_exo)
     jsr decrunch
 
-    lda #19:jsr osbyte
+    jsr wait_for_vsync
 
     \\ Set palette
     ldx #LO(logo_palette)
@@ -396,7 +443,13 @@ ENDIF
     jsr set_palette
 
     \\ Pause for dramatic effect
-    ldx #125:jsr wait_frames    ; 2.5s
+    ldx #100:jsr wait_frames    ; 2s
+
+    SEI
+    LDA old_irqv:STA IRQ1V
+    LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
+    jsr MUSIC_JUMP_SN_RESET
+    CLI
 
     \\ Load next part
     ldx #LO(next_part_cmd)
@@ -404,12 +457,50 @@ ENDIF
     jmp oscli
 }
 
+.irq_handler
+{
+	LDA &FC
+	PHA
+
+	LDA &FE4D
+	AND #2
+	BEQ return_to_os
+
+	\\ Acknowledge vsync interrupt
+	STA &FE4D
+
+    inc vsync_count
+
+    lda music_enabled
+    beq return_to_os
+
+    txa:pha:tya:pha
+    jsr MUSIC_JUMP_VGM_UPDATE
+    pla:tay:pla:tax
+
+	\\ Don't pass on to OS IRQ handler :)
+	.return_to_os
+	PLA
+	STA &FC
+	RTI
+}
+
+.old_irqv   EQUW &FFFF
+
+.wait_for_vsync
+{
+	lda #2
+	.vsync1
+	bit &FE4D
+	beq vsync1
+	rts
+}
+
 .wait_frames
 {
-    stx vsyncs
     .loop
-    lda #19:jsr osbyte
-    dec vsyncs
+    jsr wait_for_vsync
+    dex
     bne loop
     rts
 }
@@ -902,12 +993,11 @@ EQUS 31,20,24,"*NOT*"
 EQUS 31,8,32, "A FALCON"
 EQUS 31,24,40,"DEMO"
 EQUS 12 ; cls
-EQUS 31,0,4,  "BBC MICRO"
-EQUS 31,0,12, "2MHz 6502"
-EQUS 31,0,20, "32K RAM"
-EQUS 31,0,28, "5",128+'%'," FLOPPY"
-EQUS 31,16,44,"HALF THE"
-EQUS 31,16,52,"BITS...",128+'$'
+EQUS 31,4,8,  "BBC MICRO"
+EQUS 31,4,16, "2MHz 6502"
+EQUS 31,12,24,"48K RAM"
+EQUS 31,4,32, "5",128+'%'," FLOPPY"
+EQUS 31,36,48,128+'$'
 EQUS 12 ; cls
 EQUS 0
 
@@ -977,7 +1067,11 @@ EQUB %00000000
 .next_part_cmd
 EQUS "/LOW", 13
 
+.music_filename
+EQUS "MUSIC", 13
+
 include "src/exo.asm"
+include "lib/disksys.asm"
 
 PAGE_ALIGN
 .screen_row_LO

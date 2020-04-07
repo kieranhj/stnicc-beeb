@@ -134,7 +134,7 @@ ENDMACRO
     PALETTE_FRAME_JUST_UPDATES 4                                        ; [152]
     PALETTE_UPDATE 6, 1, 3, 10      ; [6] = [7, 5, 3]
     PALETTE_UPDATE 11, 1, 3, 12     ; [11] = [7, 6, 4]
-    PALETTE_UPDATE 12, 0, 3, 4      ; [12] = [2, 2, 2]
+    PALETTE_UPDATE 12, 0, 3, 5      ; [12] = [2, 2, 2]
     PALETTE_UPDATE 13, 0, 3, 2      ; [13] = [1, 1, 1]
 
     PALETTE_FRAME_JUST_UPDATES 2                                        ; [154]
@@ -153,10 +153,10 @@ ENDMACRO
     PALETTE_UPDATE 2, 0, 2, 1      ; [2] = [0, 0, 2]
 
     PALETTE_FRAME_JUST_UPDATES 1                                        ; [171]
-    PALETTE_UPDATE 9, 0, 3, 10     ; [9] = [5, 5, 5]
+    PALETTE_UPDATE 9, 0, 3, 11     ; [9] = [5, 5, 5]
 
     PALETTE_FRAME_JUST_UPDATES 1                                        ; [173]
-    PALETTE_UPDATE 15, 0, 3, 12    ; [15] = [6, 6, 6]
+    PALETTE_UPDATE 15, 0, 3, 13    ; [15] = [6, 6, 6]
 
     PALETTE_FRAME_JUST_UPDATES 1                                        ; [176]
     PALETTE_UPDATE 8, 0, 2, 8    ; [8] = [1, 4, 6]
@@ -183,7 +183,7 @@ ENDMACRO
     PALETTE_UPDATE 7, 0, 0, 16       ; [7] = [2, 1, 1]
     ; ^= more striking as black?
     PALETTE_UPDATE 9, 0, 3, 9        ; [9] = [5, 4, 4]
-    PALETTE_UPDATE 10, 0, 3, 10      ; [10] = [5, 5, 4]
+    PALETTE_UPDATE 10, 0, 3, 11      ; [10] = [5, 5, 4]
     PALETTE_UPDATE 11, 0, 3, 8       ; [11] = [4, 4, 3]
     PALETTE_UPDATE 12, 0, 3, 16      ; [12] = [7, 6, 6]
 
@@ -208,11 +208,11 @@ ENDMACRO
     PALETTE_UPDATE 13, 0, 3, 12      ; [13] = [6, 6, 5]
 
     PALETTE_FRAME_JUST_UPDATES 2                                        ; [272]
-    PALETTE_UPDATE 13, 0, 3, 5       ; [13] = [3, 3, 2]
+    PALETTE_UPDATE 13, 0, 3, 6       ; [13] = [3, 3, 2]
     PALETTE_UPDATE 3, 0, 3, 12       ; [3] = [6, 6, 5]
 
     PALETTE_FRAME_JUST_UPDATES 1                                        ; [274]
-    PALETTE_UPDATE 8, 0, 3, 3       ; [8] = [2, 2, 1]
+    PALETTE_UPDATE 8, 0, 3, 4       ; [8] = [2, 2, 1]
 
     ; In the spinning room
     ; First green tint appears => replaces cyan
@@ -253,23 +253,28 @@ ENDMACRO
     PALETTE_UPDATE_JUST_1 5, 3, 1, 7   ; [5] = [5, 3, 2]               ; [717]
 ;   PALETTE_UPDATE_JUST_1 7, 0, 2, 8   ; [7] = [3, 4, 3]               ; [718]
     PALETTE_UPDATE_JUST_1 7, 0, 3, 7   ; [7] = [4, 2, 0]               ; [719]
+
     PALETTE_UPDATE_JUST_1 1, 0, 2, 8   ; [1] = [3, 4, 3]               ; [721]
 
     ; Fully in pentagon tunnel
-    PALETTE_UPDATE_JUST_1 8, 0, 2, 10   ; [8] = [4, 5, 4]               ; [745]
+    ; First replace green with cyan again as green is too harsh.
+    ; Can visibly see the palette change but not a lot else we can do.
+    PALETTE_FRAME %0010, PAL_black, PAL_yellow, PAL_cyan, PAL_red, 1  ; [745]
+    ; ^== UPDATE ANY PALETTE ENTRY STILL CONTAINING COLOUR 2 ==v
+    PALETTE_UPDATE 8, 0, 2, 10   ; [8] = [4, 5, 4]                      ; [745]
 
     ; Round corner into green square tunnel
     ; Blue tint => replaces red
-    PALETTE_FRAME %0001, PAL_black, PAL_yellow, PAL_green, PAL_blue, 7 ; [804]
+    PALETTE_FRAME %0001, PAL_black, PAL_yellow, PAL_cyan, PAL_blue, 7 ; [804]
     ; ^== UPDATE ANY PALETTE ENTRY STILL CONTAINING COLOUR 3 ==v
-    PALETTE_UPDATE 3, 0, 1, 6          ; [3] = [4, 6, 5]
-    PALETTE_UPDATE 5, 0, 1, 12         ; [5] = [5, 7, 6]
-    PALETTE_UPDATE 7, 0, 1, 4          ; [7] = [3, 5, 3]
-    PALETTE_UPDATE 9, 0, 1, 10          ; [9] = [5, 7, 5]
+    PALETTE_UPDATE 3, 3, 2, 10         ; [3] = [4, 6, 5] (5)
+    PALETTE_UPDATE 5, 3, 2, 14         ; [5] = [5, 7, 6] (6)
+    PALETTE_UPDATE 7, 3, 2, 7          ; [7] = [3, 5, 3] (3.7)
+    PALETTE_UPDATE 9, 3, 2, 13         ; [9] = [5, 7, 5] (5.7)
     ; add some yellow to the light ones?
-    PALETTE_UPDATE 10, 0, 2, 6        ; [10] = [1, 3, 2]
-    PALETTE_UPDATE 11, 0, 2, 7        ; [11] = [2, 4, 3]
-    PALETTE_UPDATE 12, 0, 2, 9        ; [12] = [3, 5, 4]
+    PALETTE_UPDATE 10, 0, 2, 4;6        ; [10] = [1, 3, 2] (2)
+    PALETTE_UPDATE 11, 0, 2, 8        ; [11] = [2, 4, 3] (3)
+    PALETTE_UPDATE 12, 3, 2, 8        ; [12] = [3, 5, 4] (4)
 
     PALETTE_FRAME_JUST_UPDATES 1                                        ; [806]
     PALETTE_UPDATE 13, 0, 2, 1        ; [13] = [0, 1, 0]
@@ -279,20 +284,20 @@ ENDMACRO
     PALETTE_FRAME_NO_CHANGE                                             ; [917]
     PALETTE_FRAME_JUST_UPDATES 2                                        ; [919]
     PALETTE_UPDATE 1, 0, 2, 7         ; [1] = [2, 4, 2]
-    PALETTE_UPDATE 6, 0, 1, 8         ; [1] = [4, 6, 4]
+    PALETTE_UPDATE 6, 0, 2, 12;10        ; [6] = [4, 6, 4]
 
     PALETTE_FRAME_JUST_UPDATES 2                                        ; [927]
-    PALETTE_UPDATE 14, 0, 2, 4       ; [14] = [0, 2, 1]
-    PALETTE_UPDATE 15, 0, 1, 15      ; [15] = [6, 7, 6]
+    PALETTE_UPDATE 14, 0, 2, 3       ; [14] = [0, 2, 1]
+    PALETTE_UPDATE 15, 3, 2, 15      ; [15] = [6, 7, 6]
 
     PALETTE_FRAME_JUST_UPDATES 1                                        ; [935]
     PALETTE_UPDATE 13, 0, 2, 5       ; [13] = [1, 3, 1]
 
     ; Lighter six-sided green tunnel - yellow motif appears!
-    PALETTE_FRAME_JUST_UPDATES 3                                        ; [1080]
+    PALETTE_FRAME_JUST_UPDATES 1                                        ; [1080]
     PALETTE_UPDATE 2, 0, 1, 16       ; [2] = [7, 7, 0]
-    PALETTE_UPDATE 8, 0, 3, 10       ; [8] = [3, 4, 5]
-    PALETTE_UPDATE 4, 0, 3, 16       ; [4] = [4, 5, 6]
+;   PALETTE_UPDATE 8, 0, 3, 10       ; [8] = [3, 4, 5]
+;   PALETTE_UPDATE 4, 0, 3, 16       ; [4] = [4, 5, 6]
 
     ; Lots of palette fighting over 1, 4, 8, 9, 15 - ignore for now?
     PALETTE_FRAME_NO_CHANGE                                             ; [1084]
@@ -315,7 +320,7 @@ ENDMACRO
     PALETTE_UPDATE_JUST_1 3, 0, 3, 16  ;  [3] = [4, 5, 6]               ; [1184]
 
     ; First dark red appears
-    ; Red tint => replaces green
+    ; Red tint => replaces cyan
     PALETTE_FRAME %0010, PAL_black, PAL_yellow, PAL_red, PAL_blue, 2    ; [1247]
     ; ^== UPDATE ANY PALETTE ENTRY STILL CONTAINING COLOUR 2 ==v
     PALETTE_UPDATE 5, 0, 2, 10          ; [6] = [5, 1, 0]

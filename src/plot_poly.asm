@@ -698,8 +698,8 @@ ENDMACRO
 \ *	UPDATE PALETTE
 \ ******************************************************************
 
-if not(_NULA)
-BOUNDARY_ALIGN 16
+if not(_NULA) AND not(_DEBUG)
+BOUNDARY_ALIGN 32
 
 .handle_beeb_palette
 {

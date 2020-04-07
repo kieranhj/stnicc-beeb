@@ -451,7 +451,7 @@ Set plot on IRQ2 second value
 Think vsync is arriving late...
 
 Stop returning IRQ1V to the MOS
-Master @ LQ = &21BB = 10.4fps (apparent!)
+Master @ LQ = &21BB = 8635 = 10.4fps (apparent!)
 
 OUTRO TODO
 ~~~
@@ -474,3 +474,9 @@ Gives us 4K free.
 
 Apparently I didn't finish predividing the vertices by 2?!
 ~~~
+
+Run through w/ music
+Master @ LQ = &23A4 = 9124
+Overhead = 5.7% w/ vgmpacker. Pretty impressive.
+Music size = 2794 bytes w/ 2048 byte buffers
+Raw = 21036 bytes
