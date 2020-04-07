@@ -78,7 +78,7 @@ GUARD &C000
     lda #hi(vgm_stream_buffers)
     ldx #lo(vgc_data_intro_theme)
     ldy #hi(vgc_data_intro_theme)
-    clc ; no loop
+    sec ; loop
     jmp vgm_init
 }
 

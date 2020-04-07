@@ -13,13 +13,13 @@ INTRO_SIZE = &1A00
 EXE_SIZE = &2700
 NULA_SIZE = &2400
 OUTRO_SIZE = &1100
-MUSIC_SIZE = &2300
+MUSIC_SIZE = &1B00
 ELSE
 INTRO_SIZE = &1A00
 EXE_SIZE = &2700
 NULA_SIZE = &2200
 OUTRO_SIZE = &1100
-MUSIC_SIZE = &2300
+MUSIC_SIZE = &1B00
 ENDIF
 
 \ ******************************************************************
