@@ -269,13 +269,13 @@ ENDIF
 
 ; Can't use &300 until we remove any actual VDU calls
 ORG &400
-GUARD &900
+GUARD &A00
 .reloc_to_start
 .screen_row_LO		skip 16
 .screen_row_HI		skip 16
 .screen_col_LO		skip 80
 .screen_col_HI		skip 80
-.credits_text		skip &400
+.credits_text		skip &500
 .credits_end
 .reloc_to_end
 
@@ -299,6 +299,12 @@ GUARD screen3_addr
 
 .main
 {
+	SEI
+	LDA #&7F					; A=01111111
+	STA &FE4E					; R14=Interrupt Enable (disable all interrupts)
+	STA &FE43					; R3=Data Direction Register "A" (set keyboard data direction)
+	CLI
+
     \\ Init ZP
     lda #0
     ldx #0
@@ -415,9 +421,6 @@ GUARD screen3_addr
 	LDA #LO(FramePeriod):STA &FE46
 	LDA #HI(FramePeriod):STA &FE47
 
-	LDA #&7F					; A=01111111
-	STA &FE4E					; R14=Interrupt Enable (disable all interrupts)
-	STA &FE43					; R3=Data Direction Register "A" (set keyboard data direction)
 	lda #&40					; A=01000000
 	sta &fe4b					; R11=ACR (Timer 1 continuous; Timer 2 one-shot)
 	LDA #&E2					; A=11000010
@@ -1554,6 +1557,13 @@ ENDMACRO
 	TEXT_PTR_INC
 	rts
 
+	.eos
+	lda #LO(credits_text)
+	sta text_ptr
+	lda #HI(credits_text)
+	sta text_ptr+1
+	rts
+
 	.vdu_code
 	cmp #31
 	bne not_vdu31
@@ -1614,13 +1624,6 @@ ENDMACRO
 	\\ Unknown VDU code!
 	TEXT_PTR_INC
 	jmp read_next_char
-
-	.eos
-	lda #LO(credits_text)
-	sta text_ptr
-	lda #HI(credits_text)
-	sta text_ptr+1
-	rts
 }
 
 .cursor_update
@@ -1762,8 +1765,10 @@ EQUB b3 * &C0 + b2 * &30 + b1 * &0C + b0 * &03
 NEXT
 
 .cursor_char_def
-EQUB &7F, &7F, &7F, &7F
-EQUB &7F, &7F, &7F, &00
+;EQUB &7F, &7F, &7F, &7F
+;EQUB &7F, &7F, &7F, &00
+EQUB &FF, &FF, &FF, &FF
+EQUB &FF, &FF, &FF, &FF
 
 .block_mode4_data
 EQUB &3F, &3F, &3F, &3F, &3F, &3F, &3F, &3F
@@ -1822,11 +1827,11 @@ NEXT
 ;    |---------------------|
 EQUS 31, 0, 0, 1, 150
 EQUS "BBC Computer 32K"
-EQUS 31, 0, 2
+EQUS 13, 13
 EQUS "Acorn DFS"
-EQUS 31, 0, 4
+EQUS 13, 13
 EQUS "BASIC"
-EQUS 31, 0, 6
+EQUS 13, 13
 EQUS ">", 1, 100
 EQUS 31, 5, 4, 8, 8, 8, 8, 8, 1, 50
 EQUS "BITSHIFTERS"
@@ -1839,8 +1844,8 @@ EQUS 8, 8, 8, 8, "BEEB", 1, 50, 13, 13
 EQUS ">", 1, 25
 EQUS "2MHz 6502 CPU", 1, 50, 13
 EQUS ">", 1, 25
-EQUS "32K RAM + 16K SWRAM", 1, 50
-EQUS ">", 1, 25
+EQUS "32K RAM + 16K SWRAM"
+EQUS ">", 1, 50
 EQUS "5 1/4",'"', " floppy", 1, 50, 13
 EQUS ">", 1, 25
 EQUS "No VIC, no Blitter", 1, 50, 13
@@ -1859,7 +1864,8 @@ EQUS 13, 13
 EQUS "Squeezing a 16-bit", 13
 EQUS "1 Mb demo into", 13
 EQUS "8-bits and 48K took", 13
-EQUS "us some time...!", 1, 100, 12
+EQUS "us some time...", 1, 50
+EQUS "!", 1, 50, 12
 
 ; Page 3
 ;    |--------------------|
@@ -1874,33 +1880,98 @@ EQUS 1, 100, 12
 ;    |--------------------|
 EQUS "MUSIC", 1, 50, 13, 13
 EQUS "All music composed"
-EQUS 31,1,3,"by Rhino of Torment", 1, 50
-EQUS 13
+EQUS 31,1,3,"by Rhino / Torment", 1, 50
+EQUS 13, 13
 EQUS "Checknobank by"
-EQUS 31,4,6,"Laxity / Kefrens", 1, 50
+EQUS 31,3,6,"Laxity / Kefrens"
 EQUS 1, 100, 12
 
 ; Page 5
 ;    |--------------------|
 EQUS "BITSHIFTERS THANKS", 1, 50, 13, 13
-EQUS "Leonard   /  Oxygene", 1, 25
-EQUS "Heaven    /   Desire", 1, 25
-EQUS "Axis      /   Oxyron"
+EQUS "Matt Godbolt.....RTW"
+EQUS "scarybeasts....StewB"
+EQUS "The Master....Tricky"
+EQUS "0xC0DE....VectorEyes"
+EQUS "...................."
 EQUS 1, 100, 12
 
 ; Page 6
 ;    |--------------------|
 EQUS "BITSHIFTERS GREETZ", 1, 50, 13, 13
+EQUS ">", 1, 25
+EQUS "Ate Bit", 1, 25, 13
+EQUS ">", 1, 25
 EQUS "CRTC", 1, 25, 13
-EQUS 31,14,3, "DESiRE", 1, 25
+EQUS ">", 1, 25
+EQUS "DESiRE", 1, 25, 13
+EQUS ">", 1, 25
+EQUS "HOOY-PROGRAM", 1, 25, 13
+EQUS ">", 1, 25
 EQUS "Inverse Phase", 1, 25, 13
-EQUS 31,8,5, "HOOY-PROGRAM", 1, 25
+EQUS ">", 1, 25
 EQUS "Logicoma", 1, 25
-EQUS 31,12,6, "Polarity", 1, 25
-EQUS "Rift", 1, 25
-EQUS 31,10,7, "Slipstream", 1, 25
-EQUS "YM Rockerz"
+EQUS 12
+
+; Page 7
+; Greets continued
+;    |--------------------|
+EQUS "BITSHIFTERS GREETZ", 1, 50, 13, 13
+EQUS ">", 1, 25
+EQUS "Oxygene", 1, 25, 13
+EQUS ">", 1, 25
+EQUS "Polarity", 1, 25, 13
+EQUS ">", 1, 25
+EQUS "Rift", 1, 25, 13
+EQUS ">", 1, 25
+EQUS "Slipstream", 1, 25, 13
+EQUS ">", 1, 25
+EQUS "Torment", 1, 25, 13
+EQUS ">", 1, 25
+EQUS "YM Rockerz", 1, 25
+EQUS 12
+
+; Page 8
+; BASIC
+;    |--------------------|
+EQUS 1,255
+EQUS "BASIC", 13, 13
+EQUS ">", 1, 100
+EQUS "10 CLS", 13
+EQUS ">", 1, 25
+EQUS "20 PRINT ", '"', "THANKS FOR WATCHING!", 13
+EQUS ">", 1, 25
+EQUS "30 GOTO 20", 13
+EQUS ">", 1, 50
+EQUS "RUN", 13
 EQUS 1, 100, 12
+
+; Page 9
+; BASIC
+;    |--------------------|
+EQUS "THANKS FOR WATCHING!"
+EQUS "THANKS FOR WATCHING!"
+EQUS "THANKS FOR WATCHING!"
+EQUS "THANKS FOR WATCHING!"
+EQUS "THANKS FOR WATCHING!"
+EQUS "THANKS FOR WATCHING!"
+EQUS "THANKS FOR WATCHING!"
+EQUS "THANKS FOR WATCHING"
+EQUS 1, 255, 12
+
+; Page 10
+; Bitshifters Flux
+;    |--------------------|
+EQUS 1, 100
+EQUS 31,10,0,128,128,128,1,50
+EQUS 31,10,1,128,128,128,1,50
+EQUS 31,7,2,128,128,128,128,128,128,1,50
+EQUS 31,7,3,128,128,128,128,128,128,1,50
+EQUS 31,7,4,128,128,128,128,128,128,1,50
+EQUS 31,7,5,128,128,128,1,50
+EQUS 31,7,6,128,128,128
+EQUS 31,19,7
+EQUS 1, 255, 1, 255, 12
 
 ; Time for 9 pages max!
 EQUS 0

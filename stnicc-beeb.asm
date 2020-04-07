@@ -396,7 +396,7 @@ endif
 
 	\\ Set ULA to MODE 5
 	lda #ULA_Mode5
-;	sta &248			; OS copy
+	sta &248			; OS copy - OS interupt might be running..
 	sta &fe20
 
 	\\ Set CRTC to MODE 5 => 128x200
