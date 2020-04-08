@@ -170,6 +170,8 @@ FramePeriod = 312*64-2
 ; Essentially how much time we give the main loop to stream the next track
 TimerValue = (12)*64 - 2*64
 
+TimerValue2 = (202)*64 - 2*64
+
 \ ******************************************************************
 \ *	ZERO PAGE
 \ ******************************************************************
@@ -447,20 +449,27 @@ endif
 
 	\\ Not stable but close enough for our purposes
 	; Write T1 low now (the timer will not be written until you write the high byte)
-    LDA #LO(TimerValue):STA &FE44
+    LDA #LO(TimerValue):STA &FE64
     ; Get high byte ready so we can write it as quickly as possible at the right moment
-    LDX #HI(TimerValue):STX &FE45            ; start T1 counting		; 4c +1/2c 
+    LDX #HI(TimerValue):STX &FE65            ; start T1 counting		; 4c +1/2c 
+
+	LDA #LO(TimerValue2):STA &FE44
+	LDA #HI(TimerValue2):STA &FE45
 
   	; Latch T1 to interupt exactly every 50Hz frame
-	LDA #LO(FramePeriod):STA &FE46
-	LDA #HI(FramePeriod):STA &FE47
+	LDA #LO(FramePeriod):STA &FE66:STA &FE46
+	LDA #HI(FramePeriod):STA &FE67:STA &FE47
 
 	LDA #&7F								; A=01111111
 	STA &FE4E								; R14=Interrupt Enable (disable all interrupts)
 	sta &fe6e								; User via
 	STA &FE43								; R3=Data Direction Register "A" (set keyboard data direction)
+	lda #64
+	sta &fe6b								; Timer 1 free-run
 	LDA #&C2								; A=11000010
 	STA &FE4E								; R14=Interrupt Enable (enable main_vsync and timer interrupt)
+	LDA #&C0								; A=11000010
+	STA &FE6E								; R14=Interrupt Enable (enable main_vsync and timer interrupt)
 
     LDA IRQ1V:STA old_irqv
     LDA IRQ1V+1:STA old_irqv+1
@@ -526,6 +535,8 @@ endif
 	SEI
 	LDA #&D3					; A=11010011
 	STA &FE4E					; R14=Interrupt Enable
+	lda #&7f
+	sta &fe6e
 
     LDA old_irqv:STA IRQ1V
     LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
@@ -753,6 +764,17 @@ ENDIF
     INC vsync_counter+1
     .no_carry
 
+	JMP return_to_os
+
+	.not_vsync
+	\\ Which interrupt?
+	LDA &FE4D
+	AND #&40			; timer 1 - SYSVIA
+	BEQ not_music
+
+	\\ Acknowledge timer 1 interrupt
+	STA &FE4D
+
 	IF _ENABLE_MUSIC
     lda music_enabled
     beq return_to_os
@@ -772,14 +794,14 @@ ENDIF
 
 	JMP return_to_os
 
-	.not_vsync
+	.not_music
 	\\ Which interrupt?
-	LDA &FE4D
-	AND #&40			; timer 1
+	LDA &FE6D
+	AND #&40			; timer 1 - USERVIA
 	BEQ return_to_os
 
 	\\ Acknowledge timer 1 interrupt
-	STA &FE4D
+	STA &FE6D
 
 	\\ If we're already busy just exit function
 	LDA decode_lock
