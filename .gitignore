@@ -4,3 +4,4 @@ build
 /.dir-locals.el
 intro.txt
 data/out.txt
+*.pyc

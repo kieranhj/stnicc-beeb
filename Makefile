@@ -6,11 +6,13 @@ ifeq ($(OS),Windows_NT)
 
 BEEBASM?=bin\beebasm.exe
 PYTHON?=python
+EXOMIZER?=bin\exomizer.exe
 
 else
 
 BEEBASM?=beebasm
 PYTHON?=python
+EXOMIZER?=exomizer3
 
 endif
 
@@ -19,23 +21,47 @@ endif
 
 SHELLCMD:=$(PYTHON) bin/shellcmd.py
 
+VGMPACKER:=$(PYTHON) ../vgm-packer/vgmpacker.py
+
 BUILD:=./build
 
 ##########################################################################
 ##########################################################################
 
 .PHONY:build
-build:
+build: $(BUILD)/logo_mode1.exo $(BUILD)/intro_theme.vgc $(BUILD)/main_theme.vgc $(BUILD)/outro_theme.vgc
 	$(SHELLCMD) mkdir $(BUILD)
 
-	$(BEEBASM) -i stnicc-beeb.asm -do $(BUILD)/stnicc-beeb.ssd -boot STNICC -v 1> compile.txt
+	$(BEEBASM) -D _QUALITY=2 -D _NULA=0 -i stnicc-beeb.asm -v > $(BUILD)/high.txt
+	$(BEEBASM) -D _QUALITY=1 -D _NULA=0 -i stnicc-beeb.asm -v > $(BUILD)/medium.txt
+	$(BEEBASM) -D _QUALITY=0 -D _NULA=0 -i stnicc-beeb.asm -v > $(BUILD)/low.txt
+	$(BEEBASM) -D _QUALITY=2 -D _NULA=-1 -i stnicc-beeb.asm -v > $(BUILD)/nula.txt
 
-	$(BEEBASM) -i src/part-2.asm -do $(BUILD)/part-2.ssd
-	$(BEEBASM) -i src/part-3.asm -do $(BUILD)/part-3.ssd
-	$(BEEBASM) -i src/part-4.asm -do $(BUILD)/part-4.ssd
+	$(BEEBASM) -i src/intro.asm -v > $(BUILD)/intro.txt
+	$(BEEBASM) -i src/outro.asm -v > $(BUILD)/intro.txt
+	$(BEEBASM) -i src/music.asm -v > $(BUILD)/intro.txt
 
-	$(PYTHON) bin/dsd_create.py -o $(BUILD)/stnicc-A.dsd $(BUILD)/stnicc-beeb.ssd $(BUILD)/part-2.ssd
-	$(PYTHON) bin/dsd_create.py -o $(BUILD)/stnicc-B.dsd $(BUILD)/part-3.ssd $(BUILD)/part-4.ssd
+	$(BEEBASM) -i stnicc-build.asm -do $(BUILD)/part-1.ssd -title STNICCC-1 -boot INTRO -v > compile.txt
+	$(BEEBASM) -i src/part-2.asm -title STNICCC-2 -do $(BUILD)/part-2.ssd
+
+	$(PYTHON) bin/dsd_create.py -o $(BUILD)/stnicc-A.dsd $(BUILD)/part-1.ssd $(BUILD)/part-2.ssd
+
+$(BUILD)/intro_theme.vgc : data/Twitching\ Flannels.vgm
+	$(SHELLCMD) mkdir $(BUILD)
+	$(VGMPACKER) -o "$@" "$<"
+
+$(BUILD)/main_theme.vgc : data/STNICCC_BBC_Rhino_06_combined.vgm
+	$(SHELLCMD) mkdir $(BUILD)
+	$(VGMPACKER) -o "$@" "$<"
+
+$(BUILD)/outro_theme.vgc : data/Torment\ 24h.vgm
+	$(SHELLCMD) mkdir $(BUILD)
+	$(VGMPACKER) -o "$@" "$<"
+
+$(BUILD)/logo_mode1.exo : ./data/BeeBShifters.png
+	$(SHELLCMD) mkdir $(BUILD)
+	$(PYTHON) bin/png2bbc.py --quiet -o $@.tmp --palette 0436 $< 1
+	$(EXOMIZER) level -M256 $@.tmp@0x4E00 -o $@
 
 ##########################################################################
 ##########################################################################
