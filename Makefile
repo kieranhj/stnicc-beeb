@@ -78,7 +78,6 @@ b2_test: URL:=http://localhost:48075
 b2_test: CONFIG?=Master 128 (MOS 3.20)
 b2_test:
 	curl -G '$(URL)/reset/b2' --data-urlencode "config=$(CONFIG)"
-	curl -H 'Content-Type:application/vnd.acorn.disc-image.dsd' --upload-file '$(BUILD)/stnicc-B.dsd' '$(URL)/mount/b2?drive=1'
 	curl -H 'Content-Type:application/vnd.acorn.disc-image.dsd' --upload-file '$(BUILD)/stnicc-A.dsd' '$(URL)/run/b2'
 
 ##########################################################################
@@ -98,7 +97,7 @@ tags:
 .PHONY:tom_emacs
 tom_emacs:
 	$(MAKE) tags build tom_beeblink
-	-$(MAKE) b2_test "CONFIG=B/Acorn 1770"
+	-$(MAKE) b2_test "CONFIG=B/Acorn 1770 (2)"
 
 ##########################################################################
 ##########################################################################
@@ -106,7 +105,7 @@ tom_emacs:
 .PHONY:tom_beeblink
 tom_beeblink:
 	cp $(BUILD)/stnicc-A.dsd ~/beeb/beeb-files/stuff/ssds/0/d.stnicca
-	cp $(BUILD)/stnicc-B.dsd ~/beeb/beeb-files/stuff/ssds/0/d.stniccb
+#	cp $(BUILD)/stnicc-B.dsd ~/beeb/beeb-files/stuff/ssds/0/d.stniccb
 
 ##########################################################################
 ##########################################################################
