@@ -141,7 +141,7 @@ PAGE_ALIGN
 \ *	Save the code
 \ ******************************************************************
 
-SAVE "build\MUSIC", start, end, start
+SAVE "build/MUSIC", start, end, start
 
 \ ******************************************************************
 \ *	Memory Info
