@@ -374,7 +374,7 @@ GUARD screen3_addr
 	stx text_ptr:sty text_ptr+1
 
 	\\ Init music
-	SWRAM_SELECT 4
+	SWRAM_SELECT MUSIC_SWRAM_BANK
 	jsr MUSIC_JUMP_INIT_OUTRO
 
 	\\ Setup video
@@ -497,7 +497,7 @@ GUARD screen3_addr
     LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
 	CLI
 
-	SWRAM_SELECT 4
+	SWRAM_SELECT MUSIC_SWRAM_BANK
 	jsr MUSIC_JUMP_SN_RESET
 
 	lda #8:sta &fe00:lda #&f0:sta &fe01		; hide screen
@@ -738,7 +738,7 @@ ENDIF
 
 	inc music_lock
 	lda &fe30:pha
-    SWRAM_SELECT 4
+    SWRAM_SELECT MUSIC_SWRAM_BANK
     txa:pha:tya:pha
     jsr MUSIC_JUMP_VGM_UPDATE
     pla:tay:pla:tax

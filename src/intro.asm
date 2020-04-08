@@ -189,13 +189,13 @@ GUARD screen_addr
     CLI
 
     \\ DO SWRAM LOAD HERE
-    SWRAM_SELECT 4
+    SWRAM_SELECT MUSIC_SWRAM_BANK
     ldx #LO(music_filename)
     ldy #HI(music_filename)
     lda #HI(&8000)
     jsr disksys_load_file
 
-    SWRAM_SELECT 4
+    SWRAM_SELECT MUSIC_SWRAM_BANK
     jsr MUSIC_JUMP_INIT_INTRO
 
     \\ Set MODE 1 w/out using OS.

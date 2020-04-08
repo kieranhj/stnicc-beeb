@@ -388,7 +388,7 @@ endif
     jsr init_span_buffer
 
 	\\ Init music
-	SWRAM_SELECT 4
+	SWRAM_SELECT MUSIC_SWRAM_BANK
 	jsr MUSIC_JUMP_INIT_MAIN
 
 	\\ Setup video
@@ -531,7 +531,7 @@ endif
     LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
 	CLI
 
-	SWRAM_SELECT 4
+	SWRAM_SELECT MUSIC_SWRAM_BANK
 	jsr MUSIC_JUMP_SN_RESET
 	jsr show_final_screen
 
@@ -762,7 +762,7 @@ ENDIF
 
 	inc music_lock
 	lda &fe30:pha
-    SWRAM_SELECT 4
+    SWRAM_SELECT MUSIC_SWRAM_BANK
     txa:pha:tya:pha
     jsr MUSIC_JUMP_VGM_UPDATE
     pla:tay:pla:tax
