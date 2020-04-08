@@ -445,7 +445,7 @@ ENDIF
     {
         ldy #0
         .fade_loop
-        ldx #6
+        ldx #8
         jsr wait_frames
         jsr set_pal_fade
         cpy #4*7
@@ -458,7 +458,7 @@ ENDIF
     jsr set_palette
 
     \\ Pause for dramatic effect
-    ldx #200:jsr wait_frames    ; 4s
+    ldx #100:jsr wait_frames    ; 4s
 
     SEI
     LDA old_irqv:STA IRQ1V
@@ -1047,11 +1047,19 @@ EQUS 31,20,24,"*NOT*"
 EQUS 31,8,32, "A FALCON"
 EQUS 31,24,40,"DEMO"
 EQUS 12 ; cls
+IF 0
 EQUS 31,4,8,  "BBC MICRO"
 EQUS 31,4,16, "2MHz 6502"
 EQUS 31,12,24,"48K RAM"
 EQUS 31,4,32, "5",128+'%'," FLOPPY"
 EQUS 31,36,48,128+'$'
+ELSE
+EQUS 31,12,8, "THIS IS"
+EQUS 31,4,16, "THE FIRST"
+EQUS 31,4,28, "BBC MICRO"
+EQUS 31,12,40,"DEMO AT"
+EQUS 31,8,48, "REVISION"
+ENDIF
 EQUS 12 ; cls
 EQUS 0
 
