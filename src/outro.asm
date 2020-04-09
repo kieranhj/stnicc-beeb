@@ -1900,7 +1900,7 @@ EQUS "Matt Godbolt.....RTW"
 EQUS "scarybeasts....StewB"
 EQUS "The Master....Tricky"
 EQUS "0xC0DE....VectorEyes"
-EQUS "...................."
+EQUS "HEx.....@bbcmicrobot"
 EQUS 1, 100, 12
 
 ; Page 6
