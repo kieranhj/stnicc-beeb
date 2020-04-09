@@ -458,7 +458,7 @@ ENDIF
     jsr set_palette
 
     \\ Pause for dramatic effect
-    ldx #100:jsr wait_frames    ; 4s
+    ldx #150:jsr wait_frames
 
     SEI
     LDA old_irqv:STA IRQ1V
@@ -1054,9 +1054,9 @@ EQUS 31,12,24,"48K RAM"
 EQUS 31,4,32, "5",128+'%'," FLOPPY"
 EQUS 31,36,48,128+'$'
 ELSE
-EQUS 31,4,8,  "THE FIRST"
-EQUS 31,16,16,"*EVER*"
-EQUS 31,4,28, "BBC MICRO"
+EQUS 31,4,8,  "THIS IS A"
+EQUS 31,20,20,"*BBC*"
+EQUS 31,20,28,"MICRO"
 EQUS 31,12,40,"DEMO AT"
 EQUS 31,8,48, "REVISION"
 ENDIF
