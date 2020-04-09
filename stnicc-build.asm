@@ -4,8 +4,8 @@
 \ ******************************************************************
 
 _DEBUG = FALSE   ; if you change me check the same in stnicc-beeb.asm
-LOAD_ADDRESS = &1100
-EXEC_ADDRESS = &1100
+LOAD_ADDRESS = &FF1100
+EXEC_ADDRESS = &FF1100
 
 \\ NEED A BETTER WAY OF DOING THIS!
 IF _DEBUG
@@ -26,7 +26,7 @@ ENDIF
 \ *	EXES
 \ ******************************************************************
 
-PUTFILE "build/INTRO", "INTRO", LOAD_ADDRESS, EXEC_ADDRESS
+PUTFILE "build/INTRO", "!BOOT", LOAD_ADDRESS, EXEC_ADDRESS
 PUTFILE "build/MUSIC", "MUSIC", &8000, &8000
 PUTFILE "build/LOW", "LOW", LOAD_ADDRESS, EXEC_ADDRESS
 ;PUTFILE "build/HIGH", "HIGH", LOAD_ADDRESS, EXEC_ADDRESS
@@ -48,7 +48,7 @@ exe_size = EXE_SIZE + INTRO_SIZE + OUTRO_SIZE + MUSIC_SIZE
 PRINT "EXE size = ",~exe_size
 ; We know that Catalog + !Boot = &300
 ; Need to make a dummy file so 00 is at sector 20=track 2
-dummy_size = (DISK1_first_track * DFS_track_size) - exe_size - &300
+dummy_size = (DISK1_first_track * DFS_track_size) - exe_size - &200
 
 PRINT ~exe_size
 PRINT ~dummy_size
