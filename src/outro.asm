@@ -269,13 +269,13 @@ ENDIF
 
 ; Can't use &300 until we remove any actual VDU calls
 ORG &400
-GUARD &A00
+GUARD &B00
 .reloc_to_start
 .screen_row_LO		skip 16
 .screen_row_HI		skip 16
 .screen_col_LO		skip 80
 .screen_col_HI		skip 80
-.credits_text		skip &500
+.credits_text		skip &600
 .credits_end
 .reloc_to_end
 
@@ -483,7 +483,13 @@ GUARD screen3_addr
 
 	.track_load_error
 	\\ Wait for vsync
-	jsr wait_for_vsync
+	{
+		ldx #25
+		.loop
+		jsr wait_for_vsync
+		dex
+		bne loop
+	}
 
 	\\ Re-enable useful interupts
 	SEI
@@ -1977,36 +1983,38 @@ EQUS ">", 1, 25
 EQUS "YM Rockerz", 1, 25
 EQUS 12
 
-IF 0
 ; Page 8
 ; BASIC
 ;    |--------------------|
-EQUS 1, 255
+EQUS 1, 100
 EQUS "BASIC", 13, 13
 EQUS ">", 1, 100
 EQUS "10 CLS", 13
 EQUS ">", 1, 25
-EQUS "20 PRINT ", '"', "THANKS FOR WATCHING!", 13
+EQUS "20 PRINT ", '"', "THANKS FOR WATCHING!", '"', 13
 EQUS ">", 1, 25
 EQUS "30 GOTO 20", 13
 EQUS ">", 1, 50
 EQUS "RUN", 13
 EQUS 1, 100, 12
-ENDIF
 
 ; Page 9
 ; BASIC
 ;    |--------------------|
-EQUS 1, 255
-EQUS 31,0,3
 EQUS "THANKS FOR WATCHING!"
-EQUS 31,19,7
-EQUS 1, 255, 12
+EQUS "THANKS FOR WATCHING!"
+EQUS "THANKS FOR WATCHING!"
+EQUS "THANKS FOR WATCHING!"
+EQUS "THANKS FOR WATCHING!"
+EQUS "THANKS FOR WATCHING!"
+EQUS "THANKS FOR WATCHING!"
+EQUS "THANKS FOR WATCHING"
+EQUS 1, 100, 12
 
 ; Page 10
 ; Bitshifters Flux
 ;    |--------------------|
-EQUS 1, 100
+EQUS 1, 50
 EQUS 31,7,0,32,32,32,128,128,128,1,50
 EQUS 31,7,1,32,32,32,128,128,128,1,50
 EQUS 31,7,2,128,128,128,128,128,128,1,50
