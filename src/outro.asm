@@ -308,6 +308,11 @@ GUARD screen3_addr
     cpx #&A0
     bne zp_loop
 
+	SEI
+	LDA #&7F					; A=01111111
+	STA &FE4E					; R14=Interrupt Enable (disable all interrupts)
+	CLI
+
 	\\ Relocate data to lower RAM
 	lda #HI(reloc_from_start)
 	ldy #HI(reloc_to_start)
@@ -362,6 +367,11 @@ GUARD screen3_addr
 	ldy #HI(cursor_char_def)
 	jsr def_char
 
+    lda #128+'%'
+    ldx #LO(quarter_def)
+    ldy #HI(quarter_def)
+    jsr def_char
+
 	ldx #0:ldy #0:jsr set_cursor_XY
 	lda #CURSOR_SPEED:sta cursor_timer
 	ldx #LO(credits_text):ldy #HI(credits_text)
@@ -397,13 +407,7 @@ GUARD screen3_addr
 
 	\\ Set interrupts and handler
 	SEI							; disable interupts
-
-	{
-		lda #2
-		.vsync1
-		bit &FE4D
-		beq vsync1 \ wait for vsync
-	}
+	jsr wait_for_vsync
 
 	\\ Close enough for our purposes
 	; Write T1 low now (the timer will not be written until you write the high byte)
@@ -415,8 +419,6 @@ GUARD screen3_addr
 	LDA #LO(FramePeriod):STA &FE46
 	LDA #HI(FramePeriod):STA &FE47
 
-	LDA #&7F					; A=01111111
-	STA &FE4E					; R14=Interrupt Enable (disable all interrupts)
 	STA &FE43					; R3=Data Direction Register "A" (set keyboard data direction)
 	lda #&40					; A=01000000
 	sta &fe4b					; R11=ACR (Timer 1 continuous; Timer 2 one-shot)
@@ -429,6 +431,9 @@ GUARD screen3_addr
     LDA #LO(irq_handler):STA IRQ1V
     LDA #HI(irq_handler):STA IRQ1V+1		; set interrupt handler
 	CLI							; enable interupts
+
+	\\ Need one frame to settle rupture
+	jsr wait_for_vsync
 
 	\\ GO!
 	inc music_enabled
@@ -478,12 +483,7 @@ GUARD screen3_addr
 
 	.track_load_error
 	\\ Wait for vsync
-	{
-		lda #2
-		.vsync1
-		bit &FE4D
-		beq vsync1
-	}
+	jsr wait_for_vsync
 
 	\\ Re-enable useful interupts
 	SEI
@@ -510,6 +510,15 @@ GUARD screen3_addr
     ldx #LO(next_part_cmd)
     ldy #HI(next_part_cmd)
     jmp oscli
+}
+
+.wait_for_vsync
+{
+	lda #2
+	.vsync1
+	bit &FE4D
+	beq vsync1
+	rts
 }
 
 .reset_crtc_regs
@@ -1767,6 +1776,36 @@ NEXT
 EQUB &FF, &FF, &FF, &FF
 EQUB &FF, &FF, &FF, &FF
 
+.flux_def
+EQUB %00001110
+EQUB %00001110
+EQUB %01111110
+EQUB %01111110
+EQUB %01111110
+EQUB %01110000
+EQUB %01110000
+EQUB %00000000
+
+.smiley_def
+EQUB %01111100
+EQUB %11111110
+EQUB %10111010
+EQUB %11111110
+EQUB %10111010
+EQUB %10111010
+EQUB %11000110
+EQUB %01111100
+
+.quarter_def
+EQUB %00100000
+EQUB %00100110
+EQUB %00101100
+EQUB %00011000
+EQUB %00110101
+EQUB %01100111
+EQUB %00000001
+EQUB %00000000
+
 .block_mode4_data
 EQUB &3F, &3F, &3F, &3F, &3F, &3F, &3F, &3F
 EQUB &FF, &FF, &FF, &FF, &FF, &FF, &FF, &FF
@@ -1843,7 +1882,7 @@ EQUS "2MHz 6502 CPU", 1, 50, 13
 EQUS ">", 1, 25
 EQUS "32K RAM + 16K SWRAM"
 EQUS ">", 1, 50
-EQUS "5 1/4",'"', " floppy", 1, 50, 13
+EQUS "5", 128+'%', '"'," floppy", 1, 50, 13
 EQUS ">", 1, 25
 EQUS "No VIC, no Blitter", 1, 50, 13
 EQUS ">", 1, 25
