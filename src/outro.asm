@@ -299,12 +299,6 @@ GUARD screen3_addr
 
 .main
 {
-	SEI
-	LDA #&7F					; A=01111111
-	STA &FE4E					; R14=Interrupt Enable (disable all interrupts)
-	STA &FE43					; R3=Data Direction Register "A" (set keyboard data direction)
-	CLI
-
     \\ Init ZP
     lda #0
     ldx #0
@@ -421,6 +415,9 @@ GUARD screen3_addr
 	LDA #LO(FramePeriod):STA &FE46
 	LDA #HI(FramePeriod):STA &FE47
 
+	LDA #&7F					; A=01111111
+	STA &FE4E					; R14=Interrupt Enable (disable all interrupts)
+	STA &FE43					; R3=Data Direction Register "A" (set keyboard data direction)
 	lda #&40					; A=01000000
 	sta &fe4b					; R11=ACR (Timer 1 continuous; Timer 2 one-shot)
 	LDA #&E2					; A=11000010
