@@ -768,7 +768,7 @@ ENDIF
 	bne return_to_os
 
 	inc music_lock
-	lda &f4:pha
+	lda &fe30:pha
     SWRAM_SELECT 4
     txa:pha:tya:pha
     jsr MUSIC_JUMP_VGM_UPDATE
