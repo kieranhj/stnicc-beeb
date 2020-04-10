@@ -522,9 +522,17 @@ endif
 	ldx #10:jsr wait_X_frames
 	jsr hide_screen
 
-	\\ Re-enable useful interupts
+	\\ Turn off Timer 1
 	SEI
-	LDA #&D3					; A=11010011
+	LDA #&40
+	STA &FE4E					; R14=Interrupt Enable
+	CLI
+
+	jsr show_final_screen
+
+	\\ Turn off all interrupts
+	SEI
+	LDA #&7F
 	STA &FE4E					; R14=Interrupt Enable
 
     LDA old_irqv:STA IRQ1V
@@ -533,7 +541,6 @@ endif
 
 	SWRAM_SELECT 4
 	jsr MUSIC_JUMP_SN_RESET
-	jsr show_final_screen
 
 	\\ Exit gracefully (in theory)
     \\ Load next part
