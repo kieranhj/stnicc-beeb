@@ -1932,9 +1932,9 @@ EQUS 1, 100, 12
 ;    |--------------------|
 EQUS "MUSIC", 1, 50, 13, 13
 EQUS "All music composed"
-EQUS 31,1,3,"by Rhino / Torment", 1, 50
+EQUS 31,1,3,"by Rhino / Torment", 1, 75
 EQUS 13, 13
-EQUS "Checknobank by"
+EQUS "Checknobankh by"
 EQUS 31,3,6,"Laxity / Kefrens"
 EQUS 1, 100, 12
 
@@ -1945,7 +1945,7 @@ EQUS "Matt Godbolt.....RTW"
 EQUS "scarybeasts....StewB"
 EQUS "The Master....Tricky"
 EQUS "0xC0DE....VectorEyes"
-EQUS "HEx.....@bbcmicrobot"
+EQUS "HEx.....HorsenBurger"
 EQUS 1, 100, 12
 
 ; Page 6
@@ -1974,7 +1974,7 @@ EQUS "Oxygene", 1, 25, 13
 EQUS ">", 1, 25
 EQUS "Polarity", 1, 25, 13
 EQUS ">", 1, 25
-EQUS "Rift", 1, 25, 13
+EQUS "RiFT", 1, 25, 13
 EQUS ">", 1, 25
 EQUS "Slipstream", 1, 25, 13
 EQUS ">", 1, 25
@@ -1988,7 +1988,7 @@ EQUS 12
 ;    |--------------------|
 EQUS 1, 100
 EQUS "BASIC", 13, 13
-EQUS ">", 1, 100
+EQUS ">", 1, 75
 EQUS "10 CLS", 13
 EQUS ">", 1, 25
 EQUS "20 PRINT ", '"', "THANKS FOR WATCHING!", '"', 13
