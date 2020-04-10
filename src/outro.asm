@@ -126,6 +126,7 @@ TEXT_BOX_COLS = 20
 TEXT_BOX_ROWS = 8
 CURSOR_SPEED = 25
 CURSOR_CODE = 128
+QUARTER_CODE = 129
 
 WIREFRAME_CORNER_X = 96		; centred
 WIREFRAME_CORNER_Y = 1
@@ -269,13 +270,13 @@ ENDIF
 
 ; Can't use &300 until we remove any actual VDU calls
 ORG &400
-GUARD &A00
+GUARD &B00
 .reloc_to_start
 .screen_row_LO		skip 16
 .screen_row_HI		skip 16
 .screen_col_LO		skip 80
 .screen_col_HI		skip 80
-.credits_text		skip &500
+.credits_text		skip &600
 .credits_end
 .reloc_to_end
 
@@ -299,12 +300,6 @@ GUARD screen3_addr
 
 .main
 {
-	SEI
-	LDA #&7F					; A=01111111
-	STA &FE4E					; R14=Interrupt Enable (disable all interrupts)
-	STA &FE43					; R3=Data Direction Register "A" (set keyboard data direction)
-	CLI
-
     \\ Init ZP
     lda #0
     ldx #0
@@ -313,6 +308,11 @@ GUARD screen3_addr
     inx
     cpx #&A0
     bne zp_loop
+
+	SEI
+	LDA #&7F					; A=01111111
+	STA &FE4E					; R14=Interrupt Enable (disable all interrupts)
+	CLI
 
 	\\ Relocate data to lower RAM
 	lda #HI(reloc_from_start)
@@ -361,12 +361,18 @@ GUARD screen3_addr
     \\ Init system
     lda #HI(screen1_addr)
     sta draw_buffer_HI
-
+IF 0
 	\\ Init text system
 	lda #CURSOR_CODE
 	ldx #LO(cursor_char_def)
 	ldy #HI(cursor_char_def)
 	jsr def_char
+
+    lda #QUARTER_CODE
+    ldx #LO(quarter_def)
+    ldy #HI(quarter_def)
+    jsr def_char
+ENDIF
 
 	ldx #0:ldy #0:jsr set_cursor_XY
 	lda #CURSOR_SPEED:sta cursor_timer
@@ -403,13 +409,7 @@ GUARD screen3_addr
 
 	\\ Set interrupts and handler
 	SEI							; disable interupts
-
-	{
-		lda #2
-		.vsync1
-		bit &FE4D
-		beq vsync1 \ wait for vsync
-	}
+	jsr wait_for_vsync
 
 	\\ Close enough for our purposes
 	; Write T1 low now (the timer will not be written until you write the high byte)
@@ -421,6 +421,7 @@ GUARD screen3_addr
 	LDA #LO(FramePeriod):STA &FE46
 	LDA #HI(FramePeriod):STA &FE47
 
+	STA &FE43					; R3=Data Direction Register "A" (set keyboard data direction)
 	lda #&40					; A=01000000
 	sta &fe4b					; R11=ACR (Timer 1 continuous; Timer 2 one-shot)
 	LDA #&E2					; A=11000010
@@ -432,6 +433,9 @@ GUARD screen3_addr
     LDA #LO(irq_handler):STA IRQ1V
     LDA #HI(irq_handler):STA IRQ1V+1		; set interrupt handler
 	CLI							; enable interupts
+
+	\\ Need one frame to settle rupture
+	jsr wait_for_vsync
 
 	\\ GO!
 	inc music_enabled
@@ -482,10 +486,11 @@ GUARD screen3_addr
 	.track_load_error
 	\\ Wait for vsync
 	{
-		lda #2
-		.vsync1
-		bit &FE4D
-		beq vsync1
+		ldx #25
+		.loop
+		jsr wait_for_vsync
+		dex
+		bne loop
 	}
 
 	\\ Re-enable useful interupts
@@ -513,6 +518,15 @@ GUARD screen3_addr
     ldx #LO(next_part_cmd)
     ldy #HI(next_part_cmd)
     jmp oscli
+}
+
+.wait_for_vsync
+{
+	lda #2
+	.vsync1
+	bit &FE4D
+	beq vsync1
+	rts
 }
 
 .reset_crtc_regs
@@ -1249,10 +1263,27 @@ INCLUDE "src/screen4.asm"
 .get_char_def
 {
     sta char_def
+	bmi local_char_def
+
     lda #10
     ldx #LO(char_def)
     ldy #HI(char_def)
     jmp osword
+
+	.local_char_def
+	sec
+	sbc #128
+	asl a:asl a:asl a
+	tax
+	ldy #0
+	.loop
+	lda local_char_defs, X
+	sta char_def+1, Y
+	inx
+	iny
+	cpy #8
+	bne loop
+	rts
 }
 
 .plot_glyph_at_ptr
@@ -1764,11 +1795,44 @@ b3 = (b AND 8) >> 3
 EQUB b3 * &C0 + b2 * &30 + b1 * &0C + b0 * &03
 NEXT
 
+.local_char_defs
+{
 .cursor_char_def
 ;EQUB &7F, &7F, &7F, &7F
 ;EQUB &7F, &7F, &7F, &00
 EQUB &FF, &FF, &FF, &FF
 EQUB &FF, &FF, &FF, &FF
+
+.quarter_def
+EQUB %00100000
+EQUB %00100110
+EQUB %00101100
+EQUB %00011000
+EQUB %00110101
+EQUB %01100111
+EQUB %00000001
+EQUB %00000000
+
+.flux_def
+EQUB %00001110
+EQUB %00001110
+EQUB %01111110
+EQUB %01111110
+EQUB %01111110
+EQUB %01110000
+EQUB %01110000
+EQUB %00000000
+
+.smiley_def
+EQUB %01111100
+EQUB %11111110
+EQUB %10111010
+EQUB %11111110
+EQUB %10111010
+EQUB %10111010
+EQUB %11000110
+EQUB %01111100
+}
 
 .block_mode4_data
 EQUB &3F, &3F, &3F, &3F, &3F, &3F, &3F, &3F
@@ -1846,7 +1910,7 @@ EQUS "2MHz 6502 CPU", 1, 50, 13
 EQUS ">", 1, 25
 EQUS "32K RAM + 16K SWRAM"
 EQUS ">", 1, 50
-EQUS "5 1/4",'"', " floppy", 1, 50, 13
+EQUS "5", QUARTER_CODE, '"'," floppy", 1, 50, 13
 EQUS ">", 1, 25
 EQUS "No VIC, no Blitter", 1, 50, 13
 EQUS ">", 1, 25
@@ -1857,7 +1921,7 @@ EQUS "SN76489 sound chip", 1, 150, 12
 ; Page 2
 ;    |--------------------|
 EQUS "Sorry we are a year", 13
-EQUS "late to the STNICC", 13
+EQUS "late to the STNICCC", 13
 EQUS "patarty", 1, 25
 EQUS 8, 8, 8, 8, 8, "rty.", 1, 50
 EQUS 13, 13
@@ -1865,6 +1929,16 @@ EQUS "Squeezing a 16-bit", 13
 EQUS "1 Mb demo into", 13
 EQUS "8-bits and 48K took", 13
 EQUS "us some time...", 1, 50
+EQUS "!", 1, 50, 12
+
+; Page 2
+;    |--------------------|
+EQUS "Original ST polygon", 13
+EQUS "stream data repacked"
+EQUS "with half the bits.", 1, 100, 13
+EQUS 13
+EQUS "2MHz 6502", 13
+EQUS 31,5,5,"vs 8MHz 68000", 1, 50
 EQUS "!", 1, 50, 12
 
 ; Page 3
@@ -1879,11 +1953,12 @@ EQUS 1, 100, 12
 ; Page 4
 ;    |--------------------|
 EQUS "MUSIC", 1, 50, 13, 13
-EQUS "All music composed"
-EQUS 31,1,3,"by Rhino / Torment", 1, 50
+EQUS "All music composed",13
+EQUS "in Arkos Tracker 2",13
+EQUS "by Rhino / Torment", 1, 75
 EQUS 13, 13
-EQUS "Checknobank by"
-EQUS 31,3,6,"Laxity / Kefrens"
+EQUS "Checknobankh by"
+EQUS 31,2,7,"Laxity / Kefrens"
 EQUS 1, 100, 12
 
 ; Page 5
@@ -1893,7 +1968,7 @@ EQUS "Matt Godbolt.....RTW"
 EQUS "scarybeasts....StewB"
 EQUS "The Master....Tricky"
 EQUS "0xC0DE....VectorEyes"
-EQUS "...................."
+EQUS "HEx.....HorsenBurger"
 EQUS 1, 100, 12
 
 ; Page 6
@@ -1922,7 +1997,7 @@ EQUS "Oxygene", 1, 25, 13
 EQUS ">", 1, 25
 EQUS "Polarity", 1, 25, 13
 EQUS ">", 1, 25
-EQUS "Rift", 1, 25, 13
+EQUS "RiFT", 1, 25, 13
 EQUS ">", 1, 25
 EQUS "Slipstream", 1, 25, 13
 EQUS ">", 1, 25
@@ -1934,17 +2009,17 @@ EQUS 12
 ; Page 8
 ; BASIC
 ;    |--------------------|
-EQUS 1,255
+EQUS 1, 100
 EQUS "BASIC", 13, 13
-EQUS ">", 1, 100
+EQUS ">", 1, 75
 EQUS "10 CLS", 13
 EQUS ">", 1, 25
-EQUS "20 PRINT ", '"', "THANKS FOR WATCHING!", 13
+EQUS "20 PRINT ", '"', "THANKS FOR WATCHING!", '"', 13
 EQUS ">", 1, 25
 EQUS "30 GOTO 20", 13
 EQUS ">", 1, 50
 EQUS "RUN", 13
-EQUS 1, 100, 12
+EQUS 1, 50, 12
 
 ; Page 9
 ; BASIC
@@ -1957,19 +2032,19 @@ EQUS "THANKS FOR WATCHING!"
 EQUS "THANKS FOR WATCHING!"
 EQUS "THANKS FOR WATCHING!"
 EQUS "THANKS FOR WATCHING"
-EQUS 1, 255, 12
+EQUS 1, 50, 12
 
 ; Page 10
 ; Bitshifters Flux
 ;    |--------------------|
-EQUS 1, 100
-EQUS 31,10,0,128,128,128,1,50
-EQUS 31,10,1,128,128,128,1,50
+EQUS 1, 50
+EQUS 31,7,0,32,32,32,128,128,128,1,50
+EQUS 31,7,1,32,32,32,128,128,128,1,50
 EQUS 31,7,2,128,128,128,128,128,128,1,50
 EQUS 31,7,3,128,128,128,128,128,128,1,50
 EQUS 31,7,4,128,128,128,128,128,128,1,50
-EQUS 31,7,5,128,128,128,1,50
-EQUS 31,7,6,128,128,128
+EQUS 31,7,5,128,128,128,32,32,32,1,50
+EQUS 31,7,6,128,128,128,32,32,32
 EQUS 31,19,7
 EQUS 1, 255, 1, 255, 12
 

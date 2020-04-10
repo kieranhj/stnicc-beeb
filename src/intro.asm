@@ -276,14 +276,7 @@ GUARD screen_addr
 
     .loop
 
-    {
-        lda last_vsync
-        .vsync1
-        cmp vsync_count
-        beq vsync1
-        lda vsync_count
-        sta last_vsync
-    }
+    jsr wait_for_vsync
 
     SET_BGCOL PAL_red
     jsr lerp_glixels
@@ -343,9 +336,9 @@ ENDIF
     jmp loop
 
     .load_next_part
-    \\ Show BBC specs
     ldx #100:jsr wait_frames    ; 2s
 
+IF 0
     \\ White out!
     ldx #LO(whiteout_palette)
     ldy #HI(whiteout_palette)
@@ -355,10 +348,7 @@ ENDIF
     {
         ldx #0
         .loop
-        lda screen_row_LO, X:sta writeptr
-        lda screen_row_HI, X:sta writeptr+1
-        lda #&ff
-        jsr write_line_writeptr
+        lda #&ff:jsr plot_line_X
         inx
         bne loop
     }
@@ -380,28 +370,44 @@ ENDIF
         ldx #1:jsr wait_frames  ; speed
 
         ldx count
-        lda screen_row_LO, X:sta writeptr
-        lda screen_row_HI, X:sta writeptr+1
-        lda #0
-        jsr write_line_writeptr
+        lda #0:jsr plot_line_X
 
         sec
         lda #255
         sbc count
         tax
-        lda screen_row_LO, X:sta writeptr
-        lda screen_row_HI, X:sta writeptr+1
-        lda #0
-        jsr write_line_writeptr
+        lda #0:jsr plot_line_X
 
         ldx count
         inx
         cpx #48
         bne loop
     }
+ELSE
+    \\ Wipe to black
+    {
+        ldx #255
+        .loop
+        stx count
+
+        jsr wait_for_vsync
+
+        ldx count
+        lda #0:jsr plot_line_X
+        dex
+        lda #0:jsr plot_line_X
+        dex
+        lda #0:jsr plot_line_X
+        dex
+        lda #0:jsr plot_line_X
+
+        cpx #0
+        bne loop
+    }
+ENDIF
 
     \\ Wait a beat
-    ldx #25:jsr wait_frames    ; 0.5s
+    ldx #75:jsr wait_frames    ; 0.5s
 
     \\ Will be ~row 35 here - set for next cycle
     lda #6:sta &fe00        ; vertical displayed
@@ -417,8 +423,8 @@ ENDIF
     lda #20:sta &fe01
 
     \\ White out!
-    ldx #LO(whiteout_palette)
-    ldy #HI(whiteout_palette)
+    ldx #LO(blackout_palette)
+    ldy #HI(blackout_palette)
     jsr set_palette
 
     \\ Display last part of screen RAM
@@ -435,7 +441,15 @@ ENDIF
     ldy #HI(screen_exo)
     jsr decrunch
 
-    jsr wait_for_vsync
+    {
+        ldy #0
+        .fade_loop
+        ldx #8
+        jsr wait_frames
+        jsr set_pal_fade
+        cpy #4*7
+        bne fade_loop
+    }
 
     \\ Set palette
     ldx #LO(logo_palette)
@@ -443,7 +457,7 @@ ENDIF
     jsr set_palette
 
     \\ Pause for dramatic effect
-    ldx #100:jsr wait_frames    ; 2s
+    ldx #150:jsr wait_frames
 
     SEI
     LDA old_irqv:STA IRQ1V
@@ -489,12 +503,23 @@ ENDIF
 
 .wait_for_vsync
 {
+    lda last_vsync
+    .vsync1
+    cmp vsync_count
+    beq vsync1
+    lda vsync_count
+    sta last_vsync
+    rts
+}
+IF 0
+{
 	lda #2
 	.vsync1
 	bit &FE4D
 	beq vsync1
 	rts
 }
+ENDIF
 
 .wait_frames
 {
@@ -519,6 +544,25 @@ ENDIF
     bpl loop
 
     rts
+}
+
+.set_pal_fade
+{
+    lda #4
+    sta fade_count
+    .loop
+    lda colour1_fade, y
+    sta &fe21
+    lda colour2_fade, y
+    sta &fe21
+    lda colour3_fade, y
+    sta &fe21
+    iny
+    dec fade_count
+    bne loop
+    rts
+    .fade_count
+    EQUB 0
 }
 
 .get_char_def
@@ -968,6 +1012,15 @@ ENDMACRO
     rts
 }
 
+.plot_line_X
+{
+    pha
+    lda screen_row_LO, X:sta writeptr
+    lda screen_row_HI, X:sta writeptr+1
+    pla
+    jmp write_line_writeptr
+}
+
 .def_char
 {
     stx loop+1
@@ -993,11 +1046,19 @@ EQUS 31,20,24,"*NOT*"
 EQUS 31,8,32, "A FALCON"
 EQUS 31,24,40,"DEMO"
 EQUS 12 ; cls
+IF 0
 EQUS 31,4,8,  "BBC MICRO"
 EQUS 31,4,16, "2MHz 6502"
 EQUS 31,12,24,"48K RAM"
 EQUS 31,4,32, "5",128+'%'," FLOPPY"
 EQUS 31,36,48,128+'$'
+ELSE
+EQUS 31,4,8,  "THIS IS A"
+EQUS 31,20,20,"*BBC*"
+EQUS 31,20,28,"MICRO"
+EQUS 31,12,40,"DEMO AT"
+EQUS 31,8,48, "REVISION"
+ENDIF
 EQUS 12 ; cls
 EQUS 0
 
@@ -1098,6 +1159,26 @@ FOR c,0,79,1
 EQUB HI(c * 8)
 NEXT
 
+.blackout_palette
+{
+	EQUB &00 + PAL_black
+	EQUB &10 + PAL_black
+	EQUB &20 + PAL_black
+	EQUB &30 + PAL_black
+	EQUB &40 + PAL_black
+	EQUB &50 + PAL_black
+	EQUB &60 + PAL_black
+	EQUB &70 + PAL_black
+	EQUB &80 + PAL_black
+	EQUB &90 + PAL_black
+	EQUB &A0 + PAL_black
+	EQUB &B0 + PAL_black
+	EQUB &C0 + PAL_black
+	EQUB &D0 + PAL_black
+	EQUB &E0 + PAL_black
+	EQUB &F0 + PAL_black
+}
+
 .whiteout_palette
 {
 	EQUB &00 + PAL_white
@@ -1156,6 +1237,52 @@ NEXT
 	EQUB &D0 + PAL_yellow
 	EQUB &E0 + PAL_cyan
 	EQUB &F0 + PAL_cyan
+}
+
+; Brightness
+; PAL_black, PAL_blue, PAL_red, PAL_green
+; PAL_magenta, PAL_cyan, PAL_yellow, PAL_white
+
+MACRO COLOUR1 c
+EQUB &20+c, &30+c, &60+c, &70+c
+ENDMACRO
+MACRO COLOUR2 c
+EQUB &80+c, &90+c, &C0+c, &D0+c
+ENDMACRO
+MACRO COLOUR3 c
+EQUB &A0+c, &B0+c, &E0+c, &F0+c
+ENDMACRO
+
+.colour1_fade
+{
+    COLOUR1 PAL_black
+    COLOUR1 PAL_black
+    COLOUR1 PAL_black
+    COLOUR1 PAL_blue
+    COLOUR1 PAL_blue
+    COLOUR1 PAL_blue
+    COLOUR1 PAL_blue
+}
+
+.colour2_fade
+{
+    COLOUR2 PAL_black
+    COLOUR2 PAL_blue
+    COLOUR2 PAL_blue
+    COLOUR2 PAL_cyan
+    COLOUR2 PAL_cyan
+    COLOUR2 PAL_yellow
+}
+
+.colour3_fade
+{
+    COLOUR3 PAL_black
+    COLOUR3 PAL_black
+    COLOUR3 PAL_black
+    COLOUR3 PAL_blue
+    COLOUR3 PAL_blue
+    COLOUR3 PAL_cyan
+    COLOUR3 PAL_cyan
 }
 
 .mode1_crtc_regs

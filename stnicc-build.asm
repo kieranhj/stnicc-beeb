@@ -4,35 +4,38 @@
 \ ******************************************************************
 
 _DEBUG = FALSE   ; if you change me check the same in stnicc-beeb.asm
-LOAD_ADDRESS = &1100
-EXEC_ADDRESS = &1100
+LOAD_ADDRESS = &FF1100
+EXEC_ADDRESS = &FF1100
 
 \\ NEED A BETTER WAY OF DOING THIS!
 IF _DEBUG
-INTRO_SIZE = &1A00
+INTRO_SIZE = &1B00
 EXE_SIZE = &2700
 NULA_SIZE = &2400
 OUTRO_SIZE = &1100
-MUSIC_SIZE = &2300
+MUSIC_SIZE = &2B00
+README_SIZE = &400
 ELSE
-INTRO_SIZE = &1A00
+INTRO_SIZE = &1B00
 EXE_SIZE = &2700
 NULA_SIZE = &2200
 OUTRO_SIZE = &1100
-MUSIC_SIZE = &2300
+MUSIC_SIZE = &2B00
+README_SIZE = &400
 ENDIF
 
 \ ******************************************************************
 \ *	EXES
 \ ******************************************************************
 
-PUTFILE "build/INTRO", "INTRO", LOAD_ADDRESS, EXEC_ADDRESS
+PUTFILE "build/INTRO", "!BOOT", LOAD_ADDRESS, EXEC_ADDRESS
 PUTFILE "build/MUSIC", "MUSIC", &8000, &8000
 PUTFILE "build/LOW", "LOW", LOAD_ADDRESS, EXEC_ADDRESS
 ;PUTFILE "build/HIGH", "HIGH", LOAD_ADDRESS, EXEC_ADDRESS
 ;PUTFILE "build/MEDIUM", "MEDIUM", LOAD_ADDRESS, EXEC_ADDRESS
-PUTFILE "build/NULA", "NULA", LOAD_ADDRESS, EXEC_ADDRESS
+;PUTFILE "build/NULA", "NULA", LOAD_ADDRESS, EXEC_ADDRESS
 PUTFILE "build/OUTRO", "OUTRO", LOAD_ADDRESS, EXEC_ADDRESS
+PUTFILE "data/readme.txt", "README", 0, 0
 
 \ ******************************************************************
 \ *	DISC LAYOUT
@@ -44,11 +47,11 @@ DFS_track_size = (DFS_sectors_per_track * DFS_sector_size)
 
 DISK1_first_track = 30      ; 50 tracks on first disc
 
-exe_size = EXE_SIZE + NULA_SIZE + INTRO_SIZE + OUTRO_SIZE + MUSIC_SIZE
+exe_size = EXE_SIZE + INTRO_SIZE + OUTRO_SIZE + MUSIC_SIZE + README_SIZE
 PRINT "EXE size = ",~exe_size
 ; We know that Catalog + !Boot = &300
 ; Need to make a dummy file so 00 is at sector 20=track 2
-dummy_size = (DISK1_first_track * DFS_track_size) - exe_size - &300
+dummy_size = (DISK1_first_track * DFS_track_size) - exe_size - &200
 
 PRINT ~exe_size
 PRINT ~dummy_size
