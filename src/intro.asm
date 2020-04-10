@@ -336,7 +336,6 @@ ENDIF
     jmp loop
 
     .load_next_part
-    \\ Show BBC specs
     ldx #100:jsr wait_frames    ; 2s
 
 IF 0
@@ -408,7 +407,7 @@ ELSE
 ENDIF
 
     \\ Wait a beat
-    ldx #25:jsr wait_frames    ; 0.5s
+    ldx #75:jsr wait_frames    ; 0.5s
 
     \\ Will be ~row 35 here - set for next cycle
     lda #6:sta &fe00        ; vertical displayed

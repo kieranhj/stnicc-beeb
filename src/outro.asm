@@ -126,6 +126,7 @@ TEXT_BOX_COLS = 20
 TEXT_BOX_ROWS = 8
 CURSOR_SPEED = 25
 CURSOR_CODE = 128
+QUARTER_CODE = 129
 
 WIREFRAME_CORNER_X = 96		; centred
 WIREFRAME_CORNER_Y = 1
@@ -360,17 +361,18 @@ GUARD screen3_addr
     \\ Init system
     lda #HI(screen1_addr)
     sta draw_buffer_HI
-
+IF 0
 	\\ Init text system
 	lda #CURSOR_CODE
 	ldx #LO(cursor_char_def)
 	ldy #HI(cursor_char_def)
 	jsr def_char
 
-    lda #128+'%'
+    lda #QUARTER_CODE
     ldx #LO(quarter_def)
     ldy #HI(quarter_def)
     jsr def_char
+ENDIF
 
 	ldx #0:ldy #0:jsr set_cursor_XY
 	lda #CURSOR_SPEED:sta cursor_timer
@@ -1261,10 +1263,27 @@ INCLUDE "src/screen4.asm"
 .get_char_def
 {
     sta char_def
+	bmi local_char_def
+
     lda #10
     ldx #LO(char_def)
     ldy #HI(char_def)
     jmp osword
+
+	.local_char_def
+	sec
+	sbc #128
+	asl a:asl a:asl a
+	tax
+	ldy #0
+	.loop
+	lda local_char_defs, X
+	sta char_def+1, Y
+	inx
+	iny
+	cpy #8
+	bne loop
+	rts
 }
 
 .plot_glyph_at_ptr
@@ -1776,11 +1795,23 @@ b3 = (b AND 8) >> 3
 EQUB b3 * &C0 + b2 * &30 + b1 * &0C + b0 * &03
 NEXT
 
+.local_char_defs
+{
 .cursor_char_def
 ;EQUB &7F, &7F, &7F, &7F
 ;EQUB &7F, &7F, &7F, &00
 EQUB &FF, &FF, &FF, &FF
 EQUB &FF, &FF, &FF, &FF
+
+.quarter_def
+EQUB %00100000
+EQUB %00100110
+EQUB %00101100
+EQUB %00011000
+EQUB %00110101
+EQUB %01100111
+EQUB %00000001
+EQUB %00000000
 
 .flux_def
 EQUB %00001110
@@ -1801,16 +1832,7 @@ EQUB %10111010
 EQUB %10111010
 EQUB %11000110
 EQUB %01111100
-
-.quarter_def
-EQUB %00100000
-EQUB %00100110
-EQUB %00101100
-EQUB %00011000
-EQUB %00110101
-EQUB %01100111
-EQUB %00000001
-EQUB %00000000
+}
 
 .block_mode4_data
 EQUB &3F, &3F, &3F, &3F, &3F, &3F, &3F, &3F
@@ -1888,7 +1910,7 @@ EQUS "2MHz 6502 CPU", 1, 50, 13
 EQUS ">", 1, 25
 EQUS "32K RAM + 16K SWRAM"
 EQUS ">", 1, 50
-EQUS "5", 128+'%', '"'," floppy", 1, 50, 13
+EQUS "5", QUARTER_CODE, '"'," floppy", 1, 50, 13
 EQUS ">", 1, 25
 EQUS "No VIC, no Blitter", 1, 50, 13
 EQUS ">", 1, 25
