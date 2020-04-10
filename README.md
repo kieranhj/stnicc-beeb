@@ -1,2 +1,2 @@
 # stnicc-beeb
- Port of ST-NICC for the BBC Micro.
+ Recreation of STNICCC-2000 demo for the BBC Micro.
