@@ -1921,7 +1921,7 @@ EQUS "SN76489 sound chip", 1, 150, 12
 ; Page 2
 ;    |--------------------|
 EQUS "Sorry we are a year", 13
-EQUS "late to the STNICC", 13
+EQUS "late to the STNICCC", 13
 EQUS "patarty", 1, 25
 EQUS 8, 8, 8, 8, 8, "rty.", 1, 50
 EQUS 13, 13
@@ -1953,11 +1953,12 @@ EQUS 1, 100, 12
 ; Page 4
 ;    |--------------------|
 EQUS "MUSIC", 1, 50, 13, 13
-EQUS "All music composed"
-EQUS 31,1,3,"by Rhino / Torment", 1, 75
+EQUS "All music composed",13
+EQUS "in Arkos Tracker 2",13
+EQUS "by Rhino / Torment", 1, 75
 EQUS 13, 13
 EQUS "Checknobankh by"
-EQUS 31,3,6,"Laxity / Kefrens"
+EQUS 31,2,7,"Laxity / Kefrens"
 EQUS 1, 100, 12
 
 ; Page 5
@@ -2018,7 +2019,7 @@ EQUS ">", 1, 25
 EQUS "30 GOTO 20", 13
 EQUS ">", 1, 50
 EQUS "RUN", 13
-EQUS 1, 100, 12
+EQUS 1, 50, 12
 
 ; Page 9
 ; BASIC
@@ -2031,7 +2032,7 @@ EQUS "THANKS FOR WATCHING!"
 EQUS "THANKS FOR WATCHING!"
 EQUS "THANKS FOR WATCHING!"
 EQUS "THANKS FOR WATCHING"
-EQUS 1, 100, 12
+EQUS 1, 50, 12
 
 ; Page 10
 ; Bitshifters Flux
