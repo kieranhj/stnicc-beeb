@@ -1859,7 +1859,7 @@ EQUB &3F, &3F, &3F, &3F, &3F, &3F, &00, &00
 EQUB &FF, &FF, &FF, &FF, &FF, &FF, &00, &00
 
 .next_part_cmd
-EQUS "/!BOOT", 13
+EQUS "/INTRO", 13
 
 .data_end
 
