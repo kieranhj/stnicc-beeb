@@ -16,7 +16,6 @@ _STOP_AT_FRAME = -1
 ; Debug defines
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
-_ENABLE_MUSIC = TRUE
 
 ; Rendering defines
 _HALF_VERTICAL_RES = (_QUALITY < 2)
@@ -174,8 +173,10 @@ TimerValue = (12)*64 - 2*64
 \ *	ZERO PAGE
 \ ******************************************************************
 
+zp_top = MUSIC_SLOT_ZP
+
 ORG &00
-GUARD &80
+GUARD zp_top
 
 .zp_start
 .STREAM_ptr_LO      skip 1
@@ -332,7 +333,7 @@ GUARD screen2_addr
     .zp_loop
     sta &00, x
     inx
-    cpx #&A0
+    cpx #zp_top
     bne zp_loop
 
 	\\ Relocate data to lower RAM
@@ -388,8 +389,13 @@ endif
     jsr init_span_buffer
 
 	\\ Init music
-	SWRAM_SELECT 4
-	jsr MUSIC_JUMP_INIT_MAIN
+	{
+		lda MUSIC_SLOT_ZP
+		bmi no_music
+		sta &f4:sta &fe30
+		jsr MUSIC_JUMP_INIT_MAIN
+		.no_music
+	}
 
 	\\ Setup video
 	jsr hide_screen
@@ -470,7 +476,13 @@ endif
 	CLI										; enable interupts
 
 	\\ GO!
-	inc music_enabled
+	{
+		lda MUSIC_SLOT_ZP
+		bmi no_music
+		inc music_enabled
+		.no_music
+	}
+
 	jsr show_screen
 
     .loop
@@ -534,8 +546,13 @@ endif
     LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
 	CLI
 
-	SWRAM_SELECT 4
-	jsr MUSIC_JUMP_SN_RESET
+	{
+		lda MUSIC_SLOT_ZP
+		bmi no_music
+		sta &f4:sta &fe30
+		jsr MUSIC_JUMP_SN_RESET
+		.no_music
+	}
 
 	\\ Exit gracefully (in theory)
     \\ Load next part
@@ -755,7 +772,6 @@ ENDIF
     INC vsync_counter+1
     .no_carry
 
-	IF _ENABLE_MUSIC
     lda music_enabled
     beq return_to_os
 
@@ -764,13 +780,13 @@ ENDIF
 
 	inc music_lock
 	lda &f4:pha
-    SWRAM_SELECT 4
+    lda MUSIC_SLOT_ZP
+	sta &f4:sta &fe30
     txa:pha:tya:pha
     jsr MUSIC_JUMP_VGM_UPDATE
     pla:tay:pla:tax
 	pla:sta &f4:sta &fe30
 	dec music_lock
-	ENDIF
 
 	JMP return_to_os
 

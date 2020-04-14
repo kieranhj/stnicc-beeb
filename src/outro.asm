@@ -178,8 +178,10 @@ Timer2Period = (48)*64
 \ *	ZERO PAGE
 \ ******************************************************************
 
+zp_top = MUSIC_SLOT_ZP
+
 ORG &00
-GUARD &A0
+GUARD zp_top
 
 .zp_start
 .STREAM_ptr_LO      skip 1
@@ -306,7 +308,7 @@ GUARD screen3_addr
     .zp_loop
     sta &00, x
     inx
-    cpx #&A0
+    cpx #zp_top
     bne zp_loop
 
 	SEI
@@ -380,8 +382,13 @@ ENDIF
 	stx text_ptr:sty text_ptr+1
 
 	\\ Init music
-	SWRAM_SELECT 4
-	jsr MUSIC_JUMP_INIT_OUTRO
+	{
+		lda MUSIC_SLOT_ZP
+		bmi no_music
+		sta &f4:sta &fe30
+		jsr MUSIC_JUMP_INIT_OUTRO
+		.no_music
+	}
 
 	\\ Setup video
 	jsr wait_for_vsync
@@ -439,7 +446,13 @@ ENDIF
 	jsr wait_for_vsync
 
 	\\ GO!
-	inc music_enabled
+	{
+		lda MUSIC_SLOT_ZP
+		bmi no_music
+		inc music_enabled
+		.no_music
+	}
+
 	lda #8:sta &fe00:lda #&c0:sta &fe01		; show the screen!
 
     .loop
@@ -503,8 +516,13 @@ ENDIF
     LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
 	CLI
 
-	SWRAM_SELECT 4
-	jsr MUSIC_JUMP_SN_RESET
+	{
+		lda MUSIC_SLOT_ZP
+		bmi no_music
+		sta &f4:sta &fe30
+		jsr MUSIC_JUMP_SN_RESET
+		.no_music
+	}
 
 	lda #8:sta &fe00:lda #&f0:sta &fe01		; hide screen
 
@@ -744,7 +762,6 @@ ENDIF
 	jmp swap_frame_buffers
 	.^return_here_from_swap_frame_buffers
 
-	IF _ENABLE_MUSIC
     lda music_enabled
     beq no_music
 
@@ -753,14 +770,14 @@ ENDIF
 
 	inc music_lock
 	lda &f4:pha
-    SWRAM_SELECT 4
+	lda MUSIC_SLOT_ZP
+	sta &f4:sta &fe30
     txa:pha:tya:pha
     jsr MUSIC_JUMP_VGM_UPDATE
     pla:tay:pla:tax
 	pla:sta &f4:sta &fe30
 	dec music_lock
 	.no_music
-	ENDIF
 
 	JMP return_to_os
 

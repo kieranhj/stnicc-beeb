@@ -98,6 +98,8 @@ LERP_FRAMES = 64
 \ *	ZERO PAGE
 \ ******************************************************************
 
+zp_top=MUSIC_SLOT_ZP
+
 ORG &00
 GUARD &17
 
@@ -131,7 +133,7 @@ GUARD &17
 .next_slot      skip 1
 
 ORG &30
-GUARD &70
+GUARD zp_top
 
 .vsync_count    skip 1
 .last_vsync     skip 1
@@ -170,8 +172,11 @@ GUARD screen_addr
     .zp_loop
     sta &00, x
     inx
-    cpx #&A0
+    cpx #zp_top
     bne zp_loop
+
+    \\ HARD-CODE SWRAM SLOT #4 - TO BE REMOVED!
+    lda #4:sta MUSIC_SLOT_ZP
 
 	\\ Set interrupts and handler
 	SEI							; disable interupts
@@ -188,15 +193,20 @@ GUARD screen_addr
     LDA #HI(irq_handler):STA IRQ1V+1		; set interrupt handler
     CLI
 
-    \\ DO SWRAM LOAD HERE
-    SWRAM_SELECT 4
-    ldx #LO(music_filename)
-    ldy #HI(music_filename)
-    lda #HI(&8000)
-    jsr disksys_load_file
-
-    SWRAM_SELECT 4
-    jsr MUSIC_JUMP_INIT_INTRO
+    \\ Load music into SWRAM (if available)
+    {
+        lda MUSIC_SLOT_ZP
+        bmi no_music
+        sta &f4:sta &fe30
+        ldx #LO(music_filename)
+        ldy #HI(music_filename)
+        lda #HI(&8000)
+        jsr disksys_load_file
+        
+        \\ Initialise music
+        jsr MUSIC_JUMP_INIT_INTRO
+        .no_music
+    }
 
     \\ Set MODE 1 w/out using OS.
 
@@ -268,7 +278,12 @@ GUARD screen_addr
     sta cls_active
 
     \\ Start music player
-    inc music_enabled
+    {
+        lda MUSIC_SLOT_ZP
+        bmi no_music
+        inc music_enabled
+        .no_music
+    }
 
     jsr wait_for_vsync
 
@@ -462,8 +477,14 @@ ENDIF
     SEI
     LDA old_irqv:STA IRQ1V
     LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
-    jsr MUSIC_JUMP_SN_RESET
     CLI
+
+    {
+        lda MUSIC_SLOT_ZP
+        bmi no_music
+        jsr MUSIC_JUMP_SN_RESET
+        .no_music
+    }
 
     \\ Load next part
     ldx #LO(next_part_cmd)
