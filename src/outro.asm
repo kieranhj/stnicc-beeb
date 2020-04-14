@@ -1928,7 +1928,7 @@ EQUS "2MHz 6502 CPU", 1, 50, 13
 EQUS ">", 1, 25
 EQUS "32K RAM + 16K SWRAM"
 EQUS ">", 1, 50
-EQUS "5", QUARTER_CODE, '"'," floppy", 1, 50, 13
+EQUS "5", QUARTER_CODE, '"'," 400K floppy", 1, 50, 13
 EQUS ">", 1, 25
 EQUS "No VIC, no Blitter", 1, 50, 13
 EQUS ">", 1, 25
@@ -1953,10 +1953,11 @@ EQUS "!", 1, 50, 12
 ;    |--------------------|
 EQUS "Original ST polygon", 13
 EQUS "stream data repacked"
-EQUS "with half the bits.", 1, 100, 13
+EQUS "with half the bits.", 13
+EQUS ">> 320K vs 625K <<", 1, 100, 13
 EQUS 13
 EQUS "2MHz 6502", 13
-EQUS 31,5,5,"vs 8MHz 68000", 1, 50
+EQUS 31,5,6,"vs 8MHz 68000", 1, 50
 EQUS "!", 1, 50, 12
 
 ; Page 3
