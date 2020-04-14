@@ -384,15 +384,15 @@ ENDIF
 	jsr MUSIC_JUMP_INIT_OUTRO
 
 	\\ Setup video
-	lda #8:sta &fe00:lda #&f0:sta &fe01		; hide screen
+	jsr wait_for_vsync
+
+	\\ Set CRTC to MODE 4
+	jsr reset_crtc_regs
 
 	\\ Set ULA to MODE 4
 	lda #ULA_Mode4
 	sta &248			; OS copy
 	sta &fe20
-
-	\\ Set CRTC to MODE 4
-	jsr reset_crtc_regs
 
 	\\ Set palette
 	ldx #15
@@ -435,6 +435,7 @@ ENDIF
 	CLI							; enable interupts
 
 	\\ Need one frame to settle rupture
+	jsr wait_for_vsync
 	jsr wait_for_vsync
 
 	\\ GO!
@@ -493,9 +494,9 @@ ENDIF
 		bne loop
 	}
 
-	\\ Re-enable useful interupts
+	\\ Disable interrupts but replace old handler
 	SEI
-	LDA #&D3					; A=11010011
+	LDA #&7F					; A=11010011
 	STA &FE4E					; R14=Interrupt Enable
 
     LDA old_irqv:STA IRQ1V
@@ -751,7 +752,7 @@ ENDIF
 	bne no_music
 
 	inc music_lock
-	lda &fe30:pha
+	lda &f4:pha
     SWRAM_SELECT 4
     txa:pha:tya:pha
     jsr MUSIC_JUMP_VGM_UPDATE
@@ -1841,7 +1842,7 @@ EQUB &3F, &3F, &3F, &3F, &3F, &3F, &00, &00
 EQUB &FF, &FF, &FF, &FF, &FF, &FF, &00, &00
 
 .next_part_cmd
-EQUS "/INTRO", 13
+EQUS "/!BOOT", 13
 
 .data_end
 

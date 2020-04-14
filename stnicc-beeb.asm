@@ -522,12 +522,7 @@ endif
 	ldx #10:jsr wait_X_frames
 	jsr hide_screen
 
-	\\ Turn off Timer 1
-	SEI
-	LDA #&40
-	STA &FE4E					; R14=Interrupt Enable
-	CLI
-
+	inc decode_lock				; stop decoder from running
 	jsr show_final_screen
 
 	\\ Turn off all interrupts
@@ -768,7 +763,7 @@ ENDIF
 	bne return_to_os
 
 	inc music_lock
-	lda &fe30:pha
+	lda &f4:pha
     SWRAM_SELECT 4
     txa:pha:tya:pha
     jsr MUSIC_JUMP_VGM_UPDATE
