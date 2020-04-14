@@ -175,9 +175,6 @@ GUARD screen_addr
     cpx #zp_top
     bne zp_loop
 
-    \\ HARD-CODE SWRAM SLOT #4 - TO BE REMOVED!
-    lda #4:sta MUSIC_SLOT_ZP
-
 	\\ Set interrupts and handler
 	SEI							; disable interupts
 	LDA #&7F					; A=01111111

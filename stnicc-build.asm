@@ -8,27 +8,27 @@ LOAD_ADDRESS = &FF1100
 EXEC_ADDRESS = &FF1100
 
 \\ NEED A BETTER WAY OF DOING THIS!
-IF _DEBUG
 INTRO_SIZE = &1B00
+OUTRO_SIZE = &1100
+MUSIC_SIZE = &2B00
+README_SIZE = &400
+LOADER_SIZE = &B00
+
+IF _DEBUG
 EXE_SIZE = &2700
 NULA_SIZE = &2400
-OUTRO_SIZE = &1100
-MUSIC_SIZE = &2B00
-README_SIZE = &400
 ELSE
-INTRO_SIZE = &1B00
 EXE_SIZE = &2700
 NULA_SIZE = &2200
-OUTRO_SIZE = &1100
-MUSIC_SIZE = &2B00
-README_SIZE = &400
 ENDIF
 
 \ ******************************************************************
 \ *	EXES
 \ ******************************************************************
 
-PUTFILE "build/INTRO", "!BOOT", LOAD_ADDRESS, EXEC_ADDRESS
+PUTFILE "data/boot.bin", "!BOOT", &FFFFFF, 0
+PUTBASIC "src/loader.bas", "LOADER"
+PUTFILE "build/INTRO", "INTRO", LOAD_ADDRESS, EXEC_ADDRESS
 PUTFILE "build/MUSIC", "MUSIC", &8000, &8000
 PUTFILE "build/LOW", "LOW", LOAD_ADDRESS, EXEC_ADDRESS
 ;PUTFILE "build/HIGH", "HIGH", LOAD_ADDRESS, EXEC_ADDRESS
@@ -47,11 +47,11 @@ DFS_track_size = (DFS_sectors_per_track * DFS_sector_size)
 
 DISK1_first_track = 30      ; 50 tracks on first disc
 
-exe_size = EXE_SIZE + INTRO_SIZE + OUTRO_SIZE + NULA_SIZE + MUSIC_SIZE + README_SIZE
+exe_size = EXE_SIZE + INTRO_SIZE + OUTRO_SIZE + NULA_SIZE + MUSIC_SIZE + README_SIZE + LOADER_SIZE
 PRINT "EXE size = ",~exe_size
 ; We know that Catalog + !Boot = &300
 ; Need to make a dummy file so 00 is at sector 20=track 2
-dummy_size = (DISK1_first_track * DFS_track_size) - exe_size - &200
+dummy_size = (DISK1_first_track * DFS_track_size) - exe_size - &300
 
 PRINT ~exe_size
 PRINT ~dummy_size
