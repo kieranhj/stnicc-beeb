@@ -32,8 +32,8 @@ BUILD:=./build
 build: $(BUILD)/logo_mode1.exo $(BUILD)/intro_theme.vgc $(BUILD)/main_theme.vgc $(BUILD)/outro_theme.vgc
 	$(SHELLCMD) mkdir $(BUILD)
 
-	$(BEEBASM) -D _QUALITY=2 -D _NULA=0 -i stnicc-beeb.asm -v > $(BUILD)/high.txt
-	$(BEEBASM) -D _QUALITY=1 -D _NULA=0 -i stnicc-beeb.asm -v > $(BUILD)/medium.txt
+#	$(BEEBASM) -D _QUALITY=2 -D _NULA=0 -i stnicc-beeb.asm -v > $(BUILD)/high.txt
+#	$(BEEBASM) -D _QUALITY=1 -D _NULA=0 -i stnicc-beeb.asm -v > $(BUILD)/medium.txt
 	$(BEEBASM) -D _QUALITY=0 -D _NULA=0 -i stnicc-beeb.asm -v > $(BUILD)/low.txt
 	$(BEEBASM) -D _QUALITY=2 -D _NULA=-1 -i stnicc-beeb.asm -v > $(BUILD)/nula.txt
 
@@ -41,20 +41,20 @@ build: $(BUILD)/logo_mode1.exo $(BUILD)/intro_theme.vgc $(BUILD)/main_theme.vgc 
 	$(BEEBASM) -i src/outro.asm -v > $(BUILD)/intro.txt
 	$(BEEBASM) -i src/music.asm -v > $(BUILD)/intro.txt
 
-	$(BEEBASM) -i stnicc-build.asm -do $(BUILD)/part-1.ssd -title STNICCC-1 -boot INTRO -v > compile.txt
+	$(BEEBASM) -i stnicc-build.asm -do $(BUILD)/part-1.ssd -title BEEB-NICCC-1 -opt 3 -v > compile.txt
 	$(BEEBASM) -i src/part-2.asm -title STNICCC-2 -do $(BUILD)/part-2.ssd
 
 	$(PYTHON) bin/dsd_create.py -o $(BUILD)/stnicc-A.dsd $(BUILD)/part-1.ssd $(BUILD)/part-2.ssd
 
-$(BUILD)/intro_theme.vgc : data/Twitching\ Flannels.vgm
+$(BUILD)/intro_theme.vgc : data/intro_test.vgm
 	$(SHELLCMD) mkdir $(BUILD)
 	$(VGMPACKER) -o "$@" "$<"
 
-$(BUILD)/main_theme.vgc : data/STNICCC_BBC_Rhino_06_combined.vgm
+$(BUILD)/main_theme.vgc : data/main_test.vgm
 	$(SHELLCMD) mkdir $(BUILD)
 	$(VGMPACKER) -o "$@" "$<"
 
-$(BUILD)/outro_theme.vgc : data/Torment\ 24h.vgm
+$(BUILD)/outro_theme.vgc : data/outro_test.vgm
 	$(SHELLCMD) mkdir $(BUILD)
 	$(VGMPACKER) -o "$@" "$<"
 
@@ -78,7 +78,7 @@ b2_test: URL:=http://localhost:48075
 b2_test: CONFIG?=Master 128 (MOS 3.20)
 b2_test:
 	curl -G '$(URL)/reset/b2' --data-urlencode "config=$(CONFIG)"
-	curl -H 'Content-Type:application/vnd.acorn.disc-image.dsd' --upload-file '$(BUILD)/stnicc-B.dsd' '$(URL)/mount/b2?drive=1'
+#	curl -H 'Content-Type:application/vnd.acorn.disc-image.dsd' --upload-file '$(BUILD)/stnicc-B.dsd' '$(URL)/mount/b2?drive=1'
 	curl -H 'Content-Type:application/vnd.acorn.disc-image.dsd' --upload-file '$(BUILD)/stnicc-A.dsd' '$(URL)/run/b2'
 
 ##########################################################################
@@ -106,7 +106,7 @@ tom_emacs:
 .PHONY:tom_beeblink
 tom_beeblink:
 	cp $(BUILD)/stnicc-A.dsd ~/beeb/beeb-files/stuff/ssds/0/d.stnicca
-	cp $(BUILD)/stnicc-B.dsd ~/beeb/beeb-files/stuff/ssds/0/d.stniccb
+#	cp $(BUILD)/stnicc-B.dsd ~/beeb/beeb-files/stuff/ssds/0/d.stniccb
 
 ##########################################################################
 ##########################################################################
