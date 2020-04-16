@@ -31,6 +31,7 @@ PRINT "_DOUBLE_BUFFER =",_DOUBLE_BUFFER
 PRINT "_PLOT_WIREFRAME =",_PLOT_WIREFRAME
 PRINT "------"
 
+include "src/zp.h.asm"
 include "src/music.h.asm"
 
 \ ******************************************************************
@@ -68,10 +69,6 @@ DFS_track_size = (DFS_sectors_per_track * DFS_sector_size)
 \ ******************************************************************
 \ *	MACROS
 \ ******************************************************************
-
-MACRO SWRAM_SELECT bank
-LDA #bank: sta &f4: sta &fe30
-ENDMACRO
 
 MACRO MODE4_PIXELS a,b,c,d
     EQUB (a AND 1) * &08 OR (b AND 1) * &04 OR (c AND 1) * &02 OR (d AND 1) * &01
@@ -177,8 +174,6 @@ Timer2Period = (48)*64
 \ ******************************************************************
 \ *	ZERO PAGE
 \ ******************************************************************
-
-zp_top = MUSIC_SLOT_ZP
 
 ORG &00
 GUARD zp_top

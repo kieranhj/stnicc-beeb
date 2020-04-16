@@ -5,12 +5,8 @@
 
 _DEBUG_RASTERS = FALSE
 
+INCLUDE "src/zp.h.asm"
 INCLUDE "src/music.h.asm"
-
-zp_top=$7e
-
-; 0 = ordinary version, other = NuLA version
-NULA_FLAG_ZP = $7e
 
 \ ******************************************************************
 \ *	OS defines

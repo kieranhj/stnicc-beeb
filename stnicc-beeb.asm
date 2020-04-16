@@ -40,6 +40,7 @@ PRINT "_DOUBLE_PLOT_Y =",_DOUBLE_PLOT_Y
 PRINT "_WIDESCREEN =",_WIDESCREEN
 PRINT "------"
 
+include "src/zp.h.asm"
 include "src/music.h.asm"
 
 \ ******************************************************************
@@ -172,8 +173,6 @@ TimerValue = (12)*64 - 2*64
 \ ******************************************************************
 \ *	ZERO PAGE
 \ ******************************************************************
-
-zp_top = MUSIC_SLOT_ZP
 
 ORG &00
 GUARD zp_top
