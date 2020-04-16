@@ -7,6 +7,11 @@ _DEBUG_RASTERS = FALSE
 
 INCLUDE "src/music.h.asm"
 
+zp_top=$7e
+
+; 0 = ordinary version, other = NuLA version
+NULA_FLAG_ZP = $7e
+
 \ ******************************************************************
 \ *	OS defines
 \ ******************************************************************
@@ -38,10 +43,6 @@ ULA_Mode1   = &D8
 \ ******************************************************************
 \ *	MACROS
 \ ******************************************************************
-
-MACRO SWRAM_SELECT bank
-LDA #bank: sta &f4: sta &fe30
-ENDMACRO
 
 MACRO MODE5_PIXELS a,b,c,d
     EQUB (a AND 2) * &40 OR (a AND 1) * &08 OR (b AND 2) * &20 OR (b AND 1) * &04 OR (c AND 2) * &10 OR (c AND 1) * &02 OR (d AND 2) * &08 OR (d AND 1) * &01
@@ -98,7 +99,6 @@ LERP_FRAMES = 64
 \ *	ZERO PAGE
 \ ******************************************************************
 
-zp_top=MUSIC_SLOT_ZP
 
 ORG &00
 GUARD &17
@@ -484,9 +484,17 @@ ENDIF
     }
 
     \\ Load next part
-    ldx #LO(next_part_cmd)
-    ldy #HI(next_part_cmd)
+	lda NULA_FLAG_ZP
+	bne nula_version
+	
+    ldx #LO(low_cmd)
+    ldy #HI(low_cmd)
     jmp oscli
+
+.nula_version
+	ldx #lo(nula_cmd)
+	ldy #hi(nula_cmd)
+	jmp oscli
 }
 
 .irq_handler
@@ -1143,8 +1151,11 @@ EQUB %01100111
 EQUB %00000001
 EQUB %00000000
 
-.next_part_cmd
+.low_cmd
 EQUS "/LOW", 13
+
+.nula_cmd
+EQUS "/NULA",13
 
 .music_filename
 EQUS "MUSIC", 13
