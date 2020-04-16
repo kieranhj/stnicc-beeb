@@ -17,6 +17,13 @@ CLOCK_ROW = 11
 	sta &248			; OS copy
 	sta &fe20
 
+if _NULA
+
+    lda #$40					; reset extended features to defaults
+	sta $fe22
+
+endif
+
 	ldx #LO(mode4_palette):stx pal_loop+1
 	ldy #HI(mode4_palette):sty pal_loop+2
 	jsr set_palette
