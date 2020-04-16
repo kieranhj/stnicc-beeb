@@ -5,7 +5,7 @@ MODE7
 ?&FE20=&10
 *FX19
 E%=FNTM(5)
-?&FE22=4
+?&FE22=&44
 *FX19
 G%=FNTM(5)
 NULA%=E%/G%>0.75
