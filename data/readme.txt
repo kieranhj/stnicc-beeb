@@ -20,7 +20,7 @@ Code by Henley
 Logo by Dethmunk
 
 All music composed by
-Rhino / Torrent
+Rhino / Torment
 Checknobankh tune by
 Laxity / Kefrens
 

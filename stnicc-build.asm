@@ -35,7 +35,7 @@ PUTFILE "build/LOW", "LOW", LOAD_ADDRESS, EXEC_ADDRESS
 ;PUTFILE "build/MEDIUM", "MEDIUM", LOAD_ADDRESS, EXEC_ADDRESS
 PUTFILE "build/NULA", "NULA", LOAD_ADDRESS, EXEC_ADDRESS
 PUTFILE "build/OUTRO", "OUTRO", LOAD_ADDRESS, EXEC_ADDRESS
-PUTFILE "data/readme.txt", "README", 0, 0
+PUTTEXT "data/readme.txt", "README", 0, 0
 
 \ ******************************************************************
 \ *	DISC LAYOUT
