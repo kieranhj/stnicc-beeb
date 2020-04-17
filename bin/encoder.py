@@ -133,8 +133,11 @@ class Palette:
         data.append(bitmask >> 8)
         data.append(bitmask & 0xff)
 
+        entries=sorted(self._entries,lambda a,b:cmp(a[0],b[0]))
+
         print "    Entries: {0}".format(len(self._entries))
-        for e in self._entries:
+        print "    Bitmask: 0x%04x"%bitmask
+        for e in entries:
             print "      {0} = {1}".format(e[0], e[1])
             word = rgb_to_colour_word(e[1])
             data.append(word >> 8)
