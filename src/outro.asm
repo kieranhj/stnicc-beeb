@@ -306,6 +306,17 @@ GUARD screen3_addr
     cpx #zp_top
     bne zp_loop
 
+    ; fix up the NuLA message, if appropriate
+	lda NULA_FLAG_ZP
+	beq nula_done
+	ldx #nula_message_end-nula_message_begin-1
+.nula_message_loop
+	lda nula_message_begin,x
+	sta just_3bit_colour_begin,x
+	dex
+	bpl nula_message_loop
+.nula_done
+
 	SEI
 	LDA #&7F					; A=01111111
 	STA &FE4E					; R14=Interrupt Enable (disable all interrupts)
@@ -1856,6 +1867,10 @@ EQUB &FF, &FF, &FF, &FF, &FF, &FF, &00, &00
 .next_part_cmd
 EQUS "/INTRO", 13
 
+.nula_message_begin
+EQUS "80 x 128 pixels..."
+.nula_message_end
+
 .data_end
 
 \ ******************************************************************
@@ -1927,7 +1942,7 @@ EQUS "5", QUARTER_CODE, '"'," 400K floppy", 1, 50, 13
 EQUS ">", 1, 25
 EQUS "No VIC, no Blitter", 1, 50, 13
 EQUS ">", 1, 25
-EQUS "Just 3-bit colour!", 1, 50, 13
+.just_3bit_colour_begin:EQUS "Just 3-bit colour!":.just_3bit_colour_end:EQUS 1, 50, 13
 EQUS ">", 1, 25
 EQUS "SN76489 sound chip", 1, 150, 12
 
@@ -2069,6 +2084,10 @@ EQUS 0
 IF (P%-reloc_credits_text) > (credits_end-credits_text)
 	ERROR "Need more space for credits_text."
 ENDIF
+
+IF nula_message_end-nula_message_begin<>just_3bit_colour_end-just_3bit_colour_begin
+    error "NuLA message is the wrong size"
+endif
 
 .reloc_from_end
 
