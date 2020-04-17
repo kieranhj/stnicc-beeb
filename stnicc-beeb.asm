@@ -885,6 +885,18 @@ ENDIF
 		}
 		ENDIF
 
+if _NULA
+
+	    ldy #240
+		ldx #0
+.delay
+		inx
+		bne delay
+		iny
+		bne delay
+
+endif
+
 		IF _DEBUG
 		jsr show_vsync_counter
 		ENDIF
