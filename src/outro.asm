@@ -1142,25 +1142,16 @@ ENDIF
     beq no_palette
 
     \\ Read 16-bit palette mask
-    GET_BYTE
-    sta frame_bitmask+1
-    GET_BYTE
-    sta frame_bitmask
-
+	GET_BYTE					; dummy
+	GET_BYTE					; palette size
+	tax
+	
     \\ Read palette words
-    ldx #15
     .parse_palette_loop
-    asl frame_bitmask
-    rol frame_bitmask+1
-    bcc not_this_bit
-
-    \\ Discard our palette for now
-    GET_BYTE
-    GET_BYTE
-
-    .not_this_bit
-    dex
-    bpl parse_palette_loop
+	GET_BYTE
+	GET_BYTE
+	dex
+	bne parse_palette_loop
 
     .no_palette
 
