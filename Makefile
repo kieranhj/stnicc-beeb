@@ -38,8 +38,8 @@ build: $(BUILD)/logo_mode1.exo $(BUILD)/intro_theme.vgc $(BUILD)/main_theme.vgc 
 	$(BEEBASM) -D _QUALITY=0 -D _NULA=-1 -i stnicc-beeb.asm -v > $(BUILD)/nula.txt
 
 	$(BEEBASM) -i src/intro.asm -v > $(BUILD)/intro.txt
-	$(BEEBASM) -i src/outro.asm -v > $(BUILD)/intro.txt
-	$(BEEBASM) -i src/music.asm -v > $(BUILD)/intro.txt
+	$(BEEBASM) -i src/outro.asm -v > $(BUILD)/outro.txt
+	$(BEEBASM) -i src/music.asm -v > $(BUILD)/music.txt
 
 	$(BEEBASM) -i stnicc-build.asm -do $(BUILD)/part-1.ssd -title BEEB-NICCC-1 -opt 3 -v > compile.txt
 	$(BEEBASM) -i src/part-2.asm -title STNICCC-2 -do $(BUILD)/part-2.ssd
