@@ -307,8 +307,8 @@ GUARD screen3_addr
     bne zp_loop
 
     ; fix up the NuLA message, if appropriate
-	lda NULA_FLAG_ZP
-	beq nula_done
+	bit NULA_FLAG_ZP
+	bpl nula_done
 	ldx #nula_message_end-nula_message_begin-1
 .nula_message_loop
 	lda nula_message_begin,x
