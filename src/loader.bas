@@ -81,7 +81,7 @@ NEXT
 CALL CODE
 PRINT"SWRAM Banks:";16-?&70
 IF ?&70 <> 16 THEN FOR X% = ?&70 TO 15 : PRINTX%?&70 : NEXT
-IF ?&70 = 16 THEN ?&7F = 255:PRINT"No SWRAM." ELSE PRINT"Using SWRAM Bank:";?&7F
+IF ?&70 = 16 THEN ?&7F = 255:PRINT"No SWRAM." ELSE PRINT"Using SWRAM Bank:";?&7F:?&7C=&80
 IFNULA%:PRINT'"Video NuLA version loading."''"Press N during intro to select NuLA"'"version or original version."''"Press any key or wait 5 seconds.":K%=INKEY500
 ?&7D=NULA%:?&7E=NULA%
 *RUN INTRO

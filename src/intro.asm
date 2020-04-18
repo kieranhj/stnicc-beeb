@@ -165,6 +165,8 @@ GUARD zp_top
 .last_vsync     skip 1
 .music_enabled  skip 1
 
+
+
 .nula_toggle_debounce skip 1
 .music_toggle_debounce skip 1
 
@@ -228,9 +230,12 @@ GUARD screen_addr
         ldy #HI(music_filename)
         lda #HI(&8000)
         jsr disksys_load_file
-        
+
         \\ Initialise music
         jsr MUSIC_JUMP_INIT_INTRO
+		
+		jsr enable_or_disable_music
+		
         .no_music
     }
 
@@ -746,26 +751,53 @@ rts
 {
 .nula_toggle_check
 lda NULA_AVAILABLE_ZP
-beq music_toggle_check			; taken if no NuLA
+beq nula_toggle_checked			; taken if no NuLA
 
 lda #nula_toggle_debounce
 ldx #NULA_TOGGLE_INKEY AND 255
 jsr check_key
-bne music_toggle_check
+bne nula_toggle_checked
 
 ; toggle NuLA
 lda NULA_FLAG_ZP:eor #$80:sta NULA_FLAG_ZP
 jsr set_text_palette
 
-.music_toggle_check
+.nula_toggle_checked
+bit MUSIC_SLOT_ZP
+bmi music_toggle_checked
+
 lda #music_toggle_debounce
 ldx #MUSIC_TOGGLE_INKEY AND 255
 jsr check_key
-bne keys_checked
+bne music_toggle_checked
 
-; ...???
+lda MUSIC_ENABLED_ZP:eor #$80:sta MUSIC_ENABLED_ZP
+jsr enable_or_disable_music
+
+.music_toggle_checked
 
 .keys_checked
+rts
+}
+
+.enable_or_disable_music
+{
+lda $f4:pha
+
+lda MUSIC_SLOT_ZP:sta $f4:sta $fe30
+
+bit MUSIC_ENABLED_ZP
+bpl disable
+
+.enable
+jsr MUSIC_JUMP_LOUD
+jmp done
+
+.disable
+jsr MUSIC_JUMP_SILENT
+
+.done
+pla:sta $f4:sta $fe30
 rts
 }
 
