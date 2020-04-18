@@ -1868,7 +1868,7 @@ EQUB &FF, &FF, &FF, &FF, &FF, &FF, &00, &00
 EQUS "/INTRO", 13
 
 .nula_message_begin
-EQUS "80 x 128 pixels..."
+EQUS "80 x 100 pixels   "
 .nula_message_end
 
 .data_end
