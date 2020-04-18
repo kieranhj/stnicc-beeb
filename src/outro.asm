@@ -506,7 +506,7 @@ ENDIF
 	.track_load_error
 	\\ Wait for vsync
 	{
-		ldx #25
+		ldx #100
 		.loop
 		jsr wait_for_vsync
 		dex
@@ -530,6 +530,7 @@ ENDIF
 		.no_music
 	}
 
+	jsr reset_crtc_regs
 	lda #8:sta &fe00:lda #&f0:sta &fe01		; hide screen
 
 	IF 0
@@ -551,6 +552,7 @@ ENDIF
 	.vsync1
 	bit &FE4D
 	beq vsync1
+	sta $fe4d
 	rts
 }
 
