@@ -46,8 +46,12 @@ if _NULA
 
 txa:and #1:beq skip_first_byte
 
-lda span_colour:and #%01010101:sta ora_left_hand_byte+1
-lda (writeptr),y:and #%10101010:.ora_left_hand_byte:ora #$ff:sta (writeptr),y
+lda (writeptr),y
+eor span_colour
+and #%01010101
+eor (writeptr),y
+sta (writeptr),y
+
 if _DOUBLE_PLOT_Y:iny:sta (writeptr),y:dey:endif
 
 dec span_width
@@ -165,9 +169,11 @@ if _NULA
 
 lda span_width:and #1:.branch_to_skip_last_byte:beq return_here_from_plot_span
 
-lda span_colour:and #%10101010:sta ora_right_hand_byte+1
-
-lda (writeptr),y:and #%01010101:.ora_right_hand_byte:ora #$ff:sta (writeptr),y
+lda (writeptr),y
+eor span_colour
+and #%10101010
+eor (writeptr),y
+sta (writeptr),y
 
 else
 
