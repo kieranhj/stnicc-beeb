@@ -108,8 +108,8 @@ LERP_FRAMES = 64
 
 PRE_LOGO_WAIT_FRAMES = 75
 
-MUSIC_TOGGLE_INKEY=-102
-NULA_TOGGLE_INKEY=-86
+MUSIC_TOGGLE_INKEY=-17      ; Q
+NULA_TOGGLE_INKEY=-86       ; N
 
 ; Palette values. Not sure what the exact STe values are - I got these
 ; using the colour picker on a screen grab from a YouTube video :-|
