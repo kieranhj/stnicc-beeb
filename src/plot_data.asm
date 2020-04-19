@@ -32,14 +32,102 @@ PAGE_ALIGN_FOR_SIZE 4
 EQUB 4,3,2,1
 CHECK_SAME_PAGE_AS four_minus
 
+
+; if _NULA
+
+PAGE_ALIGN_FOR_SIZE 7
+.minus_1_times_2
+equb 0, 0, 2, 4, 6,  8,  10, 12
+CHECK_SAME_PAGE_AS minus_1_times_2
+
+; else
+
 PAGE_ALIGN_FOR_SIZE 14
 .minus_1_times_4
 EQUB 0, 0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48
 CHECK_SAME_PAGE_AS minus_1_times_4
 
+; endif
+
 \ ******************************************************************
 \ *	PRE-SHIFTED DATA FOR SHORT/MEDIUM SPANS
 \ ******************************************************************
+
+if _NULA
+
+
+; 0  1  2  3
+; -- -- -- --
+; p0 00 00 00
+; 0p 00 00 00
+
+; pp 00 00 00
+; 0p p0 00 00
+
+; pp p0 00 00
+; 0p pp 00 00
+
+; pp pp 00 00
+; 0p pp p0 00
+
+; pp pp p0 00
+; 0p pp pp 00
+
+; pp pp pp 00
+; 0p pp pp p0
+
+; pp pp pp p0
+; 0p pp pp pp
+
+MACRO TWO_BYTE_MASK_SHIFTS_3 value
+if value<0 or value>3:error "no":endif
+equb (value<<6) or (value<<4) or (value<<2) or (value<<0)
+ENDMACRO
+
+MACRO TWO_BYTE_MASK_SHIFTS_2 pixels,table_index
+a=(pixels and %11000000)>>6
+b=(pixels and %00110000)>>4
+c=(pixels and %00001100)>>2
+d=(pixels and %00000011)>>0
+if table_index==0:TWO_BYTE_MASK_SHIFTS_3 a
+elif table_index==1:TWO_BYTE_MASK_SHIFTS_3 b
+elif table_index==2:TWO_BYTE_MASK_SHIFTS_3 c
+elif table_index==3:TWO_BYTE_MASK_SHIFTS_3 d
+endif
+ENDMACRO
+
+MACRO TWO_BYTE_MASK_SHIFTS pixels,table_index
+TWO_BYTE_MASK_SHIFTS_2 pixels>>0,table_index
+TWO_BYTE_MASK_SHIFTS_2 pixels>>1,table_index
+ENDMACRO
+
+MACRO SHORT_MASK_TABLE table_index
+TWO_BYTE_MASK_SHIFTS %10000000,table_index
+TWO_BYTE_MASK_SHIFTS %11000000,table_index
+TWO_BYTE_MASK_SHIFTS %11100000,table_index
+TWO_BYTE_MASK_SHIFTS %11110000,table_index
+TWO_BYTE_MASK_SHIFTS %11111000,table_index
+TWO_BYTE_MASK_SHIFTS %11111100,table_index
+TWO_BYTE_MASK_SHIFTS %11111110,table_index
+ENDMACRO
+
+PAGE_ALIGN_FOR_SIZE 14
+.colour_mask_short_0:SHORT_MASK_TABLE 0
+CHECK_SAME_PAGE_AS colour_mask_short_0
+
+PAGE_ALIGN_FOR_SIZE 14
+.colour_mask_short_1:SHORT_MASK_TABLE 1
+CHECK_SAME_PAGE_AS colour_mask_short_1
+
+PAGE_ALIGN_FOR_SIZE 14
+.colour_mask_short_2:SHORT_MASK_TABLE 2
+CHECK_SAME_PAGE_AS colour_mask_short_2
+
+PAGE_ALIGN_FOR_SIZE 14
+.colour_mask_short_3:SHORT_MASK_TABLE 3
+CHECK_SAME_PAGE_AS colour_mask_short_3
+
+else
 
 \\ Can only be a maximum of 2 bytes plotted for short (<=5 pixel) spans
 \\ X = [0,3] W = [1,5]
@@ -86,7 +174,7 @@ FOUR_BYTE_MASK_SHIFTS &E000, e, table_index
 FOUR_BYTE_MASK_SHIFTS &F000, e, table_index
 FOUR_BYTE_MASK_SHIFTS &F800, e, table_index
 
-IF _SHORT_SPAN_MAX_PIXELS > 5
+IF _SHORT_SPAN_MAX_BYTES > 2
 \\ 6, 7, 8, 9 pixels = 3 bytes max
 FOUR_BYTE_MASK_SHIFTS &FC00, e, table_index      ; 4 bytes
 FOUR_BYTE_MASK_SHIFTS &FE00, e, table_index
@@ -94,7 +182,7 @@ FOUR_BYTE_MASK_SHIFTS &FF00, e, table_index
 FOUR_BYTE_MASK_SHIFTS &FF80, e, table_index
 ENDIF
 
-IF _SHORT_SPAN_MAX_PIXELS > 9
+IF _SHORT_SPAN_MAX_BYTES > 3
 \\ 10, 11, 12, 13 pixels = 4 bytes max
 FOUR_BYTE_MASK_SHIFTS &FFC0, e, table_index      ; 4 bytes
 FOUR_BYTE_MASK_SHIFTS &FFE0, e, table_index
@@ -128,3 +216,5 @@ PAGE_ALIGN_FOR_SIZE 52
 SHORT_MASK_TABLE 0,3
 CHECK_SAME_PAGE_AS colour_mask_short_3
 ENDIF
+
+endif

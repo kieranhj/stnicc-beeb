@@ -3,14 +3,26 @@
 \ *	SPAN BUFFER POLYGON FILL ROUTINES
 \ ******************************************************************
 
+_SHORT_SPAN_MAX_BYTES=4
+
+if _NULA
+
+\\ 1 pixel = 1 byte max
+\\ 2 pixels = 2 bytes max
+\\ 3 pixels = 2 bytes max
+\\ 4 pixels = 3 bytes max
+\\ 5 pixels = 3 bytes max
+\\ 6 pixels = 4 bytes max
+\\ 7 pixels = 4 bytes max
+_SHORT_SPAN_MAX_PIXELS=_SHORT_SPAN_MAX_BYTES*2-1
+
+else
 \\ 1 pixel = 1 byte max
 \\ 5 pixels = 2 bytes max
 \\ 9 pixels = 3 bytes max
 \\ 13 pixels = 4 bytes max
-if _NULA
-_SHORT_SPAN_MAX_PIXELS = 0; 13 ; up to this many pixels considered a short span
-else
-_SHORT_SPAN_MAX_PIXELS = 13
+_SHORT_SPAN_MAX_PIXELS=_SHORT_SPAN_MAX_BYTES*4-3
+
 endif
 
 \ ******************************************************************
@@ -56,7 +68,7 @@ if _DOUBLE_PLOT_Y:iny:sta (writeptr),y:dey:endif
 
 dec span_width
 
-clc\\todo - what's the actual state of carry here?
+\\clc\\todo - what's the actual state of carry here?
 
 tya:adc #8:tay
 \\C=0
@@ -307,8 +319,10 @@ endif
     \\ Shouldn't have blank spans now we have min/max Y
 
     \\ Check if the span is short...
+if _SHORT_SPAN_MAX_PIXELS>0
     cmp #(_SHORT_SPAN_MAX_PIXELS+1)     ; 2c
     bcc plot_short_span     ; [1-5] ; 2/3c
+endif
     .^branch_to_short_span
 
     IF _HALF_VERTICAL_RES
@@ -360,10 +374,18 @@ endif
 
     \\ w = [1,N] x = [0,3]
     txa                             ; 2c
+if _NULA
+    and #1
+else
     and #3                          ; 2c
+endif
 
     ldx span_width                  ; 3c
+if _NULA
+    adc minus_1_times_2, X
+else
     adc minus_1_times_4, X          ; 4c
+endif
     tax                             ; 2c
 
     \\ Byte 1
@@ -394,7 +416,7 @@ endif
     iny:sta (shortptr), Y           ; 8c
     ENDIF
 
-IF _SHORT_SPAN_MAX_PIXELS > 5
+IF _SHORT_SPAN_MAX_BYTES > 2
     \\ Byte 3
     lda colour_mask_short_2, X      ; 4c
     beq return_here_from_plot_span                        ; 2/3c
@@ -412,7 +434,7 @@ IF _SHORT_SPAN_MAX_PIXELS > 5
     ENDIF
 ENDIF
 
-IF _SHORT_SPAN_MAX_PIXELS > 9
+IF _SHORT_SPAN_MAX_BYTES > 3
     \\ Byte 4
     lda colour_mask_short_3, X      ; 4c
     beq return_here_from_plot_span                        ; 2/3c
