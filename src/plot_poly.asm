@@ -3,14 +3,27 @@
 \ *	SPAN BUFFER POLYGON FILL ROUTINES
 \ ******************************************************************
 
+_SHORT_SPAN_MAX_BYTES=4
+
+if _NULA
+
+\\ 1 pixel = 1 byte max
+\\ 2 pixels = 2 bytes max
+\\ 3 pixels = 2 bytes max
+\\ 4 pixels = 3 bytes max
+\\ 5 pixels = 3 bytes max
+\\ 6 pixels = 4 bytes max
+\\ 7 pixels = 4 bytes max
+
+_SHORT_SPAN_MAX_PIXELS=_SHORT_SPAN_MAX_BYTES*2-1
+
+else
 \\ 1 pixel = 1 byte max
 \\ 5 pixels = 2 bytes max
 \\ 9 pixels = 3 bytes max
 \\ 13 pixels = 4 bytes max
-if _NULA
-_SHORT_SPAN_MAX_PIXELS = 0; 13 ; up to this many pixels considered a short span
-else
-_SHORT_SPAN_MAX_PIXELS = 13
+_SHORT_SPAN_MAX_PIXELS=_SHORT_SPAN_MAX_BYTES*4-3
+
 endif
 
 \ ******************************************************************
@@ -46,13 +59,17 @@ if _NULA
 
 txa:and #1:beq skip_first_byte
 
-lda span_colour:and #%01010101:sta ora_left_hand_byte+1
-lda (writeptr),y:and #%10101010:.ora_left_hand_byte:ora #$ff:sta (writeptr),y
+lda (writeptr),y
+eor span_colour
+and #%01010101
+eor (writeptr),y
+sta (writeptr),y
+
 if _DOUBLE_PLOT_Y:iny:sta (writeptr),y:dey:endif
 
 dec span_width
 
-clc\\todo - what's the actual state of carry here?
+\\clc\\todo - what's the actual state of carry here?
 
 tya:adc #8:tay
 \\C=0
@@ -165,9 +182,11 @@ if _NULA
 
 lda span_width:and #1:.branch_to_skip_last_byte:beq return_here_from_plot_span
 
-lda span_colour:and #%10101010:sta ora_right_hand_byte+1
-
-lda (writeptr),y:and #%01010101:.ora_right_hand_byte:ora #$ff:sta (writeptr),y
+lda (writeptr),y
+eor span_colour
+and #%10101010
+eor (writeptr),y
+sta (writeptr),y
 
 else
 
@@ -301,8 +320,10 @@ endif
     \\ Shouldn't have blank spans now we have min/max Y
 
     \\ Check if the span is short...
+if _SHORT_SPAN_MAX_PIXELS>0
     cmp #(_SHORT_SPAN_MAX_PIXELS+1)     ; 2c
     bcc plot_short_span     ; [1-5] ; 2/3c
+endif
     .^branch_to_short_span
 
     IF _HALF_VERTICAL_RES
@@ -352,12 +373,37 @@ endif
     ; no carry!
     sta shortptr+1                  ; 3c
 
+if _NULA
+
+    txa
+	lsr a
+	ldx span_width
+	bcc even
+
+.odd
+	lda nula_short_span_odd_table_LO,x:sta odd_jump+1
+.odd_jump:jmp nula_short_span_odd_1
+
+.even
+	lda nula_short_span_even_table_LO,x:sta even_jump+1
+.even_jump:jmp nula_short_span_even_1
+
+else
+
     \\ w = [1,N] x = [0,3]
     txa                             ; 2c
+if _NULA
+    and #1
+else
     and #3                          ; 2c
+endif
 
     ldx span_width                  ; 3c
+if _NULA
+    adc minus_1_times_2, X
+else
     adc minus_1_times_4, X          ; 4c
+endif
     tax                             ; 2c
 
     \\ Byte 1
@@ -388,7 +434,7 @@ endif
     iny:sta (shortptr), Y           ; 8c
     ENDIF
 
-IF _SHORT_SPAN_MAX_PIXELS > 5
+IF _SHORT_SPAN_MAX_BYTES > 2
     \\ Byte 3
     lda colour_mask_short_2, X      ; 4c
     beq return_here_from_plot_span                        ; 2/3c
@@ -406,7 +452,7 @@ IF _SHORT_SPAN_MAX_PIXELS > 5
     ENDIF
 ENDIF
 
-IF _SHORT_SPAN_MAX_PIXELS > 9
+IF _SHORT_SPAN_MAX_BYTES > 3
     \\ Byte 4
     lda colour_mask_short_3, X      ; 4c
     beq return_here_from_plot_span                        ; 2/3c
@@ -426,7 +472,131 @@ ENDIF
 
     .done
     jmp return_here_from_plot_span
+endif
 }
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+if _NULA
+
+MACRO NULA_SHORT_SPAN odd,n
+
+if odd
+
+ldy #0
+
+lda (shortptr),y
+eor span_colour
+and #%01010101
+eor (shortptr),y
+sta (shortptr),y
+
+if _DOUBLE_PLOT_Y
+iny
+sta (shortptr),y
+endif
+
+npixels=n-1
+yoffset=8
+
+if npixels DIV 2>0:dey:endif
+
+else
+
+npixels=n
+yoffset=0
+
+endif
+
+
+if npixels DIV 2>0
+
+lda span_colour
+
+FOR x,0,npixels DIV 2-1
+
+ldy #yoffset+x*8
+sta (shortptr),y
+if _DOUBLE_PLOT_Y
+iny
+sta (shortptr),y
+endif
+
+NEXT
+
+endif
+
+if (npixels MOD 2)<>0
+
+ldy #yoffset+(npixels div 2)*8
+lda (shortptr),y
+eor span_colour
+and #%10101010
+eor (shortptr),y
+sta (shortptr),y
+
+if _DOUBLE_PLOT_Y
+iny
+sta (shortptr),y
+endif
+
+endif
+
+jmp return_here_from_plot_span
+
+ENDMACRO
+
+
+MACRO NULA_SHORT_SPAN_ODD_TABLE shift
+equb (nula_short_span_odd_1>>shift) and 255
+equb (nula_short_span_odd_1>>shift) and 255
+equb (nula_short_span_odd_2>>shift) and 255
+equb (nula_short_span_odd_3>>shift) and 255
+equb (nula_short_span_odd_4>>shift) and 255
+equb (nula_short_span_odd_5>>shift) and 255
+equb (nula_short_span_odd_6>>shift) and 255
+equb (nula_short_span_odd_7>>shift) and 255
+ENDMACRO
+
+MACRO NULA_SHORT_SPAN_EVEN_TABLE shift
+equb (nula_short_span_even_1>>shift) and 255
+equb (nula_short_span_even_1>>shift) and 255
+equb (nula_short_span_even_2>>shift) and 255
+equb (nula_short_span_even_3>>shift) and 255
+equb (nula_short_span_even_4>>shift) and 255
+equb (nula_short_span_even_5>>shift) and 255
+equb (nula_short_span_even_6>>shift) and 255
+equb (nula_short_span_even_7>>shift) and 255
+ENDMACRO
+
+; .nula_short_span_odd_table_HI:NULA_SHORT_SPAN_ODD_TABLE 8
+
+; .nula_short_span_even_table_HI:NULA_SHORT_SPAN_EVEN_TABLE 8
+
+PAGE_ALIGN
+.nula_short_span_even_1:NULA_SHORT_SPAN FALSE,1
+.nula_short_span_even_2:NULA_SHORT_SPAN FALSE,2
+.nula_short_span_even_3:NULA_SHORT_SPAN FALSE,3
+.nula_short_span_even_4:NULA_SHORT_SPAN FALSE,4
+.nula_short_span_even_5:NULA_SHORT_SPAN FALSE,5
+.nula_short_span_even_6:NULA_SHORT_SPAN FALSE,6
+.nula_short_span_even_7:NULA_SHORT_SPAN FALSE,7
+.nula_short_span_even_table_LO:NULA_SHORT_SPAN_EVEN_TABLE 0
+CHECK_SAME_PAGE_AS nula_short_span_even_1
+
+PAGE_ALIGN
+.nula_short_span_odd_1:NULA_SHORT_SPAN TRUE,1
+.nula_short_span_odd_2:NULA_SHORT_SPAN TRUE,2
+.nula_short_span_odd_3:NULA_SHORT_SPAN TRUE,3
+.nula_short_span_odd_4:NULA_SHORT_SPAN TRUE,4
+.nula_short_span_odd_5:NULA_SHORT_SPAN TRUE,5
+.nula_short_span_odd_6:NULA_SHORT_SPAN TRUE,6
+.nula_short_span_odd_7:NULA_SHORT_SPAN TRUE,7
+.nula_short_span_odd_table_LO:NULA_SHORT_SPAN_ODD_TABLE 0
+CHECK_SAME_PAGE_AS nula_short_span_odd_1
+
+endif
+
 
 \ ******************************************************************
 \ *	SPAN BUFFER FUNCTIONS

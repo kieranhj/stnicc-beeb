@@ -505,13 +505,9 @@ ENDIF
 
 	.track_load_error
 	\\ Wait for vsync
-	{
-		ldx #100
-		.loop
-		jsr wait_for_vsync
-		dex
-		bne loop
-	}
+	inc decode_lock
+	ldx #255
+	jsr wait_X_frames
 
 	\\ Disable interrupts but replace old handler
 	SEI
@@ -533,13 +529,6 @@ ENDIF
 	jsr reset_crtc_regs
 	lda #8:sta &fe00:lda #&f0:sta &fe01		; hide screen
 
-	IF 0
-	{
-	    .wait_for_Key
-	    lda #&79:ldx #&10:jsr osbyte:cpx #&ff:beq wait_for_Key
-	}
-	ENDIF
-
     \\ Load next part
     ldx #LO(next_part_cmd)
     ldy #HI(next_part_cmd)
@@ -552,7 +541,15 @@ ENDIF
 	.vsync1
 	bit &FE4D
 	beq vsync1
-	sta $fe4d
+;	sta $fe4d
+	rts
+}
+
+.wait_X_frames
+{
+	jsr wait_for_vsync
+	dex
+	bne wait_X_frames
 	rts
 }
 
@@ -1142,25 +1139,16 @@ ENDIF
     beq no_palette
 
     \\ Read 16-bit palette mask
-    GET_BYTE
-    sta frame_bitmask+1
-    GET_BYTE
-    sta frame_bitmask
-
+	GET_BYTE					; dummy
+	GET_BYTE					; palette size
+	tax
+	
     \\ Read palette words
-    ldx #15
     .parse_palette_loop
-    asl frame_bitmask
-    rol frame_bitmask+1
-    bcc not_this_bit
-
-    \\ Discard our palette for now
-    GET_BYTE
-    GET_BYTE
-
-    .not_this_bit
-    dex
-    bpl parse_palette_loop
+	GET_BYTE
+	GET_BYTE
+	dex
+	bne parse_palette_loop
 
     .no_palette
 
@@ -1870,7 +1858,7 @@ EQUB &FF, &FF, &FF, &FF, &FF, &FF, &00, &00
 EQUS "/INTRO", 13
 
 .nula_message_begin
-EQUS "64 x 100 pixels   "
+EQUS "12-bit NULA colour"
 .nula_message_end
 
 .data_end

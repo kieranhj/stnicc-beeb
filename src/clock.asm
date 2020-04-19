@@ -40,7 +40,6 @@ endif
     ldx #CLOCK_PAUSE
     jsr wait_X_frames
 
-IF _QUALITY != 1        ; keep everything building even though we only care about LOW
     lda #CLOCK_FLASHES
     sta clock_flashes
     .loop
@@ -54,7 +53,6 @@ IF _QUALITY != 1        ; keep everything building even though we only care abou
 
     dec clock_flashes
     bne loop
-ENDIF
 
     rts
 }
