@@ -887,13 +887,13 @@ ENDIF
 
 if _NULA AND NOT(_DOUBLE_PLOT_Y)
 
-; 	    ldy #240
-; 		ldx #0
-; .delay
-; 		inx
-; 		bne delay
-; 		iny
-; 		bne delay
+	    ldy #219
+		ldx #0
+.delay
+		inx
+		bne delay
+		iny
+		bne delay
 
 endif
 
