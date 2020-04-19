@@ -506,7 +506,7 @@ ENDIF
 	.track_load_error
 	\\ Wait for vsync
 	inc decode_lock
-	ldx #255
+	ldx #150
 	jsr wait_X_frames
 
 	\\ Disable interrupts but replace old handler
@@ -1858,7 +1858,7 @@ EQUB &FF, &FF, &FF, &FF, &FF, &FF, &00, &00
 EQUS "/INTRO", 13
 
 .nula_message_begin
-EQUS "12-bit NULA colour"
+EQUS "12-bit NuLA colour"
 .nula_message_end
 
 .data_end
