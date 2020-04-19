@@ -71,6 +71,8 @@ GUARD &C000
     jmp init_outro_theme
     jmp vgm_update
     jmp sn_reset
+	jmp silent
+	jmp loud
 }
 
 .init_intro_theme
@@ -98,6 +100,38 @@ GUARD &C000
     ldy #hi(vgc_data_outro_theme)
     sec ; loop
     jmp vgm_init
+}
+
+.silent
+{
+sei								; in case it's playing...
+lda #$0f
+jsr fiddle_vgm_register_headers
+jsr sn_reset
+cli
+rts
+}
+
+.loud
+{
+lda #$00
+jsr fiddle_vgm_register_headers
+rts
+}
+
+.fiddle_vgm_register_headers
+{
+sta ora_bits+1
+ldx #4
+.loop
+lda vgm_register_headers,x
+and #$f0
+.ora_bits:ora #$00
+sta vgm_register_headers,x
+inx
+cpx #8
+bne loop
+rts
 }
 
 INCLUDE "lib/vgcplayer.asm"

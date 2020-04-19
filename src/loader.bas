@@ -81,10 +81,12 @@ NEXT
 CALL CODE
 PRINT"SWRAM Banks:";16-?&70
 IF ?&70 <> 16 THEN FOR X% = ?&70 TO 15 : PRINTX%?&70 : NEXT
-IF ?&70 = 16 THEN ?&7F = 128:PRINT"No SWRAM." ELSE PRINT"Using SWRAM Bank:";?&7F
-IFNULA%:PRINT'"Video NuLA detected - will run NuLA"'"version."''"Press SPACE within 5 seconds to run"'"original version instead.":DELAY%=500:TIME=0:REPEAT:UNTILTIME>=DELAY%ORINKEY-99:NULA%=TIME>=DELAY%
-?&7E=NULA%
+IF ?&70 = 16 THEN ?&7F = 255:PRINT"No SWRAM." ELSE PRINT"Using SWRAM Bank:";?&7F:?&7C=&80
+IFNULA%:PRINT'"Video NuLA version loading."''"Press N during intro to select NuLA"'"version or original version."''"Press any key or wait 5 seconds.":K%=INKEY500
+?&7D=NULA%:?&7E=NULA%
 *RUN INTRO
 END
 DEFFNTM(N%):LOCALI%,T%:TIME=0:FORI%=1TON%:*FX19
 NEXT:T%=TIME:=T%
+
+

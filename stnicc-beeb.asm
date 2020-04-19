@@ -885,7 +885,7 @@ ENDIF
 		}
 		ENDIF
 
-if _NULA
+if _NULA AND NOT(_DOUBLE_PLOT_Y)
 
 	    ldy #240
 		ldx #0
