@@ -14,6 +14,7 @@ if _NULA
 \\ 5 pixels = 3 bytes max
 \\ 6 pixels = 4 bytes max
 \\ 7 pixels = 4 bytes max
+
 _SHORT_SPAN_MAX_PIXELS=_SHORT_SPAN_MAX_BYTES*2-1
 
 else
@@ -372,6 +373,23 @@ endif
     ; no carry!
     sta shortptr+1                  ; 3c
 
+if _NULA
+
+    txa
+	lsr a
+	ldx span_width
+	bcc even
+
+.odd
+	lda nula_short_span_odd_table_LO,x:sta odd_jump+1
+.odd_jump:jmp nula_short_span_odd_1
+
+.even
+	lda nula_short_span_even_table_LO,x:sta even_jump+1
+.even_jump:jmp nula_short_span_even_1
+
+else
+
     \\ w = [1,N] x = [0,3]
     txa                             ; 2c
 if _NULA
@@ -454,7 +472,131 @@ ENDIF
 
     .done
     jmp return_here_from_plot_span
+endif
 }
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+if _NULA
+
+MACRO NULA_SHORT_SPAN odd,n
+
+if odd
+
+ldy #0
+
+lda (shortptr),y
+eor span_colour
+and #%01010101
+eor (shortptr),y
+sta (shortptr),y
+
+if _DOUBLE_PLOT_Y
+iny
+sta (shortptr),y
+endif
+
+npixels=n-1
+yoffset=8
+
+if npixels DIV 2>0:dey:endif
+
+else
+
+npixels=n
+yoffset=0
+
+endif
+
+
+if npixels DIV 2>0
+
+lda span_colour
+
+FOR x,0,npixels DIV 2-1
+
+ldy #yoffset+x*8
+sta (shortptr),y
+if _DOUBLE_PLOT_Y
+iny
+sta (shortptr),y
+endif
+
+NEXT
+
+endif
+
+if (npixels MOD 2)<>0
+
+ldy #yoffset+(npixels div 2)*8
+lda (shortptr),y
+eor span_colour
+and #%10101010
+eor (shortptr),y
+sta (shortptr),y
+
+if _DOUBLE_PLOT_Y
+iny
+sta (shortptr),y
+endif
+
+endif
+
+jmp return_here_from_plot_span
+
+ENDMACRO
+
+
+MACRO NULA_SHORT_SPAN_ODD_TABLE shift
+equb (nula_short_span_odd_1>>shift) and 255
+equb (nula_short_span_odd_1>>shift) and 255
+equb (nula_short_span_odd_2>>shift) and 255
+equb (nula_short_span_odd_3>>shift) and 255
+equb (nula_short_span_odd_4>>shift) and 255
+equb (nula_short_span_odd_5>>shift) and 255
+equb (nula_short_span_odd_6>>shift) and 255
+equb (nula_short_span_odd_7>>shift) and 255
+ENDMACRO
+
+MACRO NULA_SHORT_SPAN_EVEN_TABLE shift
+equb (nula_short_span_even_1>>shift) and 255
+equb (nula_short_span_even_1>>shift) and 255
+equb (nula_short_span_even_2>>shift) and 255
+equb (nula_short_span_even_3>>shift) and 255
+equb (nula_short_span_even_4>>shift) and 255
+equb (nula_short_span_even_5>>shift) and 255
+equb (nula_short_span_even_6>>shift) and 255
+equb (nula_short_span_even_7>>shift) and 255
+ENDMACRO
+
+; .nula_short_span_odd_table_HI:NULA_SHORT_SPAN_ODD_TABLE 8
+
+; .nula_short_span_even_table_HI:NULA_SHORT_SPAN_EVEN_TABLE 8
+
+PAGE_ALIGN
+.nula_short_span_even_1:NULA_SHORT_SPAN FALSE,1
+.nula_short_span_even_2:NULA_SHORT_SPAN FALSE,2
+.nula_short_span_even_3:NULA_SHORT_SPAN FALSE,3
+.nula_short_span_even_4:NULA_SHORT_SPAN FALSE,4
+.nula_short_span_even_5:NULA_SHORT_SPAN FALSE,5
+.nula_short_span_even_6:NULA_SHORT_SPAN FALSE,6
+.nula_short_span_even_7:NULA_SHORT_SPAN FALSE,7
+.nula_short_span_even_table_LO:NULA_SHORT_SPAN_EVEN_TABLE 0
+CHECK_SAME_PAGE_AS nula_short_span_even_1
+
+PAGE_ALIGN
+.nula_short_span_odd_1:NULA_SHORT_SPAN TRUE,1
+.nula_short_span_odd_2:NULA_SHORT_SPAN TRUE,2
+.nula_short_span_odd_3:NULA_SHORT_SPAN TRUE,3
+.nula_short_span_odd_4:NULA_SHORT_SPAN TRUE,4
+.nula_short_span_odd_5:NULA_SHORT_SPAN TRUE,5
+.nula_short_span_odd_6:NULA_SHORT_SPAN TRUE,6
+.nula_short_span_odd_7:NULA_SHORT_SPAN TRUE,7
+.nula_short_span_odd_table_LO:NULA_SHORT_SPAN_ODD_TABLE 0
+CHECK_SAME_PAGE_AS nula_short_span_odd_1
+
+endif
+
 
 \ ******************************************************************
 \ *	SPAN BUFFER FUNCTIONS

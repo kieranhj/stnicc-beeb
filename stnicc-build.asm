@@ -16,10 +16,10 @@ LOADER_SIZE = &B00
 
 IF _DEBUG
 EXE_SIZE = &2700
-NULA_SIZE = &2400
+NULA_SIZE = &2500
 ELSE
 EXE_SIZE = &2700
-NULA_SIZE = &2200
+NULA_SIZE = &2400
 ENDIF
 
 \ ******************************************************************
