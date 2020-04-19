@@ -5,6 +5,7 @@
 
 _DEBUG_RASTERS = FALSE
 
+INCLUDE "src/zp.h.asm"
 INCLUDE "src/music.h.asm"
 
 \ ******************************************************************
@@ -39,10 +40,6 @@ ULA_Mode1   = &D8
 \ *	MACROS
 \ ******************************************************************
 
-MACRO SWRAM_SELECT bank
-LDA #bank: sta &f4: sta &fe30
-ENDMACRO
-
 MACRO MODE5_PIXELS a,b,c,d
     EQUB (a AND 2) * &40 OR (a AND 1) * &08 OR (b AND 2) * &20 OR (b AND 1) * &04 OR (c AND 2) * &10 OR (c AND 1) * &02 OR (d AND 2) * &08 OR (d AND 1) * &01
 ENDMACRO
@@ -76,6 +73,21 @@ IF _DEBUG_RASTERS
 ENDIF
 ENDMACRO
 
+MACRO CHECK_4BIT X
+IF X<0 OR X>15
+ERROR "value not 4 bit"
+ENDIF
+ENDMACRO
+
+MACRO NULA_ENTRY I,R,G,B
+CHECK_4BIT I
+CHECK_4BIT R
+CHECK_4BIT G
+CHECK_4BIT B
+equb INT(I)*16+INT(R)
+equb INT(G)*16+INT(B)
+ENDMACRO
+
 \ ******************************************************************
 \ *	GLOBAL constants
 \ ******************************************************************
@@ -94,9 +106,25 @@ swram_load_to = &4000
 MAX_GLIXELS = 64
 LERP_FRAMES = 64
 
+PRE_LOGO_WAIT_FRAMES = 75
+
+MUSIC_TOGGLE_INKEY=-17      ; Q
+NULA_TOGGLE_INKEY=-86       ; N
+
+; Palette values. Not sure what the exact STe values are - I got these
+; using the colour picker on a screen grab from a YouTube video :-|
+TEXT_BG_R=2
+TEXT_BG_G=2
+TEXT_BG_B=7
+
+TEXT_FG_R=6
+TEXT_FG_G=7
+TEXT_FG_B=13
+
 \ ******************************************************************
 \ *	ZERO PAGE
 \ ******************************************************************
+
 
 ORG &00
 GUARD &17
@@ -131,11 +159,16 @@ GUARD &17
 .next_slot      skip 1
 
 ORG &30
-GUARD &70
+GUARD zp_top
 
 .vsync_count    skip 1
 .last_vsync     skip 1
 .music_enabled  skip 1
+
+
+
+.nula_toggle_debounce skip 1
+.music_toggle_debounce skip 1
 
 .zp_end
 
@@ -170,7 +203,7 @@ GUARD screen_addr
     .zp_loop
     sta &00, x
     inx
-    cpx #&A0
+    cpx #zp_top
     bne zp_loop
 
 	\\ Set interrupts and handler
@@ -188,15 +221,23 @@ GUARD screen_addr
     LDA #HI(irq_handler):STA IRQ1V+1		; set interrupt handler
     CLI
 
-    \\ DO SWRAM LOAD HERE
-    SWRAM_SELECT 4
-    ldx #LO(music_filename)
-    ldy #HI(music_filename)
-    lda #HI(&8000)
-    jsr disksys_load_file
+    \\ Load music into SWRAM (if available)
+    {
+        lda MUSIC_SLOT_ZP
+        bmi no_music
+        sta &f4:sta &fe30
+        ldx #LO(music_filename)
+        ldy #HI(music_filename)
+        lda #HI(&8000)
+        jsr disksys_load_file
 
-    SWRAM_SELECT 4
-    jsr MUSIC_JUMP_INIT_INTRO
+        \\ Initialise music
+        jsr MUSIC_JUMP_INIT_INTRO
+		
+		jsr enable_or_disable_music
+		
+        .no_music
+    }
 
     \\ Set MODE 1 w/out using OS.
 
@@ -216,10 +257,7 @@ GUARD screen_addr
 	bcc crtc_loop
 
     \\ Set pal
-
-    ldx #LO(palette)
-    ldy #HI(palette)
-    jsr set_palette
+	jsr set_text_palette
 
     lda startx_table_LO
     sta xstart
@@ -268,7 +306,12 @@ GUARD screen_addr
     sta cls_active
 
     \\ Start music player
-    inc music_enabled
+    {
+        lda MUSIC_SLOT_ZP
+        bmi no_music
+        inc music_enabled
+        .no_music
+    }
 
     jsr wait_for_vsync
 
@@ -332,6 +375,8 @@ ENDIF
     .do_text
     jsr make_glixel
 
+	jsr check_keys
+
     .continue
     jmp loop
 
@@ -384,31 +429,32 @@ IF 0
         bne loop
     }
 ELSE
-    \\ Wipe to black
-    {
-        ldx #255
-        .loop
-        stx count
-
-        jsr wait_for_vsync
-
-        ldx count
-        lda #0:jsr plot_line_X
-        dex
-        lda #0:jsr plot_line_X
-        dex
-        lda #0:jsr plot_line_X
-        dex
-        lda #0:jsr plot_line_X
-
-        cpx #0
-        bne loop
-    }
+	lda #0:jsr wipe
 ENDIF
 
-    \\ Wait a beat
-    ldx #75:jsr wait_frames    ; 0.5s
+	bit NULA_FLAG_ZP
+	bpl normal_delay
 
+.nula_2nd_wipe
+	\\ in NuLA mode, the screen is now the background colour, rather
+	\\ than black, so a second wipe is necessary.
+
+	\\ program colour 3 to black
+	lda #$70:sta $fe23:lda #$00:sta $fe23
+
+	\\ wipe to colour 3
+	lda #$ff:jsr wipe
+
+	\\ account for remainder of any delay.
+	ldx #PRE_LOGO_WAIT_FRAMES-64:jsr wait_frames 
+
+	jmp change_screen
+
+.normal_delay
+    \\ Wait a beat
+    ldx #PRE_LOGO_WAIT_FRAMES:jsr wait_frames    ; 0.5s
+
+.change_screen
     \\ Will be ~row 35 here - set for next cycle
     lda #6:sta &fe00        ; vertical displayed
     lda #26:sta &fe01
@@ -426,6 +472,7 @@ ENDIF
     ldx #LO(blackout_palette)
     ldy #HI(blackout_palette)
     jsr set_palette
+	jsr reset_nula
 
     \\ Display last part of screen RAM
     lda #12:sta &fe00
@@ -441,6 +488,49 @@ ENDIF
     ldy #HI(screen_exo)
     jsr decrunch
 
+	bit NULA_FLAG_ZP
+	bpl normal_fade
+
+.nula_fade
+
+	jsr wait_for_vsync
+
+	ldx #lo(logo_palette)
+	ldy #hi(logo_palette)
+	jsr set_palette
+
+    ldy #$00
+
+.nula_fade_loop
+
+    ; (logo palette uses black, blue, yellow, cyan)
+
+	; set faded blue
+	lda #$40:sta $fe23			; I=4 R=0
+	tya:and #$0f:sta $fe23		; G=0 B=n
+
+	; set faded yellow
+	tya:and #$0f:ora #$30:sta $fe23 ; I=3 R=n
+	tya:and #$f0:sta $fe23			; G=n B=0
+
+	; set faded cyan
+	lda #$60:sta $fe23			; I=6 R=0
+	tya:sta $fe23				; G=n B=n
+
+	ldx #3
+	jsr wait_frames
+
+	tya
+	clc
+	adc #$11
+	tay
+	bcc nula_fade_loop
+
+	jmp dramatic_pause
+
+.normal_fade
+    \\ Set palette (48 frames)
+	
     {
         ldy #0
         .fade_loop
@@ -451,24 +541,38 @@ ENDIF
         bne fade_loop
     }
 
-    \\ Set palette
     ldx #LO(logo_palette)
     ldy #HI(logo_palette)
     jsr set_palette
 
+.dramatic_pause
     \\ Pause for dramatic effect
     ldx #150:jsr wait_frames
 
     SEI
     LDA old_irqv:STA IRQ1V
     LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
-    jsr MUSIC_JUMP_SN_RESET
     CLI
 
+    {
+        lda MUSIC_SLOT_ZP
+        bmi no_music
+        jsr MUSIC_JUMP_SN_RESET
+        .no_music
+    }
+
     \\ Load next part
-    ldx #LO(next_part_cmd)
-    ldy #HI(next_part_cmd)
+	bit NULA_FLAG_ZP
+	bmi nula_version
+	
+    ldx #LO(low_cmd)
+    ldy #HI(low_cmd)
     jmp oscli
+
+.nula_version
+	ldx #lo(nula_cmd)
+	ldy #hi(nula_cmd)
+	jmp oscli
 }
 
 .irq_handler
@@ -573,6 +677,144 @@ ENDIF
     ldy #HI(char_def)
     jsr osword
     rts
+}
+
+; takes 64 frames.
+.wipe
+{
+pha
+
+ldx #255
+.loop
+stx count
+
+jsr wait_for_vsync
+
+ldx count
+pla:pha:jsr plot_line_X
+dex
+pla:pha:jsr plot_line_X
+dex
+pla:pha:jsr plot_line_X
+dex
+pla:pha:jsr plot_line_X
+
+cpx #0
+bne loop
+
+pla
+
+rts
+}
+
+.reset_nula
+{
+; if NuLA is present, always reset it, even if it's not being used. No
+; harm in that.
+	bit NULA_AVAILABLE_ZP
+	bpl done
+
+	lda #$40
+	sta $fe22
+
+.done
+	rts
+	
+}
+
+.set_text_palette
+{
+    ldx #LO(palette)
+    ldy #HI(palette)
+    jsr set_palette
+
+    jsr reset_nula
+
+	\\ NuLA setup, if using it..
+	lda NULA_AVAILABLE_ZP
+	and NULA_FLAG_ZP
+	bpl done
+
+	ldx #0
+.loop
+	lda palette_nula_values,x
+	sta $fe23
+	inx
+	cpx #8
+	bne loop
+
+.done
+	rts
+}
+
+.check_keys
+{
+.nula_toggle_check
+lda NULA_AVAILABLE_ZP
+beq nula_toggle_checked			; taken if no NuLA
+
+lda #nula_toggle_debounce
+ldx #NULA_TOGGLE_INKEY AND 255
+jsr check_key
+bne nula_toggle_checked
+
+; toggle NuLA
+lda NULA_FLAG_ZP:eor #$80:sta NULA_FLAG_ZP
+jsr set_text_palette
+
+.nula_toggle_checked
+bit MUSIC_SLOT_ZP
+bmi music_toggle_checked
+
+lda #music_toggle_debounce
+ldx #MUSIC_TOGGLE_INKEY AND 255
+jsr check_key
+bne music_toggle_checked
+
+lda MUSIC_ENABLED_ZP:eor #$80:sta MUSIC_ENABLED_ZP
+jsr enable_or_disable_music
+
+.music_toggle_checked
+
+.keys_checked
+rts
+}
+
+.enable_or_disable_music
+{
+lda $f4:pha
+
+lda MUSIC_SLOT_ZP:sta $f4:sta $fe30
+
+bit MUSIC_ENABLED_ZP
+bpl disable
+
+.enable
+jsr MUSIC_JUMP_LOUD
+jmp done
+
+.disable
+jsr MUSIC_JUMP_SILENT
+
+.done
+pla:sta $f4:sta $fe30
+rts
+}
+
+.check_key
+{
+sta ldx_addr+1
+lda #$81
+ldy #$ff
+jsr osbyte
+cpx #$ff						; C=1 if pressed
+.ldx_addr:ldx #$ff
+lda 0,x
+ror a
+sta 0,x
+and #%11000000
+cmp #%10000000
+rts
 }
 
 .make_glixel
@@ -1095,6 +1337,14 @@ EQUB &0A, &05
     EQUB &F0 + PAL_white
 }
 
+.palette_nula_values
+{
+	NULA_ENTRY 0,TEXT_BG_R,TEXT_BG_G,TEXT_BG_B
+	NULA_ENTRY 4,TEXT_BG_R,TEXT_BG_G,TEXT_BG_B
+	NULA_ENTRY 6,TEXT_FG_R,TEXT_FG_G,TEXT_FG_B
+	NULA_ENTRY 7,TEXT_FG_R,TEXT_FG_G,TEXT_FG_B
+}
+
 .flux_def
 EQUB %00001110
 EQUB %00001110
@@ -1125,8 +1375,11 @@ EQUB %01100111
 EQUB %00000001
 EQUB %00000000
 
-.next_part_cmd
+.low_cmd
 EQUS "/LOW", 13
+
+.nula_cmd
+EQUS "/NULA",13
 
 .music_filename
 EQUS "MUSIC", 13

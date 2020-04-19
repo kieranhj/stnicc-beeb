@@ -31,11 +31,6 @@ equb %11110000
 equb %11110011
 equb %11111100
 equb %11111111
-
-.ste_palette
-for i,0,15,1
-equb ((i>>3) or (i<<1)) and 15
-next
 endif
 
 .parse_frame
@@ -61,75 +56,30 @@ ENDIF
     and #FLAG_CONTAINS_PALETTE
     beq no_palette
 
-    \\ Read 16-bit palette mask
-    GET_BYTE
-    sta frame_bitmask+1
-    GET_BYTE
-    sta frame_bitmask
+	\\ Skip dummy value
+	GET_BYTE
+
+    \\ Read 8-bit palette entry count
+	GET_BYTE
+	tax
 
     \\ Read palette words
-    ldx #15
     .parse_palette_loop
-    asl frame_bitmask
-    rol frame_bitmask+1
-    bcc not_this_bit
 
-    \\ Discard our palette for now
+	GET_BYTE
+
 if _NULA
-
-	txa
-	eor #$0f
-	asl a
-	asl a
-	asl a
-	asl a
-	sta ora_index+1
-
-; The colour palette values sometimes have bit 3 set - presumably
-; these are STe-style palette values?
-;
-; The Beeb version just strips out this bit, and shifts the bottom 3
-; bits left to get a 4-bit value for the NuLA palette. This isn't
-; ideal, but it's not obviously noticeable.
-
-    stx ldx_x+1
-
-	GET_BYTE					; xxxxxrrr
-	and #%00001111
-	tax
-	lda ste_palette,x
-	.ora_index:ora #$ff
-	sta $fe23
-
-	GET_BYTE					; ggggbbbb
-
-	sta lda_ggggbbbb+1
-
-	lsr a:lsr a:lsr a:lsr a
-	tax
-	lda ste_palette,x
-	asl a:asl a:asl a:asl a
-	sta ora_gggg0000+1
-
-	.lda_ggggbbbb:lda #$ff
-	and #$0f
-	tax
-	lda ste_palette,x
-	.ora_gggg0000:ora #$ff
-	sta $fe23
-
-	.ldx_x:ldx #$ff
-
-else
-
-    GET_BYTE
-    GET_BYTE
-
+   sta $fe23
 endif
 
-    .not_this_bit
+	GET_BYTE
+
+if _NULA
+   sta $fe23
+endif
+
     dex
-    bpl parse_palette_loop
+    bne parse_palette_loop
 
 if NOT(_NULA)
     GET_PAL_BYTE

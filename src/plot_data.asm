@@ -32,14 +32,29 @@ PAGE_ALIGN_FOR_SIZE 4
 EQUB 4,3,2,1
 CHECK_SAME_PAGE_AS four_minus
 
+
+if _NULA
+
+; Not used...
+
+else
+
 PAGE_ALIGN_FOR_SIZE 14
 .minus_1_times_4
 EQUB 0, 0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48
 CHECK_SAME_PAGE_AS minus_1_times_4
 
+endif
+
 \ ******************************************************************
 \ *	PRE-SHIFTED DATA FOR SHORT/MEDIUM SPANS
 \ ******************************************************************
+
+if _NULA
+
+; Not used...
+
+else
 
 \\ Can only be a maximum of 2 bytes plotted for short (<=5 pixel) spans
 \\ X = [0,3] W = [1,5]
@@ -86,7 +101,7 @@ FOUR_BYTE_MASK_SHIFTS &E000, e, table_index
 FOUR_BYTE_MASK_SHIFTS &F000, e, table_index
 FOUR_BYTE_MASK_SHIFTS &F800, e, table_index
 
-IF _SHORT_SPAN_MAX_PIXELS > 5
+IF _SHORT_SPAN_MAX_BYTES > 2
 \\ 6, 7, 8, 9 pixels = 3 bytes max
 FOUR_BYTE_MASK_SHIFTS &FC00, e, table_index      ; 4 bytes
 FOUR_BYTE_MASK_SHIFTS &FE00, e, table_index
@@ -94,7 +109,7 @@ FOUR_BYTE_MASK_SHIFTS &FF00, e, table_index
 FOUR_BYTE_MASK_SHIFTS &FF80, e, table_index
 ENDIF
 
-IF _SHORT_SPAN_MAX_PIXELS > 9
+IF _SHORT_SPAN_MAX_BYTES > 3
 \\ 10, 11, 12, 13 pixels = 4 bytes max
 FOUR_BYTE_MASK_SHIFTS &FFC0, e, table_index      ; 4 bytes
 FOUR_BYTE_MASK_SHIFTS &FFE0, e, table_index
@@ -128,3 +143,5 @@ PAGE_ALIGN_FOR_SIZE 52
 SHORT_MASK_TABLE 0,3
 CHECK_SAME_PAGE_AS colour_mask_short_3
 ENDIF
+
+endif

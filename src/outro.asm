@@ -31,6 +31,7 @@ PRINT "_DOUBLE_BUFFER =",_DOUBLE_BUFFER
 PRINT "_PLOT_WIREFRAME =",_PLOT_WIREFRAME
 PRINT "------"
 
+include "src/zp.h.asm"
 include "src/music.h.asm"
 
 \ ******************************************************************
@@ -68,10 +69,6 @@ DFS_track_size = (DFS_sectors_per_track * DFS_sector_size)
 \ ******************************************************************
 \ *	MACROS
 \ ******************************************************************
-
-MACRO SWRAM_SELECT bank
-LDA #bank: sta &f4: sta &fe30
-ENDMACRO
 
 MACRO MODE4_PIXELS a,b,c,d
     EQUB (a AND 1) * &08 OR (b AND 1) * &04 OR (c AND 1) * &02 OR (d AND 1) * &01
@@ -179,7 +176,7 @@ Timer2Period = (48)*64
 \ ******************************************************************
 
 ORG &00
-GUARD &A0
+GUARD zp_top
 
 .zp_start
 .STREAM_ptr_LO      skip 1
@@ -306,8 +303,19 @@ GUARD screen3_addr
     .zp_loop
     sta &00, x
     inx
-    cpx #&A0
+    cpx #zp_top
     bne zp_loop
+
+    ; fix up the NuLA message, if appropriate
+	bit NULA_FLAG_ZP
+	bpl nula_done
+	ldx #nula_message_end-nula_message_begin-1
+.nula_message_loop
+	lda nula_message_begin,x
+	sta just_3bit_colour_begin,x
+	dex
+	bpl nula_message_loop
+.nula_done
 
 	SEI
 	LDA #&7F					; A=01111111
@@ -380,8 +388,13 @@ ENDIF
 	stx text_ptr:sty text_ptr+1
 
 	\\ Init music
-	SWRAM_SELECT 4
-	jsr MUSIC_JUMP_INIT_OUTRO
+	{
+		lda MUSIC_SLOT_ZP
+		bmi no_music
+		sta &f4:sta &fe30
+		jsr MUSIC_JUMP_INIT_OUTRO
+		.no_music
+	}
 
 	\\ Setup video
 	jsr wait_for_vsync
@@ -439,7 +452,13 @@ ENDIF
 	jsr wait_for_vsync
 
 	\\ GO!
-	inc music_enabled
+	{
+		lda MUSIC_SLOT_ZP
+		bmi no_music
+		inc music_enabled
+		.no_music
+	}
+
 	lda #8:sta &fe00:lda #&c0:sta &fe01		; show the screen!
 
     .loop
@@ -486,13 +505,9 @@ ENDIF
 
 	.track_load_error
 	\\ Wait for vsync
-	{
-		ldx #25
-		.loop
-		jsr wait_for_vsync
-		dex
-		bne loop
-	}
+	inc decode_lock
+	ldx #150
+	jsr wait_X_frames
 
 	\\ Disable interrupts but replace old handler
 	SEI
@@ -503,17 +518,16 @@ ENDIF
     LDA old_irqv+1:STA IRQ1V+1	; set interrupt handler
 	CLI
 
-	SWRAM_SELECT 4
-	jsr MUSIC_JUMP_SN_RESET
-
-	lda #8:sta &fe00:lda #&f0:sta &fe01		; hide screen
-
-	IF 0
 	{
-	    .wait_for_Key
-	    lda #&79:ldx #&10:jsr osbyte:cpx #&ff:beq wait_for_Key
+		lda MUSIC_SLOT_ZP
+		bmi no_music
+		sta &f4:sta &fe30
+		jsr MUSIC_JUMP_SN_RESET
+		.no_music
 	}
-	ENDIF
+
+	jsr reset_crtc_regs
+	lda #8:sta &fe00:lda #&f0:sta &fe01		; hide screen
 
     \\ Load next part
     ldx #LO(next_part_cmd)
@@ -527,6 +541,15 @@ ENDIF
 	.vsync1
 	bit &FE4D
 	beq vsync1
+;	sta $fe4d
+	rts
+}
+
+.wait_X_frames
+{
+	jsr wait_for_vsync
+	dex
+	bne wait_X_frames
 	rts
 }
 
@@ -744,7 +767,6 @@ ENDIF
 	jmp swap_frame_buffers
 	.^return_here_from_swap_frame_buffers
 
-	IF _ENABLE_MUSIC
     lda music_enabled
     beq no_music
 
@@ -753,14 +775,14 @@ ENDIF
 
 	inc music_lock
 	lda &f4:pha
-    SWRAM_SELECT 4
+	lda MUSIC_SLOT_ZP
+	sta &f4:sta &fe30
     txa:pha:tya:pha
     jsr MUSIC_JUMP_VGM_UPDATE
     pla:tay:pla:tax
 	pla:sta &f4:sta &fe30
 	dec music_lock
 	.no_music
-	ENDIF
 
 	JMP return_to_os
 
@@ -1117,25 +1139,16 @@ ENDIF
     beq no_palette
 
     \\ Read 16-bit palette mask
-    GET_BYTE
-    sta frame_bitmask+1
-    GET_BYTE
-    sta frame_bitmask
-
+	GET_BYTE					; dummy
+	GET_BYTE					; palette size
+	tax
+	
     \\ Read palette words
-    ldx #15
     .parse_palette_loop
-    asl frame_bitmask
-    rol frame_bitmask+1
-    bcc not_this_bit
-
-    \\ Discard our palette for now
-    GET_BYTE
-    GET_BYTE
-
-    .not_this_bit
-    dex
-    bpl parse_palette_loop
+	GET_BYTE
+	GET_BYTE
+	dex
+	bne parse_palette_loop
 
     .no_palette
 
@@ -1842,7 +1855,11 @@ EQUB &3F, &3F, &3F, &3F, &3F, &3F, &00, &00
 EQUB &FF, &FF, &FF, &FF, &FF, &FF, &00, &00
 
 .next_part_cmd
-EQUS "/!BOOT", 13
+EQUS "/INTRO", 13
+
+.nula_message_begin
+EQUS "12-bit NuLA colour"
+.nula_message_end
 
 .data_end
 
@@ -1911,11 +1928,11 @@ EQUS "2MHz 6502 CPU", 1, 50, 13
 EQUS ">", 1, 25
 EQUS "32K RAM + 16K SWRAM"
 EQUS ">", 1, 50
-EQUS "5", QUARTER_CODE, '"'," floppy", 1, 50, 13
+EQUS "5", QUARTER_CODE, '"'," 400K floppy", 1, 50, 13
 EQUS ">", 1, 25
 EQUS "No VIC, no Blitter", 1, 50, 13
 EQUS ">", 1, 25
-EQUS "Just 3-bit colour!", 1, 50, 13
+.just_3bit_colour_begin:EQUS "Just 3-bit colour!":.just_3bit_colour_end:EQUS 1, 50, 13
 EQUS ">", 1, 25
 EQUS "SN76489 sound chip", 1, 150, 12
 
@@ -1936,10 +1953,11 @@ EQUS "!", 1, 50, 12
 ;    |--------------------|
 EQUS "Original ST polygon", 13
 EQUS "stream data repacked"
-EQUS "with half the bits.", 1, 100, 13
+EQUS "with half the bits.", 13
+EQUS ">> 320K vs 625K <<", 1, 100, 13
 EQUS 13
 EQUS "2MHz 6502", 13
-EQUS 31,5,5,"vs 8MHz 68000", 1, 50
+EQUS 31,5,6,"vs 8MHz 68000", 1, 50
 EQUS "!", 1, 50, 12
 
 ; Page 3
@@ -2056,6 +2074,10 @@ EQUS 0
 IF (P%-reloc_credits_text) > (credits_end-credits_text)
 	ERROR "Need more space for credits_text."
 ENDIF
+
+IF nula_message_end-nula_message_begin<>just_3bit_colour_end-just_3bit_colour_begin
+    error "NuLA message is the wrong size"
+endif
 
 .reloc_from_end
 

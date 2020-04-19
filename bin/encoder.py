@@ -17,6 +17,12 @@ POLY_DESC_END_OF_FRAME = 0xFF
 def get_byte(file):
     return ord(file.read(1))
 
+def get_NuLA_value(ste_value):
+    assert ste_value>=0 and ste_value<=15
+    value=(ste_value&7)<<1
+    if ste_value&8: value|=1
+    return value
+
 # Convert palette word to nice RGB triple
 def colour_word_to_rgb(word):
     B = word & 0x0f
@@ -125,18 +131,23 @@ class Palette:
             return 2 + 2 * num_entries
 
     def write(self, data):
-        # Write mask
-        bitmask = 0
-        for e in self._entries:
-            bitmask |= 1 << (15 - e[0])
+        assert len(self._entries)>0
         
-        data.append(bitmask >> 8)
-        data.append(bitmask & 0xff)
+        # dummy byte :( - don't fancy changing the data size...
+        data.append(0)
+        
+        data.append(len(self._entries))
+
+        entries=sorted(self._entries,lambda a,b:cmp(a[0],b[0]))
 
         print "    Entries: {0}".format(len(self._entries))
-        for e in self._entries:
+        for e in entries:
             print "      {0} = {1}".format(e[0], e[1])
-            word = rgb_to_colour_word(e[1])
+            nula_rgb=[get_NuLA_value(e[1][0]),
+                      get_NuLA_value(e[1][1]),
+                      get_NuLA_value(e[1][2])]
+            word = rgb_to_colour_word(nula_rgb)
+            word |= e[0]<<12    # add NuLA palette index
             data.append(word >> 8)
             data.append(word & 0xff)
 
