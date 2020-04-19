@@ -3,7 +3,10 @@
 ; Stuff that has to stick around across intro, demo and outro.
 
 ; where this persistent data region begins
-zp_top=$7c
+zp_top=$7b
+
+; bit 7 clear = quality=0, set = quality=1
+NULA_QUALITY_ZP = $7b
 
 ;
 MUSIC_ENABLED_ZP = $7c

@@ -35,7 +35,8 @@ build: $(BUILD)/logo_mode1.exo $(BUILD)/intro_theme.vgc $(BUILD)/main_theme.vgc 
 #	$(BEEBASM) -D _QUALITY=2 -D _NULA=0 -i stnicc-beeb.asm -v > $(BUILD)/high.txt
 #	$(BEEBASM) -D _QUALITY=1 -D _NULA=0 -i stnicc-beeb.asm -v > $(BUILD)/medium.txt
 	$(BEEBASM) -D _QUALITY=0 -D _NULA=0 -i stnicc-beeb.asm -v > $(BUILD)/low.txt
-	$(BEEBASM) -D _QUALITY=1 -D _NULA=-1 -i stnicc-beeb.asm -v > $(BUILD)/nula.txt
+	$(BEEBASM) -D _QUALITY=0 -D _NULA=-1 -i stnicc-beeb.asm -v > $(BUILD)/nula_q0.txt
+	$(BEEBASM) -D _QUALITY=1 -D _NULA=-1 -i stnicc-beeb.asm -v > $(BUILD)/nula_q1.txt
 
 	$(BEEBASM) -i src/intro.asm -v > $(BUILD)/intro.txt
 	$(BEEBASM) -i src/outro.asm -v > $(BUILD)/outro.txt

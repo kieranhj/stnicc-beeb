@@ -1266,14 +1266,26 @@ endif
 \ ******************************************************************
 
 IF _NULA
-SAVE "build/NULA", start, end, main
-ELIF _QUALITY == 2
+
+if _QUALITY=0
+SAVE "build/NULA_Q0", start, end, main
+elif _QUALITY=1
+SAVE "build/NULA_Q1", start, end, main
+else
+error "unexpected _QUALITY value"
+endif
+
+else
+
+IF _QUALITY == 2
 SAVE "build/HIGH", start, end, main
 ELIF _QUALITY == 1
 SAVE "build/MEDIUM", start, end, main
 ELIF _QUALITY == 0
 SAVE "build/LOW", start, end, main
 ENDIF
+
+endif
 
 \ ******************************************************************
 \ *	Space reserved for runtime buffers not preinitialised

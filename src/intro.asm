@@ -110,6 +110,7 @@ PRE_LOGO_WAIT_FRAMES = 75
 
 MUSIC_TOGGLE_INKEY=-17      ; Q
 NULA_TOGGLE_INKEY=-86       ; N
+NULA_QUALITY_TOGGLE_INKEY=-52	; R
 
 ; Palette values. Not sure what the exact STe values are - I got these
 ; using the colour picker on a screen grab from a YouTube video :-|
@@ -165,10 +166,9 @@ GUARD zp_top
 .last_vsync     skip 1
 .music_enabled  skip 1
 
-
-
 .nula_toggle_debounce skip 1
 .music_toggle_debounce skip 1
+.nula_quality_toggle_debounce skip 1
 
 .zp_end
 
@@ -570,8 +570,16 @@ ENDIF
     jmp oscli
 
 .nula_version
-	ldx #lo(nula_cmd)
-	ldy #hi(nula_cmd)
+	bit NULA_QUALITY_ZP
+	bpl nula_q0_version
+
+	ldx #lo(nula_q1_cmd)
+	ldy #hi(nula_q1_cmd)
+	jmp oscli
+
+.nula_q0_version
+	ldx #lo(nula_q0_cmd)
+	ldy #hi(nula_q0_cmd)
 	jmp oscli
 }
 
@@ -743,6 +751,15 @@ rts
 	cpx #8
 	bne loop
 
+	bit NULA_QUALITY_ZP
+	bmi done
+
+; some vaguely scanlines-looking indication that you're in quality=0
+; mode...
+
+	lda #$00:sta $fe23
+	lda #$00:sta $fe23
+
 .done
 	rts
 }
@@ -775,7 +792,15 @@ lda MUSIC_ENABLED_ZP:eor #$80:sta MUSIC_ENABLED_ZP
 jsr enable_or_disable_music
 
 .music_toggle_checked
+lda #nula_quality_toggle_debounce
+ldx #NULA_QUALITY_TOGGLE_INKEY and 255
+jsr check_key
+bne nula_quality_toggle_checked
 
+lda NULA_QUALITY_ZP:eor #$80:sta NULA_QUALITY_ZP
+jsr set_text_palette
+
+.nula_quality_toggle_checked
 .keys_checked
 rts
 }
@@ -1378,8 +1403,11 @@ EQUB %00000000
 .low_cmd
 EQUS "/LOW", 13
 
-.nula_cmd
-EQUS "/NULA",13
+.nula_q0_cmd
+EQUS "/NULA0",13
+
+.nula_q1_cmd
+EQUS "/NULA1",13
 
 .music_filename
 EQUS "MUSIC", 13
