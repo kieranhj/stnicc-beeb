@@ -1281,9 +1281,9 @@ ENDIF
 
 .bss_start
 
-CLEAR reloc_from_start, &8000;screen2_addr
+CLEAR reloc_from_start, screen2_addr
 ORG reloc_from_start
-GUARD &8000;screen2_addr
+GUARD screen2_addr
 
 PAGE_ALIGN
 .STREAM_buffer_start
