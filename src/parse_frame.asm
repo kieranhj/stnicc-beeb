@@ -185,7 +185,9 @@ endif
     sta poly_verts_x, X
     .read_verts_y
     lda &ffff, Y
-    ; _HALF_VERTICAL_RES
+    if NOT(_HALF_VERTICAL_RES)
+    asl a
+    ENDIF
     sta poly_verts_y, X
 
     \\ Next step would be to inline the poly loop here.
@@ -214,7 +216,9 @@ ENDIF
     GET_BYTE
     sta poly_verts_x, X
     GET_BYTE
-    ; _HALF_VERTICAL_RES
+    IF NOT(_HALF_VERTICAL_RES)
+    asl a
+    ENDIF
     sta poly_verts_y, X
 
     \\ Next step would be to inline the poly loop here.

@@ -130,26 +130,37 @@ class Palette:
             # 2 bytes bitmask + 2 bytes per palette entry
             return 2 + 2 * num_entries
 
-    def write(self, data):
-        assert len(self._entries)>0
-        
-        # dummy byte :( - don't fancy changing the data size...
-        data.append(0)
-        
-        data.append(len(self._entries))
+    def write(self, data, beeb):
+        if beeb:
+            assert len(self._entries)>0
+            # dummy byte :( - don't fancy changing the data size...
+            data.append(0)
+            data.append(len(self._entries))
+        else:
+            # Write mask
+            bitmask = 0
+            for e in self._entries:
+                bitmask |= 1 << (15 - e[0])
+            data.append(bitmask >> 8)
+            data.append(bitmask & 0xff)
 
         entries=sorted(self._entries,lambda a,b:cmp(a[0],b[0]))
 
         print "    Entries: {0}".format(len(self._entries))
         for e in entries:
             print "      {0} = {1}".format(e[0], e[1])
-            nula_rgb=[get_NuLA_value(e[1][0]),
-                      get_NuLA_value(e[1][1]),
-                      get_NuLA_value(e[1][2])]
-            word = rgb_to_colour_word(nula_rgb)
-            word |= e[0]<<12    # add NuLA palette index
+            if beeb:
+                nula_rgb=[get_NuLA_value(e[1][0]),
+                        get_NuLA_value(e[1][1]),
+                        get_NuLA_value(e[1][2])]
+                word = rgb_to_colour_word(nula_rgb)
+                word |= e[0]<<12    # add NuLA palette index
+            else:
+               word = rgb_to_colour_word(e[1])
+
             data.append(word >> 8)
             data.append(word & 0xff)
+
 
 class Frame:
 
@@ -236,7 +247,7 @@ class Frame:
 
         if self._flags & FLAG_CONTAINS_PALETTE:
             print "    Contains palette!"
-            self._palette.write(data)
+            self._palette.write(data, beeb)
 
         if self._flags & FLAG_INDEXED_DATA:
             print "    Indexed data!"
@@ -303,11 +314,12 @@ class Sequence:
 
             # Merge any previous palette entries that were skipped
             if merge_pal != None:
+                assert frame_step > 1
                 f.merge_palette(merge_pal)
                 merge_pal = None
             
             # Is this frame to be skipped?
-            if frame_no % frame_step != 1:
+            if frame_step > 1 and frame_no % frame_step != 1:
                 # Grab the palette and merge with the next frame
                 merge_pal = f.get_palette()
                 continue
