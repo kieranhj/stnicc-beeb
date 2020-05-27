@@ -4,6 +4,7 @@ import argparse
 import binascii
 import sys
 import os
+import copy
 
 FLAG_CLEAR_SCREEN = 0x01
 FLAG_CONTAINS_PALETTE = 0x02
@@ -98,6 +99,30 @@ class Polygon:
             else:
                 v.write(data, beeb)
 
+class Colours:
+
+    def __init__(self):
+        self._colours = [[0, 0, 0]] * 16
+
+    def set_colour(self, i, rgb):
+        assert i >= 0 and i < 16
+        self._colours[i] = rgb
+
+    def equals(self, other):
+        for i in range(16):
+            if self._colours[i] != other._colours[i]:
+                return False
+        return True
+
+    def write(self, data):
+        # Actually writing 5 bytes as RISCOS OSWORD block:
+        for i in range(16):
+            data.append(16)         # logical colour
+            data.append(i)          # physical colour
+            data.append(self._colours[i][0] << 4)  # red
+            data.append(self._colours[i][1] << 4)  # green
+            data.append(self._colours[i][2] << 4)  # blue
+
 class Palette:
 
     def __init__(self):
@@ -121,6 +146,10 @@ class Palette:
                     
             if not matched:
                 self.add_entry(e[0], e[1])
+
+    def set_colours(self, colours):
+        for e in self._entries:
+            colours.set_colour(e[0], e[1])
 
     def get_size(self):
         num_entries = len(self._entries)
@@ -170,6 +199,7 @@ class Frame:
         self._palette = Palette()
         self._flags = 0
         self._data_size = 0
+        self._colours_index = 0
 
     def set_clear_screen_flag(self):
         self._flags |= FLAG_CLEAR_SCREEN
@@ -185,6 +215,12 @@ class Frame:
         if pal.get_size() != 0:
             self._palette.merge_palette(pal)
             self._flags |= FLAG_CONTAINS_PALETTE
+
+    def set_colours_index(self, cidx):
+        self._colours_index = cidx
+
+    def get_colours_index(self):
+        return self._colours_index
 
     def add_polygon(self, p):
         self._polygons.append(p)
@@ -283,6 +319,7 @@ class Sequence:
         self._frames = []
         self._alignment = 64 * 1024
         self._frame_offsets = []
+        self._all_colours = []
 
     def add_frame(self, f):
         f.calc_size()
@@ -308,6 +345,8 @@ class Sequence:
         frame_no = 0
         total = 0
         merge_pal = None
+
+        colours = Colours()
 
         for f in self._frames:
 
@@ -354,12 +393,33 @@ class Sequence:
             self._frame_offsets.append(len(data))
             f.write(data, beeb)
 
+            # Update colours for this frame
+            f.get_palette().set_colours(colours)
+            # Verbose:
+            # print "    Colours: ", colours._colours
+
+            cidx=0
+            for c in self._all_colours:
+                if c.equals(colours):
+                    break
+                cidx+=1
+            else:
+                c = None
+
+            if c == None or cidx == len(self._all_colours):
+                self._all_colours.append(copy.deepcopy(colours))
+            
+            f.set_colours_index(cidx)
+            print "    Colours index: {0}".format(cidx)
+
             total += frame_size
             assert total == len(data)
 
         # Write EOF marker for last frame.
         data.append(POLY_DESC_END_OF_STREAM)
         total += 1
+
+        print "Found {0} Colours sets.".format(len(self._all_colours))
 
         return total
 
@@ -371,6 +431,12 @@ class Sequence:
             data.append((o >> 16) & 0xff)
             data.append((o >> 24) & 0xff)
 
+    def write_colours_data(self, data):
+        for f in self._frames:
+            data.append(f.get_colours_index())
+        
+        for c in self._all_colours:
+            c.write(data)
 
 def make_sequence_from_file(file):
     sequence = Sequence()
@@ -473,6 +539,7 @@ if __name__ == '__main__':
     parser.add_argument("-f", "--frame_step", type=int, default=1, metavar="<n>", help="Set frame step for output <f>, default: 1")
     parser.add_argument("-v", "--verbose", help="Enable verbose mode", action="store_true")
     parser.add_argument("-x", "--index", metavar="<index>", help="write index file <index> containing 32-bit offset to each frame")
+    parser.add_argument("-c", "--colours", metavar="<colours>", help="write colours file <colours> containing colous index for each frame plus colours data")
     args = parser.parse_args()
 
     src = args.input
@@ -516,3 +583,11 @@ if __name__ == '__main__':
         index_file.write(index_data)
         index_file.close()
         print "Wrote {0} bytes to index.".format(len(index_data))
+
+    if args.colours != None:
+        colours_data = bytearray()
+        my_sequence.write_colours_data(colours_data)
+        colours_file = open(args.colours, 'wb')
+        colours_file.write(colours_data)
+        colours_file.close()
+        print "Wrote {0} bytes to colours data.".format(len(colours_data))
