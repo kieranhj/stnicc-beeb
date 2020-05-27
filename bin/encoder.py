@@ -282,6 +282,7 @@ class Sequence:
     def __init__(self):
         self._frames = []
         self._alignment = 64 * 1024
+        self._frame_offsets = []
 
     def add_frame(self, f):
         f.calc_size()
@@ -349,6 +350,8 @@ class Sequence:
                 for i in xrange(0,align_by):
                     data.append(0x55)
 
+            print "    Offset: {0}".format(len(data))
+            self._frame_offsets.append(len(data))
             f.write(data, beeb)
 
             total += frame_size
@@ -357,7 +360,16 @@ class Sequence:
         # Write EOF marker for last frame.
         data.append(POLY_DESC_END_OF_STREAM)
         total += 1
+
         return total
+
+    def write_index_data(self, data):
+        print self._frame_offsets
+        for o in self._frame_offsets:
+            data.append((o >> 0) & 0xff)
+            data.append((o >> 8) & 0xff)
+            data.append((o >> 16) & 0xff)
+            data.append((o >> 24) & 0xff)
 
 
 def make_sequence_from_file(file):
@@ -460,17 +472,18 @@ if __name__ == '__main__':
     parser.add_argument("-b", "--beeb", help="Enable BBC specific data changes", default=False, action="store_true")
     parser.add_argument("-f", "--frame_step", type=int, default=1, metavar="<n>", help="Set frame step for output <f>, default: 1")
     parser.add_argument("-v", "--verbose", help="Enable verbose mode", action="store_true")
+    parser.add_argument("-x", "--index", metavar="<index>", help="write index file <index> containing 32-bit offset to each frame")
     args = parser.parse_args()
 
     src = args.input
-    dst = args.output
-    if dst == None:
-        dst = os.path.splitext(src)[0] + ".new.bin"
-
     # check for missing files
     if not os.path.isfile(src):
         print("ERROR: File '" + src + "' not found")
         sys.exit()
+
+    dst = args.output
+    if dst == None:
+        dst = os.path.splitext(src)[0] + ".new.bin"
 
     input_file = open(src, 'rb')
 
@@ -495,3 +508,11 @@ if __name__ == '__main__':
 
     output_file.write(data)
     output_file.close()
+
+    if args.index != None:
+        index_data = bytearray()
+        my_sequence.write_index_data(index_data)
+        index_file = open(args.index, 'wb')
+        index_file.write(index_data)
+        index_file.close()
+        print "Wrote {0} bytes to index.".format(len(index_data))
