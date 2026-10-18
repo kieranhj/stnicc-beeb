@@ -36,17 +36,10 @@ OPCODE_DEC_ABS = &CE
     lda poly_verts_x:sta poly_verts_x, X
     lda poly_verts_y:sta poly_verts_y, X
 
-    \\ 1. Reset vertex rows, track min/max y
+    \\ 1. Vertex rows were reset, and min/max y found, as parse_frame read them
+    \\ (FAST_POLY_VERTEX_ROW)
     dex
     stx poly_index                  ; n-1
-    .reset_loop
-    ldy poly_verts_y, X
-    lda #255:sta S_BUF, Y
-    lda #0:sta E_BUF, Y
-    cpy span_buffer_min_y:bcs not_min:sty span_buffer_min_y:.not_min
-    cpy span_buffer_max_y:bcc not_max:sty span_buffer_max_y:.not_max
-    dex
-    bpl reset_loop
 
     \\ 2. Edges going down: store
     ldx poly_index

@@ -18,6 +18,7 @@
 \\ Assembled to run at &400 (see the relocated blocks in stnicc-beeb.asm).
 
 fps_ofsL = span_start           ; left end byte column * 8
+fps_ofsR = count                ; right end byte column * 8
 fps_nb8 = span_width            ; (right column - left column) * 8
 fps_mask = shortptr             ; right end mask, or the one-byte mask
 fps_maskL = shortptr+1          ; left end mask
@@ -58,6 +59,7 @@ ENDMACRO
     lda rmask, Y                ; 4c
     sta fps_mask                ; 3c
     lda screen_col_LO, Y        ; 4c
+    sta fps_ofsR                ; 3c
     ldy span_buffer_start, X    ; 4c  s
     sec                         ; 2c
     sbc screen_col_LO, Y        ; 4c
@@ -73,15 +75,14 @@ ENDMACRO
 
     .^return_here_from_unrolled_span_loop
     .next_row
+    inc writeptr+1              ; 5c    (one too many at the end of a pass: harmless)
     txa                         ; 2c
     clc                         ; 2c
     adc #4                      ; 2c
     tax                         ; 2c
     .fps_max
     cpx #0                      ; 2c   max_y+1
-    bcs pass_done               ; 2c
-    inc writeptr+1              ; 5c
-    jmp row                     ; 3c
+    bcc row                     ; 3c
 
     .pass_done
     ldx fps_pass
@@ -99,16 +100,13 @@ ENDMACRO
     \\ Two or more bytes: A = (right column - left column) * 8
     .multi
     sta fps_nb8                 ; 3c
-    lda screen_col_LO, Y        ; 4c
-    sta fps_ofsL                ; 3c
     lda lmask, Y                ; 4c
-    ldy fps_ofsL                ; 3c
     sta fps_maskL               ; 3c
-    FPS_MASKED_WRITE fps_maskL  ; 22c   left end
-    tya                         ; 2c
-    clc                         ; 2c
-    adc fps_nb8                 ; 3c
+    lda screen_col_LO, Y        ; 4c
     tay                         ; 2c
+    sty fps_ofsL                ; 3c
+    FPS_MASKED_WRITE fps_maskL  ; 22c   left end
+    ldy fps_ofsR                ; 3c
     FPS_MASKED_WRITE fps_mask   ; 22c   right end
     lda fps_nb8                 ; 3c
     cmp #9                      ; 2c

@@ -33,6 +33,20 @@ equb %11111100
 equb %11111111
 endif
 
+IF _FAST_POLY
+\\ A = vertex y: reset its span buffer row and track the polygon's min/max y
+\\ (the first step of plot_poly_span in plot_poly_fast.asm). Uses Y.
+MACRO FAST_POLY_VERTEX_ROW
+{
+    tay
+    lda #255:sta span_buffer_start, Y
+    lda #0:sta span_buffer_end, Y
+    cpy span_buffer_min_y:bcs not_min:sty span_buffer_min_y:.not_min
+    cpy span_buffer_max_y:bcc not_max:sty span_buffer_max_y:.not_max
+}
+ENDMACRO
+ENDIF
+
 .parse_frame
 {
     inc frame_no
@@ -189,6 +203,9 @@ endif
     asl a
     ENDIF
     sta poly_verts_y, X
+IF _FAST_POLY
+    FAST_POLY_VERTEX_ROW
+ENDIF
 
     \\ Next step would be to inline the poly loop here.
 
@@ -220,6 +237,10 @@ ENDIF
     asl a
     ENDIF
     sta poly_verts_y, X
+IF _FAST_POLY
+    FAST_POLY_VERTEX_ROW
+    ldy #0                      ; for GET_BYTE
+ENDIF
 
     \\ Next step would be to inline the poly loop here.
 
