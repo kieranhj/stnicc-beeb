@@ -155,6 +155,11 @@ DISK2_last_track = DISK2_first_track + STREAMING_tracks_per_disk
 
 STREAM_buffer_size = 3 * DFS_track_size
 
+; Pages of stream that must be loaded before a frame may start (see irq_handler).
+; The largest frame is 1194 bytes, so 6 pages (at least 1280 bytes past the
+; current page) for the fast renderer; 4 as before otherwise.
+IF _FAST_POLY:STREAM_pages_ahead = 6:ELSE:STREAM_pages_ahead = 4:ENDIF
+
 ; STNICCC scene1.bin constants
 MAX_VERTS_PER_POLY = 7
 
@@ -799,11 +804,21 @@ ENDIF
     INC vsync_counter+1
     .no_carry
 
+	\\ (vsync_done is a JMP within reach: the fast renderer's stream check
+	\\ pushes return_to_os out of branch range)
     lda music_enabled
+IF _FAST_POLY
+    beq vsync_done
+ELSE
     beq return_to_os
+ENDIF
 
 	lda music_lock
+IF _FAST_POLY
+	bne vsync_done
+ELSE
 	bne return_to_os
+ENDIF
 
 	inc music_lock
 	lda &f4:pha
@@ -815,6 +830,7 @@ ENDIF
 	pla:sta &f4:sta &fe30
 	dec music_lock
 
+	.vsync_done
 	JMP return_to_os
 
 	.not_vsync
@@ -876,7 +892,9 @@ ENDIF
 		lda #&ff:sta buffer_lock
 
 		.stream_ok
-		IF _PLOT_WIREFRAME OR _SKIP_ODD_FRAMES
+		\\ A renderer faster than the disc must not start a frame on data not yet
+		\\ loaded: lock the decoder unless STREAM_pages_ahead pages are loaded.
+		IF _PLOT_WIREFRAME OR _SKIP_ODD_FRAMES OR _FAST_POLY
 		{
 			lda track_no
 			bmi enough_data_for_next_frame
@@ -889,7 +907,7 @@ ENDIF
 			sec
 			lda load_to_HI
 			sbc STREAM_ptr_HI
-			cmp #4
+			cmp #STREAM_pages_ahead
 			bcs enough_data_for_next_frame
 
 			\\ Otherwise lock our buffer
@@ -903,7 +921,7 @@ ENDIF
 			adc #HI(STREAM_buffer_size)
 			sec
 			sbc STREAM_ptr_HI
-			cmp #4
+			cmp #STREAM_pages_ahead
 			bcs enough_data_for_next_frame
 
 			\\ Otherwise lock our buffer
@@ -1006,13 +1024,13 @@ endif
 
 	\\ Draw screen 2
 if _FAST_POLY
-		lda #LO(span_row_table_screen2_LO)
+		lda #LO(fps_unrolled_screen2_LO)
 		sta fps_row_table_LO+1
-		lda #HI(span_row_table_screen2_LO)
+		lda #HI(fps_unrolled_screen2_LO)
 		sta fps_row_table_LO+2
-		lda #LO(span_row_table_screen2_HI)
+		lda #LO(fps_unrolled_screen2_HI)
 		sta fps_row_table_HI+1
-		lda #HI(span_row_table_screen2_HI)
+		lda #HI(fps_unrolled_screen2_HI)
 		sta fps_row_table_HI+2
 else
 	lda #HI(screen2_row_HI)
@@ -1041,13 +1059,13 @@ endif
 
 	\\ Draw screen 1
 if _FAST_POLY
-		lda #LO(span_row_table_screen1_LO)
+		lda #LO(fps_unrolled_screen1_LO)
 		sta fps_row_table_LO+1
-		lda #HI(span_row_table_screen1_LO)
+		lda #HI(fps_unrolled_screen1_LO)
 		sta fps_row_table_LO+2
-		lda #LO(span_row_table_screen1_HI)
+		lda #LO(fps_unrolled_screen1_HI)
 		sta fps_row_table_HI+1
-		lda #HI(span_row_table_screen1_HI)
+		lda #HI(fps_unrolled_screen1_HI)
 		sta fps_row_table_HI+2
 else
 	lda #HI(screen1_row_HI)

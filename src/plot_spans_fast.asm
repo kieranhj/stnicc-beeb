@@ -119,18 +119,12 @@ ENDMACRO
     lsr a                       ; 2c    nb8/2 = (stores+1)*4
     tay                         ; 2c
     lda long_span_tables-4, Y   ; 4c    (32-stores)*3
-    sta fps_off                 ; 3c
-    txa                         ; 2c
-    lsr a                       ; 2c
-    lsr a                       ; 2c
-    tay                         ; 2c    character row
-    lda fps_off                 ; 3c
     clc                         ; 2c
     .^fps_row_table_LO
-    adc span_row_table_screen1_LO, Y    ; 4c    set by swap_frame_buffers
+    adc fps_unrolled_screen1_LO, X      ; 4c    by y; set by swap_frame_buffers
     sta jump+1                  ; 4c
     .^fps_row_table_HI
-    lda span_row_table_screen1_HI, Y    ; 4c
+    lda fps_unrolled_screen1_HI, X      ; 4c
     adc #0                      ; 2c
     sta jump+2                  ; 4c
     lda fps_ofsL                ; 3c
@@ -141,3 +135,24 @@ ENDMACRO
     .jump
     jmp &ffff                   ; 3c    returns to next_row
 }
+
+\\ Address of the unrolled span code for the character row of polygon row y
+\\ (y>>2), for each screen
+MACRO FPS_UNROLLED_TABLE base, hi
+FOR y,0,99,1
+IF hi
+EQUB HI(base + (y DIV 4) * UNROLLED_ROW_SIZE)
+ELSE
+EQUB LO(base + (y DIV 4) * UNROLLED_ROW_SIZE)
+ENDIF
+NEXT
+ENDMACRO
+
+PAGE_ALIGN_FOR_SIZE 100
+.fps_unrolled_screen1_LO:FPS_UNROLLED_TABLE span_screen1_row0_unrolled, FALSE
+PAGE_ALIGN_FOR_SIZE 100
+.fps_unrolled_screen1_HI:FPS_UNROLLED_TABLE span_screen1_row0_unrolled, TRUE
+PAGE_ALIGN_FOR_SIZE 100
+.fps_unrolled_screen2_LO:FPS_UNROLLED_TABLE span_screen2_row0_unrolled, FALSE
+PAGE_ALIGN_FOR_SIZE 100
+.fps_unrolled_screen2_HI:FPS_UNROLLED_TABLE span_screen2_row0_unrolled, TRUE
