@@ -38,7 +38,7 @@ def load_ssd(path):
         if len(data)>80*TRACK_SIZE_BYTES: fatal('%s: too large to be a .ssd')
 
         padding=(TRACK_SIZE_BYTES-len(data)%TRACK_SIZE_BYTES)%TRACK_SIZE_BYTES
-        if padding!=0: data+=padding*chr(0)
+        if padding!=0: data+=padding*b'\x00'
             
         return data
 
@@ -58,10 +58,10 @@ def dsd_create(options):
 
     # make both files the same length
     diff=len(side1)-len(side0)
-    if diff>0: side0+=diff*chr(0)
-    elif diff<0: side1+=-diff*chr(0)
+    if diff>0: side0+=diff*b'\x00'
+    elif diff<0: side1+=-diff*b'\x00'
 
-    dsd=''
+    dsd=b''
     for i in range(0,len(side0),TRACK_SIZE_BYTES):
         dsd+=side0[i:i+TRACK_SIZE_BYTES]
         dsd+=side1[i:i+TRACK_SIZE_BYTES]

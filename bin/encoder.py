@@ -44,8 +44,8 @@ class Vertex:
 
     def write(self, data, beeb):
         if beeb == True:
-            data.append(self._x / 2)
-            data.append(self._y / 2)
+            data.append(self._x // 2)
+            data.append(self._y // 2)
         else:
             data.append(self._x)
             data.append(self._y)
@@ -144,11 +144,11 @@ class Palette:
             data.append(bitmask >> 8)
             data.append(bitmask & 0xff)
 
-        entries=sorted(self._entries,lambda a,b:cmp(a[0],b[0]))
+        entries=sorted(self._entries,key=lambda a:a[0])
 
-        print "    Entries: {0}".format(len(self._entries))
+        print("    Entries: {0}".format(len(self._entries)))
         for e in entries:
-            print "      {0} = {1}".format(e[0], e[1])
+            print("      {0} = {1}".format(e[0], e[1]))
             if beeb:
                 nula_rgb=[get_NuLA_value(e[1][0]),
                         get_NuLA_value(e[1][1]),
@@ -243,39 +243,39 @@ class Frame:
         data.append(self._flags)
 
         if self._flags & FLAG_CLEAR_SCREEN:
-            print "    Clear screen!"
+            print("    Clear screen!")
 
         if self._flags & FLAG_CONTAINS_PALETTE:
-            print "    Contains palette!"
+            print("    Contains palette!")
             self._palette.write(data, beeb)
 
         if self._flags & FLAG_INDEXED_DATA:
-            print "    Indexed data!"
+            print("    Indexed data!")
             # Write num verts
             data.append(self.num_unique_verts())
             # Write each vert
             if beeb == True:
                 # Write de-interleaved
                 for v in self._vertices:
-                    data.append(v._x / 2)
+                    data.append(v._x // 2)
                 for v in self._vertices:
-                    data.append(v._y / 2)
+                    data.append(v._y // 2)
             else:
                 # Write interleaved
                 for v in self._vertices:
                     v.write(data, beeb)
 
         else:
-            print "    Non-indexed data!"
+            print("    Non-indexed data!")
 
-        print "    Unique verts: {0}".format(self.num_unique_verts())
-        print "    Num polys: {0}".format(self.num_polys())
+        print("    Unique verts: {0}".format(self.num_unique_verts()))
+        print("    Num polys: {0}".format(self.num_polys()))
 
         # Write each poly
         for p in self._polygons:
             p.write(self._flags & FLAG_INDEXED_DATA, self._vertices, data, beeb)
 
-        print "    Data size: {0}".format(self.get_size())
+        print("    Data size: {0}".format(self.get_size()))
 
 class Sequence:
 
@@ -303,7 +303,7 @@ class Sequence:
         return len(self._frames)
 
     def write(self, data, frame_step, beeb):
-        print "Sequence: {0} frames".format(self.num_frames())
+        print("Sequence: {0} frames".format(self.num_frames()))
         frame_no = 0
         total = 0
         merge_pal = None
@@ -324,16 +324,16 @@ class Sequence:
                 merge_pal = f.get_palette()
                 continue
 
-            print "  Frame: {0}".format(frame_no)
+            print("  Frame: {0}".format(frame_no))
 
             frame_size = f.get_size()
-            this_chunk = total / self._alignment
-            next_chunk = (total + frame_size) / self._alignment
+            this_chunk = total // self._alignment
+            next_chunk = (total + frame_size) // self._alignment
 
             eof_byte = POLY_DESC_END_OF_FRAME
 
             if next_chunk != this_chunk:
-                print "    Align data to next chunk!"
+                print("    Align data to next chunk!")
                 eof_byte = POLY_DESC_SKIP_TO_64K
 
             # Write EOF marker for previous frame.
@@ -346,7 +346,7 @@ class Sequence:
                 align_by = next_chunk * self._alignment - total
                 total = next_chunk * self._alignment
 
-                for i in xrange(0,align_by):
+                for i in range(0,align_by):
                     data.append(0x55)
 
             f.write(data, beeb)
@@ -376,7 +376,7 @@ def make_sequence_from_file(file):
             palette_bitmask = get_byte(file) << 8 | get_byte(file)
 
             # Read palette data
-            for b in xrange(15,-1,-1):
+            for b in range(15,-1,-1):
                 if palette_bitmask & (1<<b):
                     palette_word = get_byte(file) << 8 | get_byte(file)
                     palette_colour = colour_word_to_rgb(palette_word)
@@ -392,7 +392,7 @@ def make_sequence_from_file(file):
             # Get num vertices
             num_verts = get_byte(file)
 
-            for v in xrange(0, num_verts):
+            for v in range(0, num_verts):
                 x = get_byte(file)
                 y = get_byte(file)
 
@@ -420,7 +420,7 @@ def make_sequence_from_file(file):
             # Indexed
             if indexed:
                 # Reading vertices
-                for v in xrange(0, poly_num_verts):
+                for v in range(0, poly_num_verts):
                     vert_idx = get_byte(file)
                     x = verts_x[vert_idx]
                     y = verts_y[vert_idx]
@@ -430,7 +430,7 @@ def make_sequence_from_file(file):
 
             else:
                 # Reading x, y values
-                for v in xrange(0, poly_num_verts):
+                for v in range(0, poly_num_verts):
                     x = get_byte(file)
                     y = get_byte(file)
                     v = Vertex(x, y)
@@ -474,12 +474,12 @@ if __name__ == '__main__':
 
     input_file = open(src, 'rb')
 
-    print "STNICC polygon data stream.\n"
+    print("STNICC polygon data stream.\n")
 
     my_sequence = make_sequence_from_file(input_file)
     input_file.close()
 
-    print "Total frames {0}, unaligned data size: {1}".format(my_sequence.num_frames(), my_sequence.get_size())
+    print("Total frames {0}, unaligned data size: {1}".format(my_sequence.num_frames(), my_sequence.get_size()))
 
     output_file = open(dst, 'wb')
 
@@ -491,7 +491,7 @@ if __name__ == '__main__':
     # Write out the sequence...
     actual = my_sequence.write(data, args.frame_step, args.beeb)
 
-    print "Actual written bytes: {0} vs {1}".format(actual, len(data))
+    print("Actual written bytes: {0} vs {1}".format(actual, len(data)))
 
     output_file.write(data)
     output_file.close()
