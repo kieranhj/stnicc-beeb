@@ -281,6 +281,14 @@ ENDIF
 ORG &300
 GUARD &800
 .reloc_to_start
+if _FAST_POLY
+.lmask                  ; byte mask of pixels (x AND 3) to 3, by pixel x
+skip &80
+.rmask                  ; byte mask of pixels 0 to (x AND 3), by pixel x
+skip &80
+.fast_code_area         ; &400-&6FF: code relocated from reloc_fast_code
+skip &300
+else
 .screen_row_LO
 skip &100
 .screen1_row_HI
@@ -289,6 +297,7 @@ skip &100
 skip &100
 .y_to_row
 skip &100
+endif
 PAGE_ALIGN  ; lazy
 if not(_NULA)
 .poly_palette
@@ -996,6 +1005,16 @@ endif
     lda #LO(screen1_addr/8):sta &fe01
 
 	\\ Draw screen 2
+if _FAST_POLY
+		lda #LO(span_row_table_screen2_LO)
+		sta fps_row_table_LO+1
+		lda #HI(span_row_table_screen2_LO)
+		sta fps_row_table_LO+2
+		lda #LO(span_row_table_screen2_HI)
+		sta fps_row_table_HI+1
+		lda #HI(span_row_table_screen2_HI)
+		sta fps_row_table_HI+2
+else
 	lda #HI(screen2_row_HI)
 	sta plot_long_span_set_screen+2
 	sta plot_short_span_set_screen+2
@@ -1008,6 +1027,7 @@ endif
 		sta plot_span_set_row_table_HI+1
 		lda #HI(span_row_table_screen2_HI)
 		sta plot_span_set_row_table_HI+2
+endif
 
 	\\ Continue
 	bne continue
@@ -1020,10 +1040,20 @@ endif
     lda #LO(screen2_addr/8):sta &fe01
 
 	\\ Draw screen 1
+if _FAST_POLY
+		lda #LO(span_row_table_screen1_LO)
+		sta fps_row_table_LO+1
+		lda #HI(span_row_table_screen1_LO)
+		sta fps_row_table_LO+2
+		lda #LO(span_row_table_screen1_HI)
+		sta fps_row_table_HI+1
+		lda #HI(span_row_table_screen1_HI)
+		sta fps_row_table_HI+2
+else
 	lda #HI(screen1_row_HI)
 	sta plot_long_span_set_screen+2
 	sta plot_short_span_set_screen+2
-		
+
 		lda #LO(span_row_table_screen1_LO)
 		sta plot_span_set_row_table_LO+1
 		lda #HI(span_row_table_screen1_LO)
@@ -1032,6 +1062,7 @@ endif
 		sta plot_span_set_row_table_HI+1
 		lda #HI(span_row_table_screen1_HI)
 		sta plot_span_set_row_table_HI+2
+endif
 
 	\\ Continue
 	.continue
@@ -1155,7 +1186,9 @@ EQUB 2,&FF,0		; only two discs now!
 .next_part_cmd
 EQUS "/OUTRO", 13
 
+if not(_FAST_POLY)
 include "src/plot_data.asm"
+endif
 
 PAGE_ALIGN_FOR_SIZE 33*4
 .long_span_tables
@@ -1215,6 +1248,31 @@ INCLUDE "src/clock.asm"
 
 PAGE_ALIGN
 .reloc_from_start
+if _FAST_POLY
+.reloc_lmask
+FOR n,0,127,1
+p=n AND 3
+IF p=0:EQUB &FF:ELIF p=1:EQUB &77:ELIF p=2:EQUB &33:ELSE:EQUB &11:ENDIF  ; pixels p..3
+NEXT
+.reloc_rmask
+FOR n,0,127,1
+p=n AND 3
+IF p=0:EQUB &88:ELIF p=1:EQUB &CC:ELIF p=2:EQUB &EE:ELSE:EQUB &FF:ENDIF  ; pixels 0..p
+NEXT
+
+\\ The span plotter, assembled to run at &400 and stored here
+reloc_P4 = P%
+CLEAR &400, &700
+ORG &400
+GUARD &700
+.fast_code_start
+include "src/plot_spans_fast.asm"
+.fast_code_end
+COPYBLOCK fast_code_start, fast_code_end, reloc_P4
+CLEAR fast_code_start, fast_code_end
+ORG reloc_P4 + &300
+PRINT "Code at &400:", ~fast_code_end-fast_code_start, "bytes"
+else
 .reloc_screen_row_LO
 FOR n,0,255,1
 row=n DIV 8:sl=n MOD 8
@@ -1245,6 +1303,7 @@ row=n DIV 8
 EQUB row
 NEXT
 CHECK_SAME_PAGE_AS reloc_y_to_row
+endif
 
 \ ******************************************************************
 \ *	PALETTE DATA - MUST BE PAGE ALIGNED DUE TO SMC
