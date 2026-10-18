@@ -186,16 +186,16 @@ edge_x0 = scrn
     lda dy
     lsr a                       ; acc = dy/2
 
-    .loop
     iny
-    .^ds_end
-    cpy #0                      ; C=0 while below y1
-    beq done
+    cpy endy                    ; no interior rows if dy=1
+    beq done                    ; else C=0: below y1
+
+    .loop
     .^ds_dx
     sbc #0                      ; acc -= dx
     bcs no_step
     .^ds_dy
-    adc #0                      ; acc += dy, C=1 after
+    adc #0                      ; acc += dy
     .^ds_step
     inc ds_x+1                  ; inc/dec: x += sx
     .no_step
@@ -205,7 +205,10 @@ edge_x0 = scrn
     sta S_BUF, Y
     sta E_BUF, Y
     txa
-    bcs loop                    ; always
+    iny
+    .^ds_end
+    cpy #0                      ; C=0 while below y1
+    bne loop
 
     .done
     ldx edge_i
@@ -215,14 +218,17 @@ edge_x0 = scrn
     lda endy
     sta dv_end+1
     lda edge_x0
+    iny
+    cpy endy
+    beq done
     .vloop
+    sta S_BUF, Y
+    sta E_BUF, Y
     iny
     .dv_end
     cpy #0
+    bne vloop
     beq done
-    sta S_BUF, Y
-    sta E_BUF, Y
-    bne vloop                   ; always (Z from cpy)
 }
 
 \\ Shallow: each row is a run from the pixel the row starts on to the pixel
@@ -252,13 +258,12 @@ edge_x0 = scrn
     adc #0
     sta accum
     txa
-    cmp E_BUF, Y:bcc loop:sta E_BUF, Y
+    cmp E_BUF, Y:bcc no_far:sta E_BUF, Y:.no_far
+    iny
+    cpy endy
+    beq last
 
     .loop
-    iny
-    .^dsr_end
-    cpy #0
-    beq last
     txa
     sta S_BUF, Y
     lda accum
@@ -269,11 +274,14 @@ edge_x0 = scrn
     sbc #0
     bcs count2
     .^dsr_dx2
-    adc #0                      ; C=1 after
+    adc #0
     sta accum
     txa
     sta E_BUF, Y
-    bcs loop                    ; always
+    iny
+    .^dsr_end
+    cpy #0
+    bne loop
 
     \\ Last row: near end only
     .last
@@ -307,13 +315,12 @@ edge_x0 = scrn
     adc #0
     sta accum
     txa
-    cmp S_BUF, Y:bcs loop:sta S_BUF, Y
+    cmp S_BUF, Y:bcs no_far:sta S_BUF, Y:.no_far
+    iny
+    cpy endy
+    beq last
 
     .loop
-    iny
-    .^dsl_end
-    cpy #0
-    beq last
     txa
     sta E_BUF, Y
     lda accum
@@ -328,7 +335,10 @@ edge_x0 = scrn
     sta accum
     txa
     sta S_BUF, Y
-    bcs loop
+    iny
+    .^dsl_end
+    cpy #0
+    bne loop
 
     .last
     txa

@@ -18,11 +18,11 @@
     lda dy
     lsr a
 
-    .loop
     dey
-    .^us_end
-    cpy #0                      ; C=1 while at or above y1
-    beq done
+    cpy endy                    ; no interior rows if dy=1
+    beq done                    ; else C=1: above y1
+
+    .loop
     .^us_dx
     sbc #0
     bcs no_step
@@ -37,7 +37,10 @@
     cmp S_BUF, Y:bcs not_s:sta S_BUF, Y:.not_s
     cmp E_BUF, Y:bcc not_e:sta E_BUF, Y:.not_e
     txa
-    jmp loop
+    dey
+    .^us_end
+    cpy #0                      ; C=1 while above y1
+    bne loop
 
     .done
     ldx edge_i
