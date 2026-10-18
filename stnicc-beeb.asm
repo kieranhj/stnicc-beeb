@@ -23,6 +23,9 @@ _DOUBLE_PLOT_Y = (_QUALITY = 1)
 _WIDESCREEN = (_QUALITY = 2) AND FALSE
 _SKIP_ODD_FRAMES = FALSE
 
+; Optimised renderer, LOW only for now (see src/plot_poly_fast.asm)
+_FAST_POLY = (_QUALITY = 0) AND NOT(_NULA) AND NOT(_PLOT_WIREFRAME)
+
 PRINT "------"
 PRINT "STNICC-BEEB"
 PRINT "------"
@@ -346,6 +349,22 @@ if not(_NULA)
 	ldy #HI(palette_stream_buffer)
 	ldx #HI(palette_stream_end - palette_stream_start + &ff)
 	jsr copy_pages
+endif
+
+if _FAST_POLY
+	\\ Code that runs in spare pages; after the palette stream, which copies
+	\\ whole pages up to &CFF
+	lda #HI(reloc_page9_from)
+	ldy #&09
+	ldx #1
+	jsr copy_pages
+
+	ldx #reloc_pageC_end - reloc_pageC_start - 1
+	.copy_pageC
+	lda reloc_pageC_from, X
+	sta reloc_pageC_start, X
+	dex
+	bpl copy_pageC
 endif
 
     \\ Set stream pointer
@@ -1248,6 +1267,36 @@ NEXT
 CHECK_SAME_PAGE_AS reloc_screen_col_LO
 
 .reloc_from_end
+
+if _FAST_POLY
+\\ Code assembled to run at &900 and &C90 (spare at runtime: the MOS RS423
+\\ output buffer, and the user-defined characters after palette_stream_buffer)
+\\ but stored here, under the streaming buffer; main copies it into place.
+PAGE_ALIGN
+.reloc_page9_from
+reloc_P = P%
+ORG &900
+GUARD &A00
+.reloc_page9_start
+include "src/plot_poly_fast_up.asm"
+.reloc_page9_end
+COPYBLOCK reloc_page9_start, reloc_page9_end, reloc_P
+CLEAR reloc_page9_start, reloc_page9_end
+ORG reloc_P + reloc_page9_end - reloc_page9_start
+
+.reloc_pageC_from
+reloc_PC = P%
+CLEAR &C90, &D00
+ORG &C90
+GUARD &D00
+.reloc_pageC_start
+include "src/plot_poly_fast_up2.asm"
+.reloc_pageC_end
+COPYBLOCK reloc_pageC_start, reloc_pageC_end, reloc_PC
+CLEAR reloc_pageC_start, reloc_pageC_end
+ORG reloc_PC + reloc_pageC_end - reloc_pageC_start
+PRINT "Relocated code: &900 block", ~reloc_page9_end-reloc_page9_start, "bytes, &C90 block", ~reloc_pageC_end-reloc_pageC_start, "bytes"
+endif
 
 if not(_NULA)
 PAGE_ALIGN

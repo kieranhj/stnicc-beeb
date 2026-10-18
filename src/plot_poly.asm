@@ -222,6 +222,57 @@ endif
 \ *	POLYGON PLOT FUNCTIONS
 \ ******************************************************************
 
+IF _FAST_POLY
+
+\\ Span loop for plot_poly_span in plot_poly_fast.asm. Same as the original
+\\ but rows are not reset after plotting: the edge stage initialises every row.
+.fast_plot_spans
+{
+    ldy span_buffer_max_y
+    iny
+    sty span_loop_max_y+1
+    ldy span_buffer_min_y
+
+    .span_loop
+    sty poly_y                  ; 3c
+
+    tya:and #3:tax              ; 6c
+    .^load_palette
+    lda poly_palette, X         ; 4c
+    sta span_colour             ; 3c
+
+    lda span_buffer_start, Y    ; 4c
+    tax                         ; 2c    X=span_start
+
+    \\ Calculate span width in pixels
+    sec                         ; 2c
+    sbc span_buffer_end, Y      ; 4c
+    eor #&ff                    ; 2c
+    clc                         ; 2c
+    adc #2                      ; 2c    _POLY_PLOT_END_POINTS
+    sta span_width              ; 3c
+
+    cmp #(_SHORT_SPAN_MAX_PIXELS+1)     ; 2c
+    bcc plot_short_span         ; 2/3c
+    .^branch_to_short_span
+
+    tya:asl a:tay:sty span_y    ; 6c
+
+    jmp plot_long_span
+    .^return_here_from_plot_span
+
+    ldy poly_y                  ; 3c
+    iny                         ; 2c
+    .span_loop_max_y
+    cpy #0                      ; 2c
+    bcc span_loop               ; 3c
+    CHECK_SAME_PAGE_AS span_loop
+
+    jmp return_here_from_plot_poly
+}
+
+ELSE
+
 .plot_poly_span
 {
     ; X=poly_num_verts
@@ -351,6 +402,8 @@ endif
     .skip_span_loop
     jmp return_here_from_plot_poly
 }
+
+ENDIF
 
 .plot_short_span
 {
@@ -618,6 +671,10 @@ endif
     rts
 }
 
+IF _FAST_POLY
+INCLUDE "src/plot_poly_fast.asm"
+ELSE
+
 ; ALIGN TO AVOID CROSSING PAGE BOUNDARY
 skip &4
 
@@ -863,6 +920,8 @@ ENDMACRO
     UPDATE_SPAN_BUFFER_WITH_X FALSE
     jmp return_here_from_drawline
 }
+
+ENDIF ; _FAST_POLY
 
 \ ******************************************************************
 \ *	UPDATE PALETTE
