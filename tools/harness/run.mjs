@@ -14,6 +14,7 @@
 //
 // Usage: node tools/harness/run.mjs [--ref ref.json] [--out out.json] [--dump dir] [--profile prof.txt]
 //        [--spans spans.json [--spans-frames N]]  (_FAST_POLY builds: span buffer per polygon)
+//        [--disc image.dsd] [--no-inject]  (run the LOW on the disc instead: checks a full disc build)
 // Environment: JSBEEB (default: newest jsbeeb in the npx cache, as the MCP uses),
 //              BEEBASM (default ../beebasm/beebasm.exe)
 
@@ -146,7 +147,15 @@ await s.runFor(1);
 // Second &1100 is the release LOW: replace it with the candidate.
 await runUntilPc(0x1100, 400_000_000);
 if (syms.main !== 0x1100) throw new Error("candidate main is not at &1100");
-for (let i = 0; i < lowBin.length; i++) cpu.writemem(0x1100 + i, lowBin[i]);
+if (args.includes("--no-inject")) {
+    // Run the LOW the disc loaded; check it is the one just assembled.
+    let same = true;
+    for (let i = 0; i < lowBin.length; i++) if (mem(0x1100 + i) !== lowBin[i]) same = false;
+    console.log(`--no-inject: LOW from the disc ${same ? "matches" : "DIFFERS FROM"} build/LOW`);
+    if (!same) process.exit(2);
+} else {
+    for (let i = 0; i < lowBin.length; i++) cpu.writemem(0x1100 + i, lowBin[i]);
+}
 const bootSecs = (Date.now() - t0) / 1000;
 
 // ---------------------------------------------------------------- measure
