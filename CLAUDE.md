@@ -25,7 +25,7 @@ node tools/harness/run.mjs --ref tools/harness/baseline.json   # ~85 s: PASS/FAI
 Windows (the main dev environment). Most tools are vendored in `bin/`, but `bin/beebasm.exe` is an old Cygwin build that no longer runs. `make.bat` uses `%BEEBASM%`, which defaults to `..\beebasm\beebasm.exe` (beebasm 1.11, which reproduces the 2020 release build byte for byte). Run `make.bat` as `.\make.bat` from PowerShell, because `cmd //c` from Git Bash does not find it.
 
 ```
-make-assets.bat   # logo (png2bbc + exomizer) and music (.vgm -> .vgc); needs ../vgm-packer checked out alongside this repo
+make-assets.bat   # logo (png2bbc + exomizer) and music (.vgm -> .vgi v3 with vgipacker.py); needs ../vgm-packer checked out alongside this repo
 make.bat          # assembles all variants + discs -> build\beeb-niccc.dsd (via bin\bbcim -interss)
 run.bat           # copies the .dsd into ../jsbeeb-kieranhj/discs and opens runme2.url
 ```
@@ -46,12 +46,12 @@ One variant on its own: `..\beebasm\beebasm.exe -D _QUALITY=0 -D _NULA=0 -i stni
 The build runs in a fixed order, and later steps read files the earlier steps wrote:
 
 1. **Variant executables.** `stnicc-beeb.asm` is assembled several times with `-D _QUALITY=0|1|2` and `-D _NULA=0|-1`, and each pass `SAVE`s one of `build/LOW`, `MEDIUM`, `HIGH` or `NULA`. Quality drives the derived flags at the top of the file (`_HALF_VERTICAL_RES`, `_DOUBLE_PLOT_Y`, `_WIDESCREEN`). `_NULA` switches pixel packing to MODE 2-style for the Video NuLA 12-bit palette board (see the `MODE5_PIXELS` macro).
-2. **Separate programs.** `src/intro.asm`, `src/outro.asm` and `src/music.asm` (loaded into SWRAM at &8000) each `SAVE` their own `build/` file.
+2. **Separate programs.** `src/intro.asm`, `src/outro.asm` and `src/music.asm` (loaded into SWRAM at &8000; the VGI v3 player from vgm-player-bbc, `lib/vgiplayer.asm`, and the three tunes) each `SAVE` their own `build/` file.
 3. **Disc 1.** `stnicc-build.asm` contains no code. It `PUTFILE`s the built executables, `src/loader.bas` (the BASIC loader: NuLA and SWRAM detection, picks which exe to run) and `data/readme.txt` onto the disc. It then pads with dummy files so that stream file `00` starts exactly at `DISK1_first_track` (track 30).
 4. **Disc 2.** `src/part-2.asm` puts `data/scene1_disk.01.bin` at track 1. `part-3.asm` and `part-4.asm` are unused.
 5. The two `.ssd` images are interleaved into one double-sided `.dsd`.
 
-**The hand-maintained sizes must match the binaries.** The padding calculation in `stnicc-build.asm` uses the sector-rounded file sizes. The player executables' sizes are in `src/exe_sizes.h.asm`, and `stnicc-beeb.asm` ASSERTs that each variant fills its slot exactly. `INTRO_SIZE`, `OUTRO_SIZE`, `MUSIC_SIZE` and so on are still unchecked constants in `stnicc-build.asm`. If an executable changes size by a sector, the stream data no longer starts at the track the player expects. The harness injects LOW, so it cannot see this; `--no-inject` can. `DISK1_first_track` (and the per-disc track constants) are defined in both `stnicc-beeb.asm` and `stnicc-build.asm`, and `_DEBUG` must agree between the two files as well.
+**The hand-maintained sizes must match the binaries.** The padding calculation in `stnicc-build.asm` uses the sector-rounded file sizes. The player executables' sizes are in `src/exe_sizes.h.asm`, and `stnicc-beeb.asm` ASSERTs that each variant fills its slot exactly; `EXE_SIZE_MUSIC` is there too, asserted by `src/music.asm`. `INTRO_SIZE`, `OUTRO_SIZE` and so on are still unchecked constants in `stnicc-build.asm`. If an executable changes size by a sector, the stream data no longer starts at the track the player expects. The harness injects LOW, so it cannot see this; `--no-inject` can. `DISK1_first_track` (and the per-disc track constants) are defined in both `stnicc-beeb.asm` and `stnicc-build.asm`, and `_DEBUG` must agree between the two files as well.
 
 **Data streaming.** The player does not use DFS files at runtime. It reads raw tracks (10 sectors) with OSWORD &7F into a ring buffer while frames are being decoded. The vsync/timer IRQ handler in `stnicc-beeb.asm` paces drawing and music. The "Streaming tracks from disk" section moves between drives and sides using the `DISK*_first_track` and `STREAMING_tracks_per_disk` constants.
 
@@ -60,7 +60,7 @@ The build runs in a fixed order, and later steps read files the earlier steps wr
 - `bin/split.py` cuts the encoded stream into `scene1_disk.00.bin` (50 tracks, disc 1) and `.01` onwards (79 tracks each), the chunks that are placed on disc.
 - `encoder.py`, `split.py` and `dsd_create.py` run under Python 3 and reproduce the committed `data/*.bin` and the release `.dsd` byte for byte. `parse.py` is still Python 2.
 
-**Player source layout.** `stnicc-beeb.asm` holds the zero page, the BSS at &300–&800 (tables that are relocated over it at startup), the span buffer at &E00, the main code from &1100 up to `screen2_addr` (double-buffered screens just below &8000), and the streaming and IRQ code. It `INCLUDE`s the frame parser (`src/parse_frame.asm`), the polygon/span filler (`plot_poly.asm`, `plot_data.asm`, `plot_line*.asm`), `screen.asm`, `palette.asm` and `palette_stream.asm` (palette code is self-modifying and must stay page aligned), plus debug, tests and clock modules. `lib/` has the shared Bitshifters exomizer decruncher, VGC music player and disc helpers.
+**Player source layout.** `stnicc-beeb.asm` holds the zero page, the BSS at &300–&800 (tables that are relocated over it at startup), the span buffer at &E00, the main code from &1100 up to `screen2_addr` (double-buffered screens just below &8000), and the streaming and IRQ code. It `INCLUDE`s the frame parser (`src/parse_frame.asm`), the polygon/span filler (`plot_poly.asm`, `plot_data.asm`, `plot_line*.asm`), `screen.asm`, `palette.asm` and `palette_stream.asm` (palette code is self-modifying and must stay page aligned), plus debug, tests and clock modules. `lib/` has the shared Bitshifters exomizer decruncher, the VGC music player (no longer built) and the VGI player, and disc helpers.
 
 **The fast LOW renderer (`_FAST_POLY`, LOW only; MEDIUM, HIGH and NULA are still byte-identical to the release).** The renderer runs inside the Timer 1 IRQ.
 
