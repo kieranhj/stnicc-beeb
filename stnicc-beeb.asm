@@ -595,6 +595,18 @@ ENDIF
 	jsr hide_screen
 
 	inc decode_lock				; stop decoder from running
+IF _FAST_POLY
+	\\ Leave page 3 as the original LOW did: its screen_row_LO table, n AND 7.
+	\\ The span masks there instead upset the MOS font pointers (&367-&36E),
+	\\ which the final clock and the outro read characters through (OSWORD 10).
+	ldx #0
+	.restore_page3
+	txa
+	and #7
+	sta &300, X
+	inx
+	bne restore_page3
+ENDIF
 	jsr show_final_screen
 
 	\\ Turn off all interrupts
