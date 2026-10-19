@@ -36,6 +36,10 @@ _FAST_POLY = (_QUALITY = 0) AND NOT(_NULA) AND NOT(_PLOT_WIREFRAME)
 ; -D _QUALITY=1 -D _NULA=-1 -D _CPC=-1.
 _CPC =? FALSE
 
+; The fast edge stage (src/plot_poly_fast.asm) for LOW, and for NULA and CPC
+; with their own span plotters; MEDIUM and HIGH keep the original.
+_FAST_EDGES = _FAST_POLY OR (_NULA AND NOT(_PLOT_WIREFRAME))
+
 PRINT "------"
 PRINT "STNICC-BEEB"
 PRINT "------"
@@ -93,6 +97,19 @@ DFS_track_size = (DFS_sectors_per_track * DFS_sector_size)
 \ ******************************************************************
 \ *	MACROS
 \ ******************************************************************
+
+\\ Copy size (1-255) bytes from `from` to `to`
+MACRO COPY_SMALL from, to, size
+{
+	ldx #0
+	.loop
+	lda from, X
+	sta to, X
+	inx
+	cpx #size
+	bne loop
+}
+ENDMACRO
 
 MACRO SWRAM_SELECT bank
 LDA #bank: sta &f4: sta &fe30
@@ -218,6 +235,7 @@ GUARD zp_top
 if _CPC
 .span_colour2       skip 1      ; the bottom line's byte
 .cpc_count          skip 1
+.cpc_index          skip 1
 endif
 .shortptr			skip 2
 
@@ -345,11 +363,21 @@ skip 16
 .cpc_colour_bottom      ; and its bottom-line byte
 skip 16
 endif
+if _FAST_EDGES AND NOT(_FAST_POLY)
+ASSERT P% <= &7A0
+ORG &7A0
+.up_left_area           ; up_shallow_left (plot_poly_fast_up2.asm), copied in with the tables
+skip &60
+endif
 .reloc_to_end
 
 ORG &A00
 GUARD &D00
 .palette_stream_buffer ; or use &E00?
+if _CPC
+cpc_colours = palette_stream_buffer     ; the 27 colours' (top, bottom) bytes
+CPC_COLOURS_SIZE = 54
+endif
 skip &300
 
 ORG &E00
@@ -398,14 +426,23 @@ if not(_NULA) OR _CPC
 	jsr copy_pages
 endif
 
-if _FAST_POLY
+if _FAST_EDGES
 	\\ Code that runs in spare pages; after the palette stream, which copies
 	\\ whole pages up to &CFF
 	lda #HI(reloc_page9_from)
 	ldy #&09
 	ldx #1
 	jsr copy_pages
+endif
 
+if _FAST_EDGES AND NOT(_FAST_POLY)
+	\\ More of the edge stage, and the stream helpers, run from spare low RAM
+	COPY_SMALL reloc_lowC_from, reloc_lowC_start, reloc_lowC_end - reloc_lowC_start
+	COPY_SMALL reloc_lowE_from, reloc_lowE_start, reloc_lowE_end - reloc_lowE_start
+	COPY_SMALL reloc_lowF_from, reloc_lowF_start, reloc_lowF_end - reloc_lowF_start
+endif
+
+if _FAST_POLY
 	ldx #reloc_pageC_end - reloc_pageC_start - 1
 	.copy_pageC
 	lda reloc_pageC_from, X
@@ -448,10 +485,18 @@ endif
     lda #HI(screen1_addr)
     sta draw_buffer_HI
 
+IF _CPC
+	\\ the palette stream follows the table of the 27 colours' byte pairs
+	lda #LO(palette_stream_buffer + CPC_COLOURS_SIZE - 1)
+	sta pal_ptr_LO
+	lda #HI(palette_stream_buffer + CPC_COLOURS_SIZE - 1)
+	sta pal_ptr_HI
+ELSE
 	lda #LO(palette_stream_buffer-1)
 	sta pal_ptr_LO
 	lda #HI(palette_stream_buffer-1)
 	sta pal_ptr_HI
+ENDIF
 
     jsr init_span_buffer
 
@@ -742,108 +787,10 @@ ENDIF
 ENDIF
 
 
-\ ******************************************************************
-\ *	Streaming tracks from disk
-\ ******************************************************************
 
-.load_next_track
-{
-	\\ Track &FF indicates no more reading
-	LDA track_no
-	BMI TRACK_LOAD_return
-
-	\\ Store track no in params block
-	STA osword_params_track
-
-	LDA sector_no
-	STA osword_params_sector
-
-	\\ Update load address in params block
-	LDA load_to_HI
-	STA osword_params_address+1
-	
-	\\ Make DFS read multi-sector call
-	LDX #LO(osword_params)
-	LDY #HI(osword_params)
-	LDA #&7F
-	JSR osword
-
-	\\ Error value returned at end of params block
-	LDA osword_params_return
-	STA error_flag
-
-	\\ Next track
-	CLC
-	LDA sector_no
-	.sectors_to_load_2
-	ADC #STREAMING_sectors_to_load
-	CMP #DFS_sectors_per_track
-	BCC same_track
-	SBC #DFS_sectors_per_track
-	.track_step
-	INC track_no                ; DEC on side 2
-	.same_track
-	STA sector_no
-
-	\\ Which disk?
-	LDA osword_params_drive
-	BEQ TRACK_LOAD_disk_1							; assumes we start on drive 0
-
-	\\ Disk N
-	LDA track_no
-	CMP #DISK2_last_track
-	BNE TRACK_LOAD_no_swap_disk
-    JMP TRACK_LOAD_disk_N
-
-	\\ Disk 1
-	.TRACK_LOAD_disk_1
-	LDA track_no
-	CMP #DISK1_last_track
-	BNE TRACK_LOAD_no_swap_disk
-
-	\\ Reached end of disk 1 so swap drives
-	.TRACK_LOAD_disk_N
-    LDX osword_params_drive
-	LDA drive_order, X
-	STA osword_params_drive
-
-	BNE TRACK_LOAD_continue
-
-	\\ End of last disk
-	\\ Reached end of disk N
-	LDA #&FF
-	STA track_no
-	BNE TRACK_LOAD_return
-
-	.TRACK_LOAD_continue
-
-	\\ Reset track to start of disk 2, which is read backwards
-	LDA #DISK2_first_track
-	STA track_no
-	LDA #OPCODE_DEC_zp
-	STA track_step
-
-	.TRACK_LOAD_no_swap_disk
-
-	\\ Increment our load ptr
-	CLC
-	LDA load_to_HI
-	.sectors_to_load_3
-	ADC #STREAMING_sectors_to_load
-
-	\\ Have we fallen off the end of the buffer?
-	CMP #HI(STREAM_buffer_end)
-	BNE TRACK_LOAD_no_wrap
-
-	\\ If so then reset to start
-	LDA #HI(STREAM_buffer_start)
-
-	.TRACK_LOAD_no_wrap
-	STA load_to_HI
-
-	.TRACK_LOAD_return
-	RTS
-}
+IF NOT(_FAST_EDGES AND NOT(_FAST_POLY))
+INCLUDE "src/load_next_track.asm"
+ENDIF
 
 .irq_handler
 {
@@ -1260,53 +1207,16 @@ INCLUDE "src/debug.asm"
 INCLUDE "src/tests.asm"
 INCLUDE "src/clock.asm"
 
-\\ A renderer faster than the disc must not start a frame on data not yet
-\\ loaded: lock the decoder unless STREAM_pages_ahead pages are loaded.
-\\ (A subroutine here, after the plotters, not inline in irq_handler: NULA
-\\ has only a few bytes to spare before plot_poly.asm's page-aligned code
-\\ and below its stream buffer.)
-if _CPC
-\\ A palette change: the colours whose CPC colour changed, from the palette
-\\ stream (data/cpc_palette.bin): count, then (colour, top byte, bottom byte).
-\\ Y = 0 for GET_PAL_BYTE.
-.cpc_palette_update
-{
-	GET_PAL_BYTE
-	beq done
-	sta cpc_count
-	.loop
-	GET_PAL_BYTE
-	tax
-	GET_PAL_BYTE
-	sta cpc_colour_top, X
-	GET_PAL_BYTE
-	sta cpc_colour_bottom, X
-	dec cpc_count
-	bne loop
-	.done
-	rts
-}
+\\ NULA and CPC: load_next_track sits here, after the plotters, so that its size
+\\ does not push the page-aligned short-span routines onto a later page
+IF _FAST_EDGES AND NOT(_FAST_POLY)
+INCLUDE "src/load_next_track.asm"
+ENDIF
+
+INCLUDE "src/cpc_palette_update.asm"
+if NOT(_FAST_EDGES) OR _FAST_POLY   ; NULA and CPC run it from &F64
+INCLUDE "src/stream_helpers.asm"
 endif
-
-.stream_check_ahead
-{
-	lda track_no
-	bmi enough                  ; nothing more to load
-
-	\\ Pages loaded ahead of the reader, less one: load_to - ptr - 1 round the
-	\\ ring (ptr = load_to is a full ring, 29 here)
-	lda load_to_HI
-	clc
-	sbc STREAM_ptr_HI
-	bcs no_wrap
-	adc #HI(STREAM_buffer_size)
-	.no_wrap
-	cmp #STREAM_pages_ahead - 1
-	bcs enough
-	lda #&ff:sta buffer_lock
-	.enough
-	rts
-}
 
 .screen_clear_full
 {
@@ -1412,10 +1322,27 @@ FOR n,1,32:EQUB 0:NEXT  ; cpc_colour_top, cpc_colour_bottom: black until the fir
 endif
 CHECK_SAME_PAGE_AS reloc_screen_col_LO
 
+if _FAST_EDGES AND NOT(_FAST_POLY)
+\\ up_shallow_left, assembled to run at &7A0 and stored where the page copy of
+\\ the tables puts it there
+reloc_P7 = reloc_from_start + &7A0 - reloc_to_start
+ASSERT P% <= reloc_P7
+SKIPTO reloc_P7
+CLEAR &7A0, &800
+ORG &7A0
+GUARD &800
+.reloc_page7_start
+include "src/plot_poly_fast_up2.asm"
+.reloc_page7_end
+COPYBLOCK reloc_page7_start, reloc_page7_end, reloc_P7
+CLEAR reloc_page7_start, reloc_page7_end
+ORG reloc_P7 + reloc_page7_end - reloc_page7_start
+endif
+
 .reloc_from_end
 
-if _FAST_POLY
-\\ Code assembled to run at &900 and &C90 (spare at runtime: the MOS RS423
+if _FAST_EDGES
+\\ Code assembled to run at &900 and (LOW) &C90 (spare at runtime: the MOS RS423
 \\ output buffer, and the user-defined characters after palette_stream_buffer)
 \\ but stored here, under the streaming buffer; main copies it into place.
 PAGE_ALIGN
@@ -1429,7 +1356,54 @@ include "src/plot_poly_fast_up.asm"
 COPYBLOCK reloc_page9_start, reloc_page9_end, reloc_P
 CLEAR reloc_page9_start, reloc_page9_end
 ORG reloc_P + reloc_page9_end - reloc_page9_start
+PRINT "Relocated code: &900 block", ~reloc_page9_end-reloc_page9_start, "bytes"
+endif
 
+if _FAST_EDGES AND NOT(_FAST_POLY)
+\\ NULA and CPC: the rest of the edge stage and the stream helpers, in the span
+\\ buffers' unused rows (vertex y is 0-99) and after the palette stream (CPC's
+\\ is 559 bytes, to &C2E; NULA has none)
+.reloc_lowC_from
+reloc_PCL = P%
+CLEAR &C30, &D00
+ORG &C30
+GUARD &D00
+.reloc_lowC_start
+include "src/plot_poly_fast_steep.asm"
+include "src/plot_poly_fast_left.asm"
+.reloc_lowC_end
+COPYBLOCK reloc_lowC_start, reloc_lowC_end, reloc_PCL
+CLEAR reloc_lowC_start, reloc_lowC_end
+ORG reloc_PCL + reloc_lowC_end - reloc_lowC_start
+
+.reloc_lowE_from
+reloc_PE = P%
+CLEAR &E64, &F00
+ORG &E64
+GUARD &F00
+.reloc_lowE_start
+include "src/plot_poly_fast_setup.asm"
+.reloc_lowE_end
+COPYBLOCK reloc_lowE_start, reloc_lowE_end, reloc_PE
+CLEAR reloc_lowE_start, reloc_lowE_end
+ORG reloc_PE + reloc_lowE_end - reloc_lowE_start
+
+.reloc_lowF_from
+reloc_PF = P%
+CLEAR &F64, &1000
+ORG &F64
+GUARD &1000
+.reloc_lowF_start
+include "src/plot_poly_fast_right.asm"
+include "src/stream_helpers.asm"
+.reloc_lowF_end
+COPYBLOCK reloc_lowF_start, reloc_lowF_end, reloc_PF
+CLEAR reloc_lowF_start, reloc_lowF_end
+ORG reloc_PF + reloc_lowF_end - reloc_lowF_start
+PRINT "Relocated code: &C30", ~reloc_lowC_end-reloc_lowC_start, "&E64", ~reloc_lowE_end-reloc_lowE_start, "&F64", ~reloc_lowF_end-reloc_lowF_start, "bytes"
+endif
+
+if _FAST_POLY
 .reloc_pageC_from
 reloc_PC = P%
 CLEAR &C90, &D00
@@ -1441,7 +1415,7 @@ include "src/plot_poly_fast_up2.asm"
 COPYBLOCK reloc_pageC_start, reloc_pageC_end, reloc_PC
 CLEAR reloc_pageC_start, reloc_pageC_end
 ORG reloc_PC + reloc_pageC_end - reloc_pageC_start
-PRINT "Relocated code: &900 block", ~reloc_page9_end-reloc_page9_start, "bytes, &C90 block", ~reloc_pageC_end-reloc_pageC_start, "bytes"
+PRINT "Relocated code: &C90 block", ~reloc_pageC_end-reloc_pageC_start, "bytes"
 endif
 
 if not(_NULA)
@@ -1450,7 +1424,7 @@ GUARD P%+&300
 include "src/palette_stream.asm"
 elif _CPC
 PAGE_ALIGN
-GUARD P%+&300
+GUARD P%+&230               ; to &C2F: the edge stage runs from &C30
 .palette_stream_start
 INCBIN "data/cpc_palette.bin"
 .palette_stream_end

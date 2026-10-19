@@ -7,7 +7,8 @@
 # their scanlines, the top line with pixels A,B and the bottom B,A, so every pixel
 # holds the chequer. The player looks the bytes up by the polygon's colour.
 #
-# Record: count, then count x (colour index, top-line byte, bottom-line byte).
+# The file: the 27 colours' (top-line byte, bottom-line byte), then a record per
+# palette change: count, then count x (colour index, CPC colour x 2).
 # Also the reference model: model_frames() gives each frame's expected screen.
 #
 # python tools/cpc_palette.py [stream.bin] [out.bin]
@@ -46,7 +47,7 @@ def colour_bytes(level):
 
 
 def palette_records(frames):
-    """(frame number, [(index, top byte, bottom byte), ...]) for each palette frame."""
+    """(frame number, [(index, CPC colour, top byte, bottom byte), ...]) for each palette frame."""
     palette = [(0, 0, 0)] * 16
     current = [None] * 16
     out = []
@@ -56,7 +57,7 @@ def palette_records(frames):
         for i, rgb in f.palette:
             palette[i] = rgb
         m = palette_map(palette)
-        changed = [(i, *colour_bytes(LEVELS[m[i]])) for i in range(16) if current[i] != m[i]]
+        changed = [(i, m[i], *colour_bytes(LEVELS[m[i]])) for i in range(16) if current[i] != m[i]]
         current = m
         out.append((n, changed))
     return out
@@ -69,7 +70,7 @@ def model_frames(frames):
     bottom = [0] * 16
     records = dict(palette_records(frames))
     for n, f in enumerate(frames):
-        for i, t, b in records.get(n, []):
+        for i, _, t, b in records.get(n, []):
             top[i], bottom[i] = t, b
         if f.flags & FLAG_CLEAR_SCREEN:
             image[:] = bytes(W * H)
@@ -101,11 +102,13 @@ def main():
     dst = sys.argv[2] if len(sys.argv) > 2 else "data/cpc_palette.bin"
     frames = list(parse_stream(open(src, "rb").read()))
     out = bytearray()
+    for level in LEVELS:
+        out += bytes(colour_bytes(level))
     records = palette_records(frames)
     for _, changed in records:
         out.append(len(changed))
-        for i, t, b in changed:
-            out += bytes([i, t, b])
+        for i, c, _, _ in changed:
+            out += bytes([i, 2 * c])
     open(dst, "wb").write(out)
     print(f"{dst}: {len(records)} palette changes, {sum(len(c) for _, c in records)} colours, {len(out)} bytes")
 

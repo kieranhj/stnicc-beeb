@@ -254,8 +254,12 @@ endif
 \ ******************************************************************
 
 
-.plot_poly_span
 {
+IF _FAST_EDGES
+    \\ NULA and CPC: plot_poly_fast.asm made the spans and jumps here
+    .^plot_poly_rows
+ELSE
+.^plot_poly_span
     ; X=poly_num_verts
 
     \\ Duplicate first vertex to end
@@ -293,6 +297,7 @@ endif
     dex                         ; 2c
     bpl line_loop               ; 3c
     CHECK_SAME_PAGE_AS line_loop
+ENDIF
 
     \\ Palette lookup set during frame_parse
 
@@ -368,11 +373,13 @@ endif
     .skip_span
     ldy poly_y                  ; 3c
 
+IF NOT(_FAST_EDGES)             ; the fast edge stage resets only vertex rows
     \\ Reset this line of the span buffer since we're already here
     lda #255                    ; 2c
     sta span_buffer_start, Y    ; 5c
     lda #0                      ; 2c
     sta span_buffer_end, Y      ; 5c
+ENDIF
 
     iny                         ; 2c
     .span_loop_max_y
@@ -683,14 +690,18 @@ endif
     lda #0
     sta span_buffer_end, Y
     iny
+IF _FAST_EDGES AND NOT(_FAST_POLY)
+    cpy #100                    ; the rows beyond hold relocated code
+ELSE
     cpy #SCREEN_HEIGHT_PIXELS
+ENDIF
     bne loop
     CHECK_SAME_PAGE_AS loop
 
     rts
 }
 
-IF _FAST_POLY
+IF _FAST_EDGES
 INCLUDE "src/plot_poly_fast.asm"
 ELSE
 

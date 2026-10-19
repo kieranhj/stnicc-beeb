@@ -33,7 +33,7 @@ equb %11111100
 equb %11111111
 endif
 
-IF _FAST_POLY
+IF _FAST_EDGES
 \\ A = vertex y: reset its span buffer row and track the polygon's min/max y
 \\ (the first step of plot_poly_span in plot_poly_fast.asm). Uses Y.
 MACRO FAST_POLY_VERTEX_ROW
@@ -248,6 +248,9 @@ endif
     \\ Read the vertices directly from the stream data
     .read_verts_x
     lda &ffff, Y
+IF _NULA AND _FAST_EDGES
+    lsr a                       ; NULA and CPC's 64 columns
+ENDIF
     sta poly_verts_x, X
     .read_verts_y
     lda &ffff, Y
@@ -255,7 +258,7 @@ endif
     asl a
     ENDIF
     sta poly_verts_y, X
-IF _FAST_POLY
+IF _FAST_EDGES
     FAST_POLY_VERTEX_ROW
 ENDIF
 
@@ -283,13 +286,16 @@ ENDIF
 
     \\ This can be changed to read the poly data directly.
     GET_BYTE
+IF _NULA AND _FAST_EDGES
+    lsr a
+ENDIF
     sta poly_verts_x, X
     GET_BYTE
     IF NOT(_HALF_VERTICAL_RES)
     asl a
     ENDIF
     sta poly_verts_y, X
-IF _FAST_POLY
+IF _FAST_EDGES
     FAST_POLY_VERTEX_ROW
     ldy #0                      ; for GET_BYTE
 ENDIF
