@@ -30,6 +30,8 @@ stages = [  # (name, first symbol of the range); a label belongs to the last sta
 def stage_of(addr):
     if addr >= 0x900 and addr < 0xA00 or addr >= 0xC90 and addr < 0xD00:
         return "edges (up, relocated)"
+    if 0x400 <= addr < 0x700:
+        return "span plot (relocated)"
     for name, lo, hi in ranges:
         if lo <= addr < hi:
             return name
