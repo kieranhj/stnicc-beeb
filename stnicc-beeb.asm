@@ -30,9 +30,9 @@ _SKIP_ODD_FRAMES = FALSE
 _FAST_POLY = (_QUALITY = 0) AND NOT(_NULA) AND NOT(_PLOT_WIREFRAME)
 
 ; CPC: the NULA build's MODE 2 (64 x 100, each row on both its scanlines) with
-; the BBC's standard eight colours, no NuLA: each polygon colour is one of the
-; Amstrad CPC's 27, a chequer of two pens, pixels A,B on the top line and B,A on
-; the bottom (data/cpc_palette.bin, from tools/cpc_palette.py). Built with
+; the BBC's standard eight colours, no NuLA: each polygon colour is a 2x2 block
+; of two pens, a top line byte and a bottom line byte (data/cpc_palette.bin, from
+; tools/cpc_palette.py and tools/cpc_colour_map.py). Built with
 ; -D _QUALITY=1 -D _NULA=-1 -D _CPC=-1.
 _CPC =? FALSE
 
@@ -235,7 +235,8 @@ GUARD zp_top
 if _CPC
 .span_colour2       skip 1      ; the bottom line's byte
 .cpc_count          skip 1
-.cpc_index          skip 1
+.cpc_delta          skip 1      ; the polygon's: EOR with span_colour2 from row to row
+.cpc_colour_delta   skip 16     ; each colour's (cpc_palette_update)
 endif
 .shortptr			skip 2
 
@@ -374,10 +375,6 @@ endif
 ORG &A00
 GUARD &D00
 .palette_stream_buffer ; or use &E00?
-if _CPC
-cpc_colours = palette_stream_buffer     ; the 27 colours' (top, bottom) bytes
-CPC_COLOURS_SIZE = 54
-endif
 skip &300
 
 ORG &E00
@@ -485,18 +482,10 @@ endif
     lda #HI(screen1_addr)
     sta draw_buffer_HI
 
-IF _CPC
-	\\ the palette stream follows the table of the 27 colours' byte pairs
-	lda #LO(palette_stream_buffer + CPC_COLOURS_SIZE - 1)
-	sta pal_ptr_LO
-	lda #HI(palette_stream_buffer + CPC_COLOURS_SIZE - 1)
-	sta pal_ptr_HI
-ELSE
 	lda #LO(palette_stream_buffer-1)
 	sta pal_ptr_LO
 	lda #HI(palette_stream_buffer-1)
 	sta pal_ptr_HI
-ENDIF
 
     jsr init_span_buffer
 
@@ -1364,7 +1353,7 @@ endif
 if _FAST_EDGES AND NOT(_FAST_POLY)
 \\ NULA and CPC: the rest of the edge stage and the stream helpers, in the span
 \\ buffers' unused rows (vertex y is 0-99) and after the palette stream (CPC's
-\\ is 559 bytes, to &C2E; NULA has none)
+\\ is at most &230 bytes, to &C2F; NULA has none)
 .reloc_lowC_from
 reloc_PCL = P%
 CLEAR &C30, &D00

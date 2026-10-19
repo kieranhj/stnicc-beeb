@@ -1,14 +1,15 @@
 # The CPC player's palette stream: for each frame of the stream that changes the
 # palette (in order), the colours whose CPC colour changed, as MODE 2 bytes.
 #
-# Each STe colour becomes one of the Amstrad CPC's 27 (tools/cpc_preview.py's
-# palette_map), shown as two of the BBC's eight colours: pen A has each channel
-# that is half or full, pen B each that is full. MODE 2 rows are plotted on both
-# their scanlines, the top line with pixels A,B and the bottom B,A, so every pixel
-# holds the chequer. The player looks the bytes up by the polygon's colour.
+# Each STe colour becomes a 2x2 block of two of the BBC's eight colours
+# (tools/cpc_colour_map.py, chosen over the whole stream). MODE 2 rows are plotted
+# on both their scanlines, the block's top pixels on the top line and its bottom
+# pixels on the bottom, so each colour is a top line byte and a bottom line byte,
+# and the player takes them by the polygon's colour. A dithered colour (three of
+# one pen, one of the other) has its bottom line's two pixels swapped on odd rows.
 #
-# The file: the 27 colours' (top-line byte, bottom-line byte), then a record per
-# palette change: count, then count x (colour index, CPC colour x 2).
+# The file: a record per palette change: count, then count x (colour index, with
+# bit 7 set if dithered; top line byte; bottom line byte, for even rows).
 # Also the reference model: model_frames() gives each frame's expected screen.
 #
 # python tools/cpc_palette.py [stream.bin] [out.bin]
@@ -18,18 +19,11 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "bin"))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from cpc_preview import LEVELS, palette_map  # noqa: E402
+from cpc_colour_map import PATTERNS, dithered, sequence_maps  # noqa: E402
 from stnicc_raster import raster_spans  # noqa: E402
 from stnicc_stream import FLAG_CLEAR_SCREEN, parse_stream  # noqa: E402
 
 W, H = 64, 100
-
-
-def pens(level):
-    """BBC colours (bit 0 red, 1 green, 2 blue) of a CPC colour's two pens."""
-    a = sum(1 << i for i, v in enumerate(level) if v >= 1)
-    b = sum(1 << i for i, v in enumerate(level) if v == 2)
-    return a, b
 
 
 def mode2_byte(left, right):
@@ -41,23 +35,32 @@ def mode2_byte(left, right):
     return out
 
 
-def colour_bytes(level):
-    a, b = pens(level)
-    return mode2_byte(a, b), mode2_byte(b, a)
+def colour_bytes(pattern):
+    """(top line byte, bottom line byte on even rows) of a colour's 2x2 block."""
+    tl, tr, bl, br = pattern
+    return mode2_byte(tl, tr), mode2_byte(bl, br)
+
+
+def odd_delta(bottom):
+    """What to EOR with a dithered colour's bottom line byte on odd rows: its two pixels swapped."""
+    t = ((bottom >> 1) ^ bottom) & 0x55
+    return t | (t << 1)
 
 
 def palette_records(frames):
-    """(frame number, [(index, CPC colour, top byte, bottom byte), ...]) for each palette frame."""
-    palette = [(0, 0, 0)] * 16
+    """(frame number, [(index, colour, top byte, bottom byte, odd row delta), ...]) for each palette frame."""
+    maps = sequence_maps(frames)
     current = [None] * 16
     out = []
     for n, f in enumerate(frames):
         if not f.palette:
             continue
-        for i, rgb in f.palette:
-            palette[i] = rgb
-        m = palette_map(palette)
-        changed = [(i, m[i], *colour_bytes(LEVELS[m[i]])) for i in range(16) if current[i] != m[i]]
+        m = maps[n]
+        changed = []
+        for i in range(16):
+            if current[i] != m[i]:
+                top, bottom = colour_bytes(PATTERNS[m[i]])
+                changed.append((i, m[i], top, bottom, odd_delta(bottom) if dithered(PATTERNS[m[i]]) else 0))
         current = m
         out.append((n, changed))
     return out
@@ -68,27 +71,29 @@ def model_frames(frames):
     image = bytearray(W * H)
     top = [0] * 16
     bottom = [0] * 16
+    delta = [0] * 16
     records = dict(palette_records(frames))
     for n, f in enumerate(frames):
-        for i, _, t, b in records.get(n, []):
-            top[i], bottom[i] = t, b
+        for i, _, t, b, d in records.get(n, []):
+            top[i], bottom[i], delta[i] = t, b, d
         if f.flags & FLAG_CLEAR_SCREEN:
             image[:] = bytes(W * H)
         for colour, verts, _ in f.polys:
             for y, (s, e) in raster_spans(verts, "nula").items():
                 image[y * W + s:y * W + e + 1] = bytes([colour | 0x10]) * (e - s + 1)
-        yield screen(image, top, bottom)
+        yield screen(image, top, bottom, delta)
 
 
-def screen(image, top, bottom):
+def screen(image, top, bottom, delta):
     """Screen bytes: row y on scanlines 2y and 2y+1 of character row y >> 2.
     Index | 0x10 marks a pixel a polygon drew (the colour's bytes); 0 is cleared."""
     buf = bytearray(6400)
+    odd_bottom = [b ^ d for b, d in zip(bottom, delta)]
     for y in range(H):
         base = (y >> 2) * 256 + (y & 3) * 2
         for col in range(32):
             l, r = image[y * W + 2 * col], image[y * W + 2 * col + 1]
-            for line, table in ((0, top), (1, bottom)):
+            for line, table in ((0, top), (1, odd_bottom if y & 1 else bottom)):
                 byte = 0
                 for px, mask in ((l, 0xAA), (r, 0x55)):
                     if px:
@@ -102,13 +107,11 @@ def main():
     dst = sys.argv[2] if len(sys.argv) > 2 else "data/cpc_palette.bin"
     frames = list(parse_stream(open(src, "rb").read()))
     out = bytearray()
-    for level in LEVELS:
-        out += bytes(colour_bytes(level))
     records = palette_records(frames)
     for _, changed in records:
         out.append(len(changed))
-        for i, c, _, _ in changed:
-            out += bytes([i, 2 * c])
+        for i, _, top, bottom, d in changed:
+            out += bytes([i | (0x80 if d else 0), top, bottom])
     open(dst, "wb").write(out)
     print(f"{dst}: {len(records)} palette changes, {sum(len(c) for _, c in records)} colours, {len(out)} bytes")
 

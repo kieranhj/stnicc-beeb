@@ -1,14 +1,14 @@
 # Data for the CPC-palette preview page: the stream drawn in MODE 2 at the NULA
-# player's 64 x 100, each STe colour shown as one of the Amstrad CPC's 27 colours
-# (red, green and blue each off, half or full) made, as in ebenupton/lander's
-# MODE 2 CPC version, from two of the BBC's eight colours: a vertical pair whose
-# phase flips on alternate columns, so a checkerboard, with a half channel lit on
-# one pixel of the two. No NuLA needed: the palette is MODE 2's standard eight.
+# player's 64 x 100, each STe colour shown as a 2x2 block of two of the BBC's
+# eight colours (tools/cpc_colour_map.PATTERNS: a chequer, as in ebenupton/lander's
+# MODE 2 CPC version, which gives the Amstrad CPC's 27 colours, or three of one
+# pen and one of the other). No NuLA needed: the palette is MODE 2's standard eight.
 #
-# The mapping is the nearest colour in CIELAB, the k-th further colour sharing one
-# of the 27 paying k * REUSE_PENALTY (a linear assignment), so close shades stay
-# apart where that costs little. It follows the palette, so it changes only when
-# the palette does.
+# The mapping is tools/cpc_colour_map.py's, chosen over the whole stream: a colour
+# keeps its CPC colour while it keeps its STe value, colours that meet on screen
+# stay apart and in the STe's order of lightness, and only STe black is black.
+# palette_map (the nearest of the 27 in CIELAB, the k-th further colour sharing
+# one paying k * REUSE_PENALTY) was the first mapping, kept for comparison.
 #
 # python tools/cpc_preview.py <harness --dump dir of LOW> <out.bin>
 # out.bin is zlib: a JSON header line, then the 128 x 100 STe images, the 64 x 100
@@ -59,6 +59,8 @@ def main():
     low, m2 = bytearray(128 * 100), bytearray(64 * 100)
     palette = [(0, 0, 0)] * 16
     lows, m2s, palettes, maps = [], [], [], []
+    from cpc_colour_map import PATTERN_LAB, PATTERNS, sequence_maps
+    chosen = sequence_maps(frames)
     for f in frames:
         for i, rgb in f.palette:
             palette[i] = rgb
@@ -67,17 +69,17 @@ def main():
         lows.append(bytes(low))
         m2s.append(bytes(m2))
         palettes.append([v for rgb in palette for v in rgb])
-        maps.append(palette_map(palette) if f.palette or not maps else maps[-1])
+        maps.append(chosen[len(maps)] if len(maps) in chosen else maps[-1])
 
     total = n = 0
     for img, pal, m in zip(m2s, palettes, maps):
         for c in set(img):
-            total += distance(target(pal[3 * c:3 * c + 3]), CPC_LAB[m[c]])
+            total += distance(target(pal[3 * c:3 * c + 3]), PATTERN_LAB[m[c]])
             n += 1
-    print(f"CPC27: mean dE {total / n:.1f} over the colours on screen")
+    print(f"CPC: mean dE {total / n:.1f} over the colours on screen")
 
     dumps = [open(os.path.join(dump_dir, f"f{i:04d}.bin"), "rb").read() for i in range(len(frames))]
-    header = {"frames": len(frames), "palettes": palettes, "levels": LEVELS, "map": maps,
+    header = {"frames": len(frames), "palettes": palettes, "patterns": PATTERNS, "map": maps,
               "dump_size": len(dumps[0])}
     blob = (json.dumps(header, separators=(",", ":")).encode() + b"\n"
             + b"".join(lows) + b"".join(m2s) + b"".join(dumps))

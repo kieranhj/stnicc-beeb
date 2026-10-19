@@ -278,6 +278,17 @@ IF _FAST_EDGES
     .nothing
     jmp return_here_from_plot_poly
     .untrimmed
+IF _CPC
+    \\ A dithered colour's bottom line byte swaps its pixels on odd rows (span_loop
+    \\ EORs cpc_delta in after each row), so start it on the first row's parity
+    lda span_buffer_min_y
+    lsr a
+    bcc even_row
+    lda span_colour2
+    eor cpc_delta
+    sta span_colour2
+    .even_row
+ENDIF
 ELSE
 .^plot_poly_span
     ; X=poly_num_verts
@@ -392,6 +403,12 @@ endif
 
     .skip_span
     ldy poly_y                  ; 3c
+
+IF _CPC
+    lda span_colour2            ; 3c
+    eor cpc_delta               ; 3c    the next row's bottom line byte
+    sta span_colour2            ; 3c
+ENDIF
 
 IF NOT(_FAST_EDGES)             ; the fast edge stage resets only vertex rows
     \\ Reset this line of the span buffer since we're already here

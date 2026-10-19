@@ -27,4 +27,4 @@ ENDIF
 EXE_SIZE_MUSIC = &3200
 
 \\ CPC (stnicc-beeb.asm with _CPC): the NULA build with the CPC palette and its data
-EXE_SIZE_CPC = &2A00
+EXE_SIZE_CPC = &2900

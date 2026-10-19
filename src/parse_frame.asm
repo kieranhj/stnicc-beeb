@@ -221,6 +221,8 @@ if _CPC
 	sta span_colour
 	lda cpc_colour_bottom,x
 	sta span_colour2
+	lda cpc_colour_delta,x
+	sta cpc_delta
 else
 	lda mode2_pixels,x
 	sta span_colour
