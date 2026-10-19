@@ -959,6 +959,7 @@ ENDMACRO
 
 UNROLLED_ROW_SIZE = 33 * 3
 
+IF NOT(_FAST_POLY)  ; the fast span plotter indexes its own tables by y
 PAGE_ALIGN_FOR_SIZE 25
 .span_row_table_screen1_LO
 FOR row,0,24,1    ;SCREEN_HEIGHT_PIXELS-1,1
@@ -990,6 +991,7 @@ FOR row,0,24,1    ;SCREEN_HEIGHT_PIXELS-1,1
 EQUB HI(span_screen2_row0_unrolled + row * UNROLLED_ROW_SIZE)
 NEXT
 CHECK_SAME_PAGE_AS span_row_table_screen2_HI
+ENDIF
 
 .span_screen1_row0_unrolled
 UNROLL_SPAN_ROW 1, 0

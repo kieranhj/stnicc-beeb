@@ -28,6 +28,8 @@ E_BUF = span_buffer_end
 OPCODE_INC_ABS = &EE
 OPCODE_DEC_ABS = &CE
 
+DS_LOOP_SIZE = 24               ; down_steep's row loop, kept on one page
+
 .plot_poly_span
 {
     ; X = poly_num_verts
@@ -192,7 +194,9 @@ edge_x0 = scrn
     iny
     cpy endy                    ; no interior rows if dy=1
     beq done                    ; else C=0: below y1
+    jmp loop                    ; (over any alignment)
 
+    PAGE_ALIGN_FOR_SIZE DS_LOOP_SIZE        ; the loop's branches stay on one page
     .loop
     .^ds_dx
     sbc #0                      ; acc -= dx
@@ -212,6 +216,7 @@ edge_x0 = scrn
     .^ds_end
     cpy #0                      ; C=0 while below y1
     bne loop
+    ASSERT P% - loop = DS_LOOP_SIZE
 
     .done
     ldx edge_i

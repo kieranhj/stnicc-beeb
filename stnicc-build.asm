@@ -14,13 +14,7 @@ MUSIC_SIZE = &2C00
 README_SIZE = &600
 LOADER_SIZE = &C00
 
-IF _DEBUG
-EXE_SIZE = &2700
-NULA_SIZE = &2500
-ELSE
-EXE_SIZE = &2700
-NULA_SIZE = &2400
-ENDIF
+include "src/exe_sizes.h.asm"     ; asserted by stnicc-beeb.asm
 
 \ ******************************************************************
 \ *	EXES
@@ -47,7 +41,7 @@ DFS_track_size = (DFS_sectors_per_track * DFS_sector_size)
 
 DISK1_first_track = 30      ; 50 tracks on first disc
 
-exe_size = 3*EXE_SIZE + INTRO_SIZE + OUTRO_SIZE + NULA_SIZE + MUSIC_SIZE + README_SIZE + LOADER_SIZE
+exe_size = EXE_SIZE_LOW + EXE_SIZE_HIGH + EXE_SIZE_MEDIUM + EXE_SIZE_NULA + INTRO_SIZE + OUTRO_SIZE + MUSIC_SIZE + README_SIZE + LOADER_SIZE
 PRINT "EXE size = ",~exe_size
 ; We know that Catalog + !Boot = &300
 ; Need to make a dummy file so 00 is at sector 20=track 2

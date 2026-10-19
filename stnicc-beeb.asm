@@ -1419,13 +1419,23 @@ endif
 \ *	Save the code
 \ ******************************************************************
 
+\\ The disc layout (stnicc-build.asm) depends on each executable's size in
+\\ sectors: see src/exe_sizes.h.asm
+include "src/exe_sizes.h.asm"
+exe_sectors_size = (end - start + &FF) AND &FF00
+PRINT "Executable size =", ~end - start, "(", ~exe_sectors_size, "in sectors )"
+
 IF _NULA
+ASSERT exe_sectors_size = EXE_SIZE_NULA
 SAVE "build/NULA", start, end, main
 ELIF _QUALITY == 2
+ASSERT exe_sectors_size = EXE_SIZE_HIGH
 SAVE "build/HIGH", start, end, main
 ELIF _QUALITY == 1
+ASSERT exe_sectors_size = EXE_SIZE_MEDIUM
 SAVE "build/MEDIUM", start, end, main
 ELIF _QUALITY == 0
+ASSERT exe_sectors_size = EXE_SIZE_LOW
 SAVE "build/LOW", start, end, main
 ENDIF
 
