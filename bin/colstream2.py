@@ -40,8 +40,8 @@
 # A.r PC.r (the new left pixel) A.l LC.r PC.l.
 #
 # A frame: three bits, P (a palette change follows) and E (00 the next frame
-# follows; 01 it starts the next block, as no frame crosses one; 10 the stream
-# ends), then if P the CPC palette change in bytes (a count, then for each colour
+# follows; 01 it starts the next block, as no frame crosses one, nor separates
+# frames 2n and 2n + 1; 10 the stream ends), then if P the CPC palette change in bytes (a count, then for each colour
 # its index, with bit 7 set if dithered, its top line byte and its bottom line
 # byte: tools/cpc_palette.py), then the 32 columns. A frame starts with a fresh
 # control byte, and the next one starts at the byte after its last.
@@ -384,18 +384,24 @@ def encode_frame(image, prev_cols, prev_kinds, prev_image, older_image, same_pal
 
 
 def align_blocks(frames_bytes):
-    """Lay out frames so none crosses a block; set each frame's E bits."""
+    """Lay out frames so none crosses a block, and each pair of frames (0 and 1, 2
+    and 3, ...) is in one block, as the outro decodes a pair at a time and draws
+    the second (src/outro_edges.asm); set each frame's E bits."""
+    assert len(frames_bytes) % 2 == 0, "the outro wants pairs of frames"
     out = bytearray()
     starts = []
-    for fb in frames_bytes:
+    for k, fb in enumerate(frames_bytes):
         start = len(out)
-        if start // BLOCK != (start + len(fb) - 1) // BLOCK:
+        size = len(fb) + (len(frames_bytes[k + 1]) if k % 2 == 0 else 0)
+        if start // BLOCK != (start + size - 1) // BLOCK:
+            assert k % 2 == 0
             out[starts[-1]] |= E_SKIP << 5
             out += b"\0" * (BLOCK - start % BLOCK)
             start = len(out)
         starts.append(start)
         out += fb
         if len(out) % BLOCK == 0:
+            assert k % 2 == 1
             out[start] |= E_SKIP << 5           # it fills its block: the player must wrap
     out[starts[-1]] &= ~(E_SKIP << 5)
     out[starts[-1]] |= E_END << 5

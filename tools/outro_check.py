@@ -3,6 +3,8 @@
 # MODE 4 (each picture pixel two screen pixels wide), checked against the frames
 # the harness dumps.
 #
+# The outro shows every other frame: its dump n is frame 2n + 1.
+#
 # A pixel is set where the picture's colour changes from the pixel above (both of
 # its screen pixels) or from the pixel to its left (its left screen pixel), and
 # on the window's outermost pixels, a box.
@@ -52,20 +54,23 @@ def main():
     frames = list(parse_stream(open(src, "rb").read()))
     bad = []
     n = -1
-    for n, image in enumerate(pictures(frames)):
+    for k, image in enumerate(pictures(frames)):
+        if k % 2 == 0:
+            continue
+        n = k // 2
         path = os.path.join(dump_dir, f"o{n:04d}.bin")
         if not os.path.exists(path):
-            print(f"FAIL: only {n} of {len(frames)} frames dumped")
+            print(f"FAIL: only {n} of {len(frames) // 2} frames dumped")
             sys.exit(1)
         got = open(path, "rb").read()
         want = window(image)
         diff = [i for i in range(len(want)) if got[i] != want[i]]
         if diff:
-            bad.append((n, len(diff), [(i // CELLS, i % CELLS, got[i], want[i]) for i in diff[:3]]))
+            bad.append((k, len(diff), [(i // CELLS, i % CELLS, got[i], want[i]) for i in diff[:3]]))
     if bad:
         print(f"FAIL: {len(bad)} of {n + 1} frames differ; first: {bad[:4]}")
         sys.exit(1)
-    print(f"PASS: all {n + 1} outro frames match the edge model byte for byte")
+    print(f"PASS: all {n + 1} outro frames (every other frame) match the edge model byte for byte")
 
 
 if __name__ == "__main__":

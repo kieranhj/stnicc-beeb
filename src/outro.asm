@@ -168,6 +168,11 @@ DISK2_last_track = DISK2_first_track - STREAMING_tracks_per_disk
 OPCODE_DEC_zp = &C6             ; load_next_track's track step on side 2
 
 STREAM_buffer_size = 3 * DFS_track_size
+IF _COLS
+STREAM_FRAME_PAGES = 5          ; pages loaded ahead before a frame: two frames of up to 397 bytes
+ELSE
+STREAM_FRAME_PAGES = 4
+ENDIF
 
 ; STNICCC scene1.bin constants
 MAX_VERTS_PER_POLY = 7
@@ -222,6 +227,7 @@ INCLUDE "src/cols2_decode_zp.asm"
 .vl                 skip 1      ; the left pixel's first bit
 .vr                 skip 1      ; and the right pixel's
 .ew                 skip 1      ; the walker through the column to the left
+.drawing            skip 1      ; bit 7 set: draw this frame's edges
 .frame_no           skip 2
 ELSE
 ; vars for plot_span
@@ -998,6 +1004,7 @@ ELSE
 
 		\\ Parse and draw the next frame
 IF _COLS
+		jsr decode_unseen
 		jsr clear_window
 ENDIF
 		jsr parse_frame
@@ -1038,7 +1045,7 @@ ENDIF
 			sec
 			lda load_to_HI
 			sbc STREAM_ptr_HI
-			cmp #4
+			cmp #STREAM_FRAME_PAGES
 			bcs enough_data_for_next_frame
 
 			\\ Otherwise lock our buffer
@@ -1052,7 +1059,7 @@ ENDIF
 			adc #HI(STREAM_buffer_size)
 			sec
 			sbc STREAM_ptr_HI
-			cmp #4
+			cmp #STREAM_FRAME_PAGES
 			bcs enough_data_for_next_frame
 
 			\\ Otherwise lock our buffer

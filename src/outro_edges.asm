@@ -11,6 +11,11 @@
 \\ left screen pixel), and the window's outermost pixels make a box. The model is
 \\ tools/outro_check.py.
 \\
+\\ It shows every other frame, so as to take about as long as the credits:
+\\ each frame drawn follows one decoded but not drawn (decode_unseen; the
+\\ stream keeps frames 2n and 2n + 1 in one block, so that one never ends a
+\\ block or the stream).
+\\
 \\ Each run the decoder keeps draws its own edges (run_sink): across its first
 \\ row where it differs from the run above, down its rows where its two pixels
 \\ differ, and down its rows where the column to the left's right pixel differs
@@ -33,6 +38,17 @@ INCLUDE "src/cols2_decode.asm"
 \\ last to run_e - 1, value run_p. X and Y kept.
 .run_sink
 {
+	bit drawing
+	bmi draw
+	lda run_e                   ; a frame not shown: just the next op or column
+	sta last
+	cmp #ROWS
+	bcc not_done
+	jmp column_done
+	.not_done
+	jmp next_op
+
+	.draw
 	stx save_x
 	sty save_y
 
@@ -151,6 +167,10 @@ INCLUDE "src/cols2_decode_ops.asm"
 \\ lc_val and lc_end there), its place in the window and its pixels' bits
 .edge_column_start
 {
+	bit drawing
+	bmi draw
+	rts
+	.draw
 	jsr set_walkers
 	lda #0
 	sta ew
@@ -179,6 +199,17 @@ INCLUDE "src/cols2_decode_ops.asm"
 	sta vl
 	lda #%00000010
 	sta vr
+	rts
+}
+
+\\ A frame decoded but not drawn (the first of a pair)
+.decode_unseen
+{
+	lda #0
+	sta drawing
+	jsr parse_frame
+	lda #&80
+	sta drawing
 	rts
 }
 
