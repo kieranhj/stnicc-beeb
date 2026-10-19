@@ -11,7 +11,7 @@ EXEC_ADDRESS = &FF1100
 INTRO_SIZE = &1c00
 OUTRO_SIZE = &1200
 \\ MUSIC_SIZE is EXE_SIZE_MUSIC in src/exe_sizes.h.asm
-README_SIZE = &600
+README_SIZE = &700
 LOADER_SIZE = &C00
 
 include "src/exe_sizes.h.asm"     ; asserted by stnicc-beeb.asm

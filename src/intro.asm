@@ -772,8 +772,12 @@ ldx #NULA_TOGGLE_INKEY AND 255
 jsr check_key
 bne nula_toggle_checked
 
-; toggle NuLA
-lda NULA_FLAG_ZP:eor #$80:sta NULA_FLAG_ZP
+; toggle NuLA; switching it on switches the CPC version off
+lda NULA_FLAG_ZP:eor #$80
+bpl nula_set					; now off
+and #$80						; now on: CPC off
+.nula_set
+sta NULA_FLAG_ZP
 jsr set_text_palette
 
 .nula_toggle_checked

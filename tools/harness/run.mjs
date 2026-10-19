@@ -188,6 +188,16 @@ if (pressC) {
         await s.runFor(400_000);
     }
     console.log(`--press-c: &7E = &${mem(0x7e).toString(16)} after C`);
+    // --then-n (with --with-nula, --variant nula): N must switch NuLA back on and the CPC version off
+    if (withNula && args.includes("--then-n")) {
+        for (let t = 0; t < 30 && !(mem(0x7e) & 0x80); t++) {
+            s.keyDown("KeyN");
+            await s.runFor(400_000);
+            s.keyUp("KeyN");
+            await s.runFor(400_000);
+        }
+        console.log(`--then-n: &7E = &${mem(0x7e).toString(16)} after N`);
+    }
     const introShot = opt("--intro-shot");
     if (introShot) {
         await s.runFor(2 * 39936);

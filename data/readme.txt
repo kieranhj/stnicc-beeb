@@ -62,6 +62,11 @@ STe demo, albeit at lower resolution.
 Press N during the intro to toggle
 between NuLA and original graphics.
 
+Press C during the intro for the
+Amstrad CPC palette version: 83
+colours dithered from the BBC's
+standard eight. No NuLA needed.
+
 For best emulation of Video NuLA
 use the b2 emulator found here:
 https://github.com/tom-seddon/b2
@@ -75,3 +80,7 @@ Adds SWRAM detection.
 Adds Video NuLA support.
 Adds looping.
 Adds audio toggle.
+
+19/10/2026 - Version 1.2
+Faster rendering (LOW by 29%).
+Adds the Amstrad CPC palette version.
