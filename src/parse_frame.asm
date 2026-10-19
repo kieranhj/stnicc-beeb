@@ -57,6 +57,9 @@ ENDIF
     ldy #0
     GET_BYTE
     sta frame_flags
+    lda STREAM_ptr_HI           ; the loader leaves this frame's pages alone
+    sta stream_frame_HI
+    lda frame_flags
 
     and #FLAG_CLEAR_SCREEN
 IF _TEST_PARSE_ONLY
@@ -65,8 +68,32 @@ ELIF _PLOT_WIREFRAME = FALSE
     beq no_clear_screen
 ENDIF
 
+IF _FAST_POLY AND NOT(_TEST_PARSE_ONLY)
+    \\ Clear only the rows the frame's polygons leave uncovered, if it says
+    lda frame_flags
+    and #FLAG_CLEAR_MASK
+    beq full_clear
+    jsr screen_cls_masked       ; reads the mask
+    jmp cleared
+    .full_clear
+ENDIF
+
     jsr screen_cls
     .no_clear_screen
+
+IF NOT(_FAST_POLY) OR _TEST_PARSE_ONLY
+    \\ Step over a clear mask: only LOW uses it
+    lda frame_flags
+    and #FLAG_CLEAR_MASK
+    beq cleared
+    clc
+    lda STREAM_ptr_LO
+    adc #CLEAR_MASK_BYTES
+    sta STREAM_ptr_LO
+    bcc cleared
+    inc STREAM_ptr_HI
+ENDIF
+    .cleared
 
     lda frame_flags
     and #FLAG_CONTAINS_PALETTE
@@ -160,10 +187,22 @@ endif
     GET_BYTE
     tax ; poly_descriptor
     cmp #POLY_DESC_END_OF_STREAM
-    bcs parse_end_of_frame
+    bcc not_end_of_frame
+    rts                         ; end of frame (parse_end_of_frame is out of reach)
+    .not_end_of_frame
 
-    and #&f
+    and #7
     sta poly_num_verts
+
+    \\ A trim byte follows if the descriptor says so: rows LOW can leave out
+    txa
+    and #POLY_TRIM
+    beq no_trim                 ; A = 0
+    GET_BYTE
+    .no_trim
+IF _FAST_POLY
+    sta poly_trim
+ENDIF
 
     \\ Could be a table: lda poly_descriptor_to_palette_offset, X
     \\ To save 4c per poly at the expense of 1 page.

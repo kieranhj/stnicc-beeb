@@ -1,7 +1,7 @@
 # Exact host model of the LOW player's polygon span generation, for checking
 # candidate 6502 algorithms against every polygon in the stream before writing them.
 #
-# reference_spans() mirrors drawline_into_span_buffer + plot_poly_span in
+# reference_spans() (now in bin/stnicc_raster.py) mirrors drawline_into_span_buffer + plot_poly_span in
 # src/plot_poly.asm: each edge from vertex i to i+1 is walked with that code's
 # Bresenham (accumulator starts at major/2, both endpoints plotted, and on a
 # shallow edge the pixel where the row changes is counted on both rows); every
@@ -9,56 +9,12 @@
 #
 # python tools/polymodel.py [stream]   runs the checks in main()
 
+import os
 import sys
 from streamstats import frames
 
-
-def edge_points(x0, y0, x1, y1):
-    """Points the 6502 edge walker 'plots', in order, as (x, y)."""
-    dx, dy = abs(x0 - x1), abs(y0 - y1)
-    sx = 1 if x1 >= x0 else -1
-    sy = 1 if y1 >= y0 else -1
-    if dx == 0 and dy == 0:
-        return [(x0, y0)]
-    pts = []
-    if dy >= dx:
-        x, y, acc = x0, y0, dy >> 1
-        for i in range(dy + 1):
-            pts.append((x, y))
-            if i == dy:
-                break
-            y += sy
-            acc -= dx
-            if acc < 0:
-                acc += dy
-                x += sx
-    else:
-        x, y, acc = x0, y0, dx >> 1
-        pts.append((x, y))
-        for i in range(dx):
-            x += sx
-            acc -= dy
-            if acc < 0:
-                acc += dx
-                pts.append((x, y))   # end of span on current line
-                y += sy
-                pts.append((x, y))   # start of span on next line
-        pts.append((x, y))           # last point
-    return pts
-
-
-def reference_spans(verts):
-    """{y: (start, end)} as plot_poly_span would fill them."""
-    lo, hi = {}, {}
-    n = len(verts)
-    for i in range(n):
-        for x, y in edge_points(*verts[i], *verts[(i + 1) % n]):
-            if x < lo.get(y, 255):
-                lo[y] = x
-            if x >= hi.get(y, 0):
-                hi[y] = x
-    ys = [y for _, y in verts]
-    return {y: (lo[y], hi[y]) for y in range(min(ys), max(ys) + 1)}
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "bin"))
+from stnicc_raster import edge_points, reference_spans  # noqa: E402  (the exact original algorithm)
 
 
 def signed_area2(verts):

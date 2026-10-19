@@ -35,6 +35,26 @@ ENDMACRO
 
 .fast_plot_spans
 {
+    \\ Leave out the rows the stream's trim says end the frame overdrawn
+    lda poly_trim
+    beq untrimmed
+    lsr a:lsr a:lsr a:lsr a
+    clc
+    adc span_buffer_min_y
+    sta span_buffer_min_y
+    lda poly_trim
+    and #&0f
+    eor #&ff
+    sec
+    adc span_buffer_max_y       ; max_y - bottom, C=0 if below 0
+    bcc nothing
+    sta span_buffer_max_y
+    cmp span_buffer_min_y
+    bcs untrimmed
+    .nothing
+    jmp return_here_from_plot_poly
+    .untrimmed
+
     ldy span_buffer_max_y
     iny
     sty fps_max+1

@@ -25,8 +25,7 @@ PUTBASIC "src/loader.bas", "LOADER"
 PUTFILE "build/INTRO", "INTRO", LOAD_ADDRESS, EXEC_ADDRESS
 PUTFILE "build/MUSIC", "MUSIC", &8000, &8000
 PUTFILE "build/LOW", "LOW", LOAD_ADDRESS, EXEC_ADDRESS
-PUTFILE "build/HIGH", "HIGH", LOAD_ADDRESS, EXEC_ADDRESS
-PUTFILE "build/MEDIUM", "MEDIUM", LOAD_ADDRESS, EXEC_ADDRESS
+\\ MEDIUM and HIGH are left off: the intro only ever runs LOW or NULA
 PUTFILE "build/NULA", "NULA", LOAD_ADDRESS, EXEC_ADDRESS
 PUTFILE "build/OUTRO", "OUTRO", LOAD_ADDRESS, EXEC_ADDRESS
 PUTTEXT "data/readme.txt", "README", 0, 0
@@ -41,7 +40,7 @@ DFS_track_size = (DFS_sectors_per_track * DFS_sector_size)
 
 DISK1_first_track = 30      ; 50 tracks on first disc
 
-exe_size = EXE_SIZE_LOW + EXE_SIZE_HIGH + EXE_SIZE_MEDIUM + EXE_SIZE_NULA + INTRO_SIZE + OUTRO_SIZE + MUSIC_SIZE + README_SIZE + LOADER_SIZE
+exe_size = EXE_SIZE_LOW + EXE_SIZE_NULA + INTRO_SIZE + OUTRO_SIZE + MUSIC_SIZE + README_SIZE + LOADER_SIZE
 PRINT "EXE size = ",~exe_size
 ; We know that Catalog + !Boot = &300
 ; Need to make a dummy file so 00 is at sector 20=track 2

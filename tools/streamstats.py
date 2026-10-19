@@ -4,43 +4,21 @@
 #
 # python tools/streamstats.py [data/scene1.half.7680.bin]
 
+import os
 import sys
 from collections import Counter
 
-FLAG_CLEAR, FLAG_PAL, FLAG_INDEXED = 1, 2, 4
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "bin"))
+from stnicc_stream import parse_stream  # noqa: E402
+
+FLAG_CLEAR = 1
 
 
 def frames(data):
-    p = 0
-    while True:
-        flags = data[p]; p += 1
-        if flags & FLAG_PAL:
-            p += 1                       # dummy
-            n = data[p]; p += 1
-            p += 2 * n                   # NuLA words, ignored by LOW
-        xs = ys = None
-        if flags & FLAG_INDEXED:
-            n = data[p]; p += 1
-            xs = data[p:p + n]; p += n
-            ys = data[p:p + n]; p += n
-        polys = []
-        while True:
-            d = data[p]; p += 1
-            if d >= 0xFD:
-                break
-            nv = d & 15
-            if xs is not None:
-                idx = data[p:p + nv]; p += nv
-                verts = [(xs[i], ys[i]) for i in idx]
-            else:
-                verts = [(data[p + 2 * i], data[p + 2 * i + 1]) for i in range(nv)]
-                p += 2 * nv
-            polys.append((d >> 4, verts))
-        yield flags, polys
-        if d == 0xFD:
-            return
-        if d == 0xFE:                    # skip to next 7680-byte block
-            p = (p + 7679) // 7680 * 7680
+    """(flags, [(colour, vertices), ...]) per frame, read by bin/stnicc_stream.py
+    (which also knows the clear masks and polygon trims of an --optimise stream)."""
+    for f in parse_stream(data):
+        yield f.flags, [(c, v) for c, v, _ in f.polys]
 
 
 def main():

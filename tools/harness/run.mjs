@@ -49,7 +49,14 @@ function findJsbeeb() {
 const jsbeeb = findJsbeeb();
 const beebasm = path.resolve(repo, process.env.BEEBASM ?? "../beebasm/beebasm.exe");
 const disc = path.resolve(repo, opt("--disc", "build/beeb-niccc.dsd"));
-const lowPath = path.join(repo, "build", "LOW");
+// --variant nula runs the NuLA player (the intro chains to /NULA) and hashes the
+// rendered NuLA palette; --src assembles another tree (e.g. a worktree of the
+// release, with --disc of the release image, for a baseline).
+const variant = opt("--variant", "low");
+const VARIANTS = { low: { defines: ["_QUALITY=0", "_NULA=0"], exe: "LOW" }, nula: { defines: ["_QUALITY=1", "_NULA=-1"], exe: "NULA" } };
+if (!VARIANTS[variant]) throw new Error(`--variant ${variant}: low or nula`);
+const src = path.resolve(repo, opt("--src", "."));
+const lowPath = path.join(src, "build", VARIANTS[variant].exe);
 const refPath = opt("--ref");
 const outPath = opt("--out");
 const dumpDir = opt("--dump");
@@ -61,13 +68,13 @@ const parseOnly = args.includes("--parse-only");
 
 function buildLow() {
     // -d dumps every symbol as 'name':valueL, comma separated
-    const defines = ["-D", "_QUALITY=0", "-D", "_NULA=0"];
+    const defines = VARIANTS[variant].defines.flatMap((d) => ["-D", d]);
     if (parseOnly) defines.push("-D", "_TEST_PARSE_ONLY=-1");
     const out = execFileSync(beebasm, [...defines, "-i", "stnicc-beeb.asm", "-d", "-v"], {
-        cwd: repo,
+        cwd: src,
         maxBuffer: 64 << 20,
     }).toString();
-    writeFileSync(path.join(repo, "build", "low.txt"), out);
+    writeFileSync(path.join(src, "build", `${variant}.txt`), out);
     for (const line of out.split("\n")) {
         if (line.includes("WARNING")) console.log("beebasm: " + line.trim());
     }
@@ -79,7 +86,7 @@ function buildLow() {
 const syms = buildLow(); // also SAVEs build/LOW
 // track_load_error is local to main's scope, so -d does not export it: take it from the listing.
 {
-    const lst = readFileSync(path.join(repo, "build", "low.txt"), "utf8");
+    const lst = readFileSync(path.join(src, "build", `${variant}.txt`), "utf8");
     const m = lst.match(/\.track_load_error\s*\n\s*([0-9A-F]{4})/);
     if (!m) throw new Error("track_load_error not found in listing");
     syms.track_load_error = parseInt(m[1], 16);
@@ -143,10 +150,10 @@ async function runUntilPc(target, maxCycles) {
     if (!hit) throw new Error(`did not reach ${target.toString(16)} in ${maxCycles} cycles`);
 }
 
-// First &1100 is INTRO: clear the NuLA flags so it chains to /LOW, not /NULA.
+// First &1100 is INTRO: set the NuLA flags so it chains to /LOW (clear) or /NULA (set).
 await runUntilPc(0x1100, 120_000_000);
-cpu.writemem(0x7d, 0);
-cpu.writemem(0x7e, 0);
+cpu.writemem(0x7d, variant === "nula" ? 0xff : 0);
+cpu.writemem(0x7e, variant === "nula" ? 0xff : 0);
 await s.runFor(1);
 // Second &1100 is the release LOW: replace it with the candidate.
 await runUntilPc(0x1100, 400_000_000);
@@ -155,7 +162,7 @@ if (args.includes("--no-inject")) {
     // Run the LOW the disc loaded; check it is the one just assembled.
     let same = true;
     for (let i = 0; i < lowBin.length; i++) if (mem(0x1100 + i) !== lowBin[i]) same = false;
-    console.log(`--no-inject: LOW from the disc ${same ? "matches" : "DIFFERS FROM"} build/LOW`);
+    console.log(`--no-inject: ${VARIANTS[variant].exe} from the disc ${same ? "matches" : "DIFFERS FROM"} the one assembled`);
     if (!same) process.exit(2);
 } else {
     for (let i = 0; i < lowBin.length; i++) cpu.writemem(0x1100 + i, lowBin[i]);
@@ -208,7 +215,8 @@ const hook = cpu.debugInstruction.add((pc) => {
         const hi = mem(syms.draw_buffer_HI);
         const buf = new Uint8Array(6400);
         for (let i = 0; i < 6400; i++) buf[i] = mem((hi << 8) + i);
-        const pal = Uint8Array.from(s._video.actualPal.slice(0, 16));
+        // LOW: the 16 ULA palette registers; NULA: the 16 colours they render through the NuLA
+        const pal = variant === "nula" ? new Uint8Array(Uint32Array.from(s._video.ulaPal.slice(0, 16)).buffer) : Uint8Array.from(s._video.actualPal.slice(0, 16));
         const f = frames[frames.length - 1];
         f.hash = createHash("sha1").update(buf).update(pal).digest("hex");
         f.buffer = hi;
@@ -281,7 +289,7 @@ if (outPath) writeFileSync(outPath, JSON.stringify(result, null, 1));
 if (spans) writeFileSync(spansPath, JSON.stringify(spans));
 if (profile) {
     // Per-instruction render cycles, then summed under the nearest preceding label in the listing.
-    const lst = readFileSync(path.join(repo, "build", "low.txt"), "utf8").split("\n");
+    const lst = readFileSync(path.join(src, "build", `${variant}.txt`), "utf8").split("\n");
     const labelAt = [];
     let label = "?";
     for (const line of lst) {

@@ -169,6 +169,10 @@ MAX_VERTS_PER_POLY = 7
 FLAG_CLEAR_SCREEN = 1
 FLAG_CONTAINS_PALETTE = 2
 FLAG_INDEXED_DATA = 4
+FLAG_CLEAR_MASK = 8         ; a clearing frame: 13 bytes follow the flags, a bit per row to clear
+CLEAR_MASK_BYTES = 13
+
+POLY_TRIM = 8               ; descriptor: a trim byte follows (rows LOW may skip: top << 4 | bottom)
 
 POLY_DESC_END_OF_STREAM = &FD
 POLY_DESC_SKIP_TO_64K = &FE
@@ -280,6 +284,9 @@ ENDIF
 .music_enabled		skip 1
 .music_lock			skip 1
 
+.poly_trim			skip 1		; this polygon's trim byte, or 0 (_FAST_POLY)
+.stream_frame_HI	skip 1		; page of the frame being decoded: its vertices are read from there
+
 .zp_end
 
 \ ******************************************************************
@@ -389,6 +396,8 @@ endif
     sta STREAM_ptr_LO
     lda #HI(STREAM_buffer_start-1)
     sta STREAM_ptr_HI
+    lda #HI(STREAM_buffer_start)
+    sta stream_frame_HI
 
 	\\ Load our entire stream buffer from first track
 	LDA #DISK1_first_track
@@ -539,17 +548,16 @@ endif
 
 IF _FAST_POLY
 	\\ The track at load_to can be refilled once the reader has left it: when
-	\\ the page of the next byte to read is a track or more past load_to round
-	\\ the ring. Inside that track the ring is full, unless the decoder is
+	\\ the page the frame being decoded starts on is a track or more past
+	\\ load_to round the ring. (The frame start, not the stream pointer: the
+	\\ frame's vertices are read from there while the pointer runs on through
+	\\ its polygons.) Inside that track the ring is full, unless the decoder is
 	\\ locked waiting for data (a block skip caught the loader up), when the
 	\\ track is stale and must be loaded.
 	\\ (The original measures the distance in plain address order, which stops
 	\\ loading when the reader is just below load_to: with the decoder's
 	\\ look-ahead lock that would wait for ever.)
-	lda STREAM_ptr_LO
-	cmp #&ff                    ; C=1: next byte is on the next page
-	lda STREAM_ptr_HI
-	adc #0
+	lda stream_frame_HI
 	sec
 	sbc load_to_HI
 	bcs sectors_to_load_1
@@ -561,9 +569,10 @@ IF _FAST_POLY
 	beq not_ready_to_load
 	.ready_to_load
 ELSE
-	\\ Which page are we reading crunched data from?
+	\\ Which page are we reading crunched data from? (The page the frame being
+	\\ decoded starts on: its vertices are read from there.)
 	sec
-	lda STREAM_ptr_HI
+	lda stream_frame_HI
 
 	\\ Is it more than a "track" away?
 	SBC load_to_HI
