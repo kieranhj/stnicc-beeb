@@ -38,7 +38,7 @@ DFS_sector_size = 256
 DFS_sectors_per_track = 10
 DFS_track_size = (DFS_sectors_per_track * DFS_sector_size)
 
-DISK1_first_track = 30      ; 50 tracks on first disc
+DISK1_first_track = 24      ; 56 tracks on first disc (to track 79)
 
 exe_size = EXE_SIZE_LOW + EXE_SIZE_NULA + INTRO_SIZE + OUTRO_SIZE + EXE_SIZE_MUSIC + README_SIZE + LOADER_SIZE
 PRINT "EXE size = ",~exe_size

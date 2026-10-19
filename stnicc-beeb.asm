@@ -150,11 +150,14 @@ STREAMING_tracks_per_disk = 79
 STREAMING_sectors_to_load = 10
 
 DISK1_drive_no = 0
-DISK1_first_track = 30
-DISK1_last_track = DISK1_first_track + 50
+DISK1_first_track = 24      ; the stream runs to the end of the disc
+DISK1_last_track = 80
 
-DISK2_first_track = 1
-DISK2_last_track = DISK2_first_track + STREAMING_tracks_per_disk
+\\ Side 2 runs backwards, from track 79 down to 1, so the head need not seek
+\\ back across the disc when the stream moves on to it (bin/split.py)
+DISK2_first_track = 79
+DISK2_last_track = DISK2_first_track - STREAMING_tracks_per_disk
+OPCODE_DEC_zp = &C6             ; load_next_track's track step on side 2
 
 STREAM_buffer_size = 3 * DFS_track_size
 
@@ -770,7 +773,8 @@ ENDIF
 	CMP #DFS_sectors_per_track
 	BCC same_track
 	SBC #DFS_sectors_per_track
-	INC track_no
+	.track_step
+	INC track_no                ; DEC on side 2
 	.same_track
 	STA sector_no
 
@@ -806,9 +810,11 @@ ENDIF
 
 	.TRACK_LOAD_continue
 
-	\\ Reset track to start of disk 2
+	\\ Reset track to start of disk 2, which is read backwards
 	LDA #DISK2_first_track
 	STA track_no
+	LDA #OPCODE_DEC_zp
+	STA track_step
 
 	.TRACK_LOAD_no_swap_disk
 
