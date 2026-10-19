@@ -838,7 +838,7 @@ ENDMACRO
 	lda #0
 	sta walkers_set
 
-	\\ The mode: 0 time, 10 left, 11 tslope
+	\\ The mode: 0 time, 10 left, 110 tslope, 111 copy
 	GET_BIT
 	bcs mode_1x
 
@@ -887,6 +887,8 @@ ENDMACRO
 	\\ tslope: the same column in the frame before, ends moved on by its slopes
 	\\ if it was coded in a time mode
 	.mode_tslope
+	GET_BIT
+	bcs mode_copy
 	lda #LO(tslope_ops)
 	ldy #HI(tslope_ops)
 	jsr reference_before
@@ -896,6 +898,18 @@ ENDMACRO
 	jmp start
 	.tslope_no_slopes
 	jsr slopes_off
+	jmp start
+
+	\\ copy: the same column in the frame before, unchanged (as time mode's K0
+	\\ every run, without codes); then 1 if the draw buffer already shows it
+	.mode_copy
+	lda #LO(op_k0)
+	ldy #HI(op_k0)
+	jsr reference_before
+	jsr slopes_off
+	GET_BIT
+	bcc start
+	jmp keep_column
 
 	.start
 	ldx #0
@@ -903,6 +917,49 @@ ENDMACRO
 	stx last
 	stx run_p                   ; nothing above the first run
 	jmp next_op
+}
+
+\\ copy, when the draw buffer already shows the column: its runs go into the
+\\ ring and nothing is stored
+.keep_column
+{
+	lda site_rval+1
+	sta kv+1
+	lda site_rval+2
+	sta kv+2
+	lda site_rend1+1
+	sta ke+1
+	lda site_rend1+2
+	sta ke+2
+	lda site_kcval+1
+	sta kcv+1
+	lda site_kcval+2
+	sta kcv+2
+	lda site_kcend+1
+	sta kce+1
+	lda site_kcend+2
+	sta kce+2
+	lda site_kcslope+1
+	sta kcs+1
+	lda site_kcslope+2
+	sta kcs+2
+	ldy #0
+	.loop
+	.kv
+	lda &FFFF, Y
+	.kcv
+	sta &FFFF, Y
+	lda #0
+	.kcs
+	sta &FFFF, Y
+	.ke
+	lda &FFFF, Y
+	.kce
+	sta &FFFF, Y
+	iny
+	cmp #ROWS
+	bcc loop
+	jmp column_done
 }
 
 \\ The walkers, at the start of the column to the left (or background), and of
@@ -1829,11 +1886,6 @@ INCLUDE "src/clock.asm"
 
 .additional_end
 
-\\ Bottom line, odd rows (the other two pair tables are in low RAM)
-ALIGN &100
-.pair_bottom_odd
-SKIP 256
-
 \ ******************************************************************
 \ *	THE COLUMN CODE
 \ ******************************************************************
@@ -1926,6 +1978,13 @@ SEQ_TABLE column_code1, SEQ_ODD, 0, 2, ROWS/2, 1
 SEQ_TABLE column_code2, SEQ_ODD, 0, 2, ROWS/2, 1
 
 .end
+
+\\ Bottom line, odd rows (the other two pair tables are in low RAM), past the
+\\ end of the executable: the first frame's palette builds every pair
+ALIGN &100
+.pair_bottom_odd
+SKIP 256
+ASSERT P% <= STREAM_buffer_start
 
 \ ******************************************************************
 \ *	Save the code

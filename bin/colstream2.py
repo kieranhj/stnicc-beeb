@@ -7,6 +7,10 @@
 #   left    the column to its left in this frame (column 0: a column of background)
 #   time    the same column in the previous frame (frame 0: a frame of background)
 #   tslope  the same, each run's end moved on by its slope
+#   copy    the same column in the previous frame, unchanged (slopes 0, kind
+#           time), then a bit: 1 if it is also unchanged from the frame before
+#           that, with no palette change in this frame or the last, so that the
+#           draw buffer already shows it and the player leaves it alone
 # A run keeps a slope: its end less the end of the run it carried on from, and
 # the kind of the column it was coded in (left, or time for both time modes). A
 # run's predicted end is the reference run's end plus its slope when the slope
@@ -52,7 +56,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from colstream import BLOCK, COLUMNS, ROWS, column_values, runs  # noqa: E402
 from stnicc_stream import parse_stream  # noqa: E402
 
-MODE_CODES = {"time": "0", "left": "10", "tslope": "11"}
+MODE_CODES = {"time": "0", "left": "10", "tslope": "110", "copy": "111"}
 OP_CODES = {
     "left": {"K0": "00", "K+": "010", "K-": "011", "KJ": "100", "D": "101", "I": "110",
              "KL": "1110", "R": "1111"},
@@ -333,8 +337,10 @@ def emit_column(w, mode, ref, preds, r, ops, nbs):
     return new
 
 
-def encode_frame(image, prev_cols, prev_kinds, prev_image, palette, stats):
-    """One frame's bytes (E = 00) and its columns' runs and kinds."""
+def encode_frame(image, prev_cols, prev_kinds, prev_image, older_image, same_palette, palette, stats):
+    """One frame's bytes (E = 00) and its columns' runs and kinds. older_image is the
+    frame before the last (in the draw buffer), and same_palette whether the palette
+    has not changed since."""
     w = BitWriter()
     w.bits("1" if palette is not None else "0")
     w.bits("00")
@@ -351,6 +357,13 @@ def encode_frame(image, prev_cols, prev_kinds, prev_image, palette, stats):
         LC = column_values(image, c - 1, 16) if c else BACKGROUND_PIXELS
         PC = prev_image[c]
         PR = prev_image[c + 1] if c < COLUMNS - 1 else BACKGROUND_PIXELS
+        if r == [x[:2] for x in prev_cols[c]]:
+            keep = same_palette and col == older_image[c]
+            w.bits(MODE_CODES["copy"] + ("1" if keep else "0"))
+            stats["keep" if keep else "copy"] = stats.get("keep" if keep else "copy", 0) + 1
+            cur.append([(v, e, 0) for v, e in r])
+            kinds.append("time")
+            continue
         nbs = neighbours(LC, PC, PR, r)
         best = None
         for mode in ("left", "time", "tslope"):
@@ -404,6 +417,8 @@ class Decoder:
         for c in range(COLUMNS):
             self.end[c] = ROWS
         self.next_free = COLUMNS
+        self.shown = [[BACKGROUND_PIXELS] * COLUMNS] * 2     # the last two frames' pictures
+        self.palettes = [False, False]                      # and whether they changed the palette
 
     def column(self, start, count):
         return [(self.val[(start + k)], self.end[start + k], self.slope[start + k]) for k in range(count)]
@@ -425,7 +440,7 @@ class Decoder:
                 live |= set(range(prev_start[c], prev_start[c] + prev_count[c]))
             for c in range(COLUMNS):
                 mode = rd.token(MODE_CODES)
-                codes = OP_CODES[mode]
+                codes = OP_CODES.get(mode)
                 if mode == "left":
                     ref = self.column(cur_start[c - 1], cur_count[c - 1]) if c else BACKGROUND
                     kind = cur_kind[c - 1] if c else "time"
@@ -443,6 +458,13 @@ class Decoder:
                 new = []
                 i = 0
                 last = 0
+                if mode == "copy":
+                    keep = rd.bit()
+                    new = [(v, e, 0) for v, e, _ in ref]
+                    last = ROWS
+                    if keep:
+                        assert not pal and not self.palettes[-1], "kept across a palette change"
+                        assert pixels(new) == self.shown[-2][c], "kept a column the draw buffer does not show"
                 while last < ROWS:
                     tok = rd.token(codes)
                     if tok == "D":
@@ -492,6 +514,8 @@ class Decoder:
                 cur_kind.append("left" if mode == "left" else "time")
                 self.next_free = s + len(new)
             self.start, self.count, self.kind = cur_start, cur_count, cur_kind
+            self.shown = [self.shown[-1], [pixels(self.column(cur_start[c], cur_count[c])) for c in range(COLUMNS)]]
+            self.palettes = [self.palettes[-1], bool(pal)]
             yield palette, [self.column(cur_start[c], cur_count[c]) for c in range(COLUMNS)]
             p = rd.p
             if e_bits == E_END:
@@ -521,12 +545,14 @@ def main():
     images = [list(img) for img in pictures(frames)]
     prev_cols = [list(BACKGROUND) for _ in range(COLUMNS)]
     prev_kinds = ["time"] * COLUMNS
-    prev_image = [BACKGROUND_PIXELS] * COLUMNS
+    prev_image = older_image = [BACKGROUND_PIXELS] * COLUMNS
     frames_bytes = []
     stats = {}
     for n, image in enumerate(images):
-        fb, prev_cols, prev_kinds = encode_frame(image, prev_cols, prev_kinds, prev_image, records.get(n), stats)
-        prev_image = [column_values(image, c, 16) for c in range(COLUMNS)]
+        same_palette = n not in records and n - 1 not in records
+        fb, prev_cols, prev_kinds = encode_frame(image, prev_cols, prev_kinds, prev_image, older_image,
+                                                 same_palette, records.get(n), stats)
+        older_image, prev_image = prev_image, [column_values(image, c, 16) for c in range(COLUMNS)]
         frames_bytes.append(fb)
         if n % 100 == 99:
             print(f"  {n + 1} frames, {sum(map(len, frames_bytes))} bytes", file=sys.stderr)
