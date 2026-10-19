@@ -29,6 +29,7 @@ class StreamFrame:
         self.flags = flags
         self.clear_mask = None      # list of 100 bools, or None
         self.polys = []             # (colour, [(x, y), ...], trim (top, bottom) or None)
+        self.palette = []           # changed entries: (index, (r, g, b)), 4-bit linear
 
     def rows_to_clear(self):
         return [y for y in range(100) if self.clear_mask[y]] if self.clear_mask else list(range(100))
@@ -56,7 +57,10 @@ def parse_stream(data, block=7680):
         if f.flags & FLAG_CONTAINS_PALETTE:
             p += 1                      # dummy
             n = data[p]
-            p += 1 + 2 * n              # NuLA words
+            for i in range(n):          # NuLA words: index:R, G:B
+                w = data[p + 1 + 2 * i] << 8 | data[p + 2 + 2 * i]
+                f.palette.append((w >> 12, (w >> 8 & 15, w >> 4 & 15, w & 15)))
+            p += 1 + 2 * n
         xs = ys = None
         if f.flags & FLAG_INDEXED_DATA:
             n = data[p]
