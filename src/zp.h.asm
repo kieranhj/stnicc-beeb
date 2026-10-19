@@ -12,6 +12,7 @@ MUSIC_ENABLED_ZP = $7c
 NULA_AVAILABLE_ZP = $7d
 
 ; bit 7 clear = ordinary version, bit 7 set = NuLA version
+; bit 6 set = the CPC-palette version (C in the intro), when bit 7 is clear
 NULA_FLAG_ZP = $7e
 
 ; bit 7 set = no music, bit 7 clear = value is ROM slot of music bank

@@ -110,6 +110,7 @@ PRE_LOGO_WAIT_FRAMES = 75
 
 MUSIC_TOGGLE_INKEY=-17      ; Q
 NULA_TOGGLE_INKEY=-86       ; N
+CPC_TOGGLE_INKEY=-83        ; C
 
 ; Palette values. Not sure what the exact STe values are - I got these
 ; using the colour picker on a screen grab from a YouTube video :-|
@@ -169,6 +170,7 @@ GUARD zp_top
 
 .nula_toggle_debounce skip 1
 .music_toggle_debounce skip 1
+.cpc_toggle_debounce skip 1
 
 .zp_end
 
@@ -561,13 +563,19 @@ ENDIF
         .no_music
     }
 
-    \\ Load next part
+    \\ Load next part: NuLA, else the CPC palette, else the original
 	bit NULA_FLAG_ZP
 	bmi nula_version
-	
+	bvs cpc_version
+
     ldx #LO(low_cmd)
     ldy #HI(low_cmd)
     jmp oscli
+
+.cpc_version
+	ldx #lo(cpc_cmd)
+	ldy #hi(cpc_cmd)
+	jmp oscli
 
 .nula_version
 	ldx #lo(nula_cmd)
@@ -724,8 +732,14 @@ rts
 
 .set_text_palette
 {
+    \\ the CPC version's text is yellow on blue, as a CPC boots
     ldx #LO(palette)
     ldy #HI(palette)
+    bit NULA_FLAG_ZP
+    bvc set
+    ldx #LO(palette_cpc)
+    ldy #HI(palette_cpc)
+    .set
     jsr set_palette
 
     jsr reset_nula
@@ -775,6 +789,17 @@ lda MUSIC_ENABLED_ZP:eor #$80:sta MUSIC_ENABLED_ZP
 jsr enable_or_disable_music
 
 .music_toggle_checked
+
+lda #cpc_toggle_debounce
+ldx #CPC_TOGGLE_INKEY AND 255
+jsr check_key
+bne cpc_toggle_checked
+
+; toggle the CPC version
+lda NULA_FLAG_ZP:eor #$40:sta NULA_FLAG_ZP
+jsr set_text_palette
+
+.cpc_toggle_checked
 
 .keys_checked
 rts
@@ -1337,6 +1362,26 @@ EQUB &0A, &05
     EQUB &F0 + PAL_white
 }
 
+.palette_cpc            ; .palette with yellow text, as a CPC boots
+{
+    EQUB &00 + PAL_black
+    EQUB &10 + PAL_black
+    EQUB &20 + PAL_blue
+    EQUB &30 + PAL_blue
+    EQUB &40 + PAL_black
+    EQUB &50 + PAL_black
+    EQUB &60 + PAL_blue
+    EQUB &70 + PAL_blue
+    EQUB &80 + PAL_yellow
+    EQUB &90 + PAL_yellow
+    EQUB &A0 + PAL_white
+    EQUB &B0 + PAL_white
+    EQUB &C0 + PAL_yellow
+    EQUB &D0 + PAL_yellow
+    EQUB &E0 + PAL_white
+    EQUB &F0 + PAL_white
+}
+
 .palette_nula_values
 {
 	NULA_ENTRY 0,TEXT_BG_R,TEXT_BG_G,TEXT_BG_B
@@ -1375,7 +1420,10 @@ EQUB %01100111
 EQUB %00000001
 EQUB %00000000
 
-.low_cmd                ; without a NuLA: the CPC-palette MODE 2 player
+.low_cmd
+EQUS "/LOW", 13
+
+.cpc_cmd                ; the CPC-palette MODE 2 player (C in the intro)
 EQUS "/CPC", 13
 
 .nula_cmd

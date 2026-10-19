@@ -169,9 +169,29 @@ async function runUntilPc(target, maxCycles) {
 
 // First &1100 is INTRO: set the NuLA flags so it chains to /LOW (clear) or /NULA (set).
 await runUntilPc(0x1100, 120_000_000);
+// &7E bit 7: NuLA; bit 6: the CPC version (C in the intro)
 cpu.writemem(0x7d, variant === "nula" ? 0xff : 0);
-cpu.writemem(0x7e, variant === "nula" ? 0xff : 0);
+// --press-c: leave the flag clear and choose the CPC version with the intro's
+// C key instead (held for a few frames, as its debounce needs), so --no-inject
+// checks that the key reaches /CPC.
+const pressC = args.includes("--press-c");
+cpu.writemem(0x7e, pressC ? 0 : ({ nula: 0x80, cpc: 0x40 }[variant] ?? 0));
 await s.runFor(1);
+if (pressC) {
+    // the intro polls the keys while its text is being drawn
+    for (let t = 0; t < 30 && !(mem(0x7e) & 0x40); t++) {
+        s.keyDown("KeyC");
+        await s.runFor(400_000);
+        s.keyUp("KeyC");
+        await s.runFor(400_000);
+    }
+    console.log(`--press-c: &7E = &${mem(0x7e).toString(16)} after C`);
+    const introShot = opt("--intro-shot");
+    if (introShot) {
+        await s.runFor(2 * 39936);
+        writeFileSync(introShot, await s.screenshot());
+    }
+}
 // Second &1100 is the release LOW: replace it with the candidate.
 await runUntilPc(0x1100, 400_000_000);
 if (syms.main !== 0x1100) throw new Error("candidate main is not at &1100");
