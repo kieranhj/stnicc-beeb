@@ -9,6 +9,8 @@
 \\ exactly. If an executable grows or shrinks by a sector, change it here.
 \\ Needs _DEBUG, which must agree between the two files.
 
+_DEBUG =? FALSE                 ; src/music.asm has none
+
 IF _DEBUG
 EXE_SIZE_LOW = &2800
 EXE_SIZE_MEDIUM = &2700
@@ -20,3 +22,6 @@ EXE_SIZE_MEDIUM = &2700
 EXE_SIZE_HIGH = &2700
 EXE_SIZE_NULA = &2400
 ENDIF
+
+\\ MUSIC (src/music.asm, which asserts it): the VGI player and its three tunes
+EXE_SIZE_MUSIC = &3200

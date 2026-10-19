@@ -10,7 +10,7 @@ EXEC_ADDRESS = &FF1100
 \\ NEED A BETTER WAY OF DOING THIS NEXT TIME!
 INTRO_SIZE = &1c00
 OUTRO_SIZE = &1200
-MUSIC_SIZE = &2C00
+\\ MUSIC_SIZE is EXE_SIZE_MUSIC in src/exe_sizes.h.asm
 README_SIZE = &600
 LOADER_SIZE = &C00
 
@@ -40,7 +40,7 @@ DFS_track_size = (DFS_sectors_per_track * DFS_sector_size)
 
 DISK1_first_track = 30      ; 50 tracks on first disc
 
-exe_size = EXE_SIZE_LOW + EXE_SIZE_NULA + INTRO_SIZE + OUTRO_SIZE + MUSIC_SIZE + README_SIZE + LOADER_SIZE
+exe_size = EXE_SIZE_LOW + EXE_SIZE_NULA + INTRO_SIZE + OUTRO_SIZE + EXE_SIZE_MUSIC + README_SIZE + LOADER_SIZE
 PRINT "EXE size = ",~exe_size
 ; We know that Catalog + !Boot = &300
 ; Need to make a dummy file so 00 is at sector 20=track 2

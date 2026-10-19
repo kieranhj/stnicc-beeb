@@ -21,7 +21,7 @@ endif
 
 SHELLCMD:=$(PYTHON) bin/shellcmd.py
 
-VGMPACKER:=$(PYTHON) ../vgm-packer/vgmpacker.py
+VGIPACKER:=$(PYTHON) ../vgm-packer/vgipacker.py --v3
 
 BUILD:=./build
 
@@ -29,7 +29,7 @@ BUILD:=./build
 ##########################################################################
 
 .PHONY:build
-build: $(BUILD)/logo_mode1.exo $(BUILD)/intro_theme.vgc $(BUILD)/main_theme.vgc $(BUILD)/outro_theme.vgc
+build: $(BUILD)/logo_mode1.exo $(BUILD)/intro_theme.vgi $(BUILD)/main_theme.vgi $(BUILD)/outro_theme.vgi
 	$(SHELLCMD) mkdir $(BUILD)
 
 #	$(BEEBASM) -D _QUALITY=2 -D _NULA=0 -i stnicc-beeb.asm -v > $(BUILD)/high.txt
@@ -46,17 +46,17 @@ build: $(BUILD)/logo_mode1.exo $(BUILD)/intro_theme.vgc $(BUILD)/main_theme.vgc 
 
 	$(PYTHON) bin/dsd_create.py -o $(BUILD)/stnicc-A.dsd $(BUILD)/part-1.ssd $(BUILD)/part-2.ssd
 
-$(BUILD)/intro_theme.vgc : data/intro_test.vgm
+$(BUILD)/intro_theme.vgi : data/intro_test.vgm
 	$(SHELLCMD) mkdir $(BUILD)
-	$(VGMPACKER) -o "$@" "$<"
+	$(VGIPACKER) -o "$@" "$<"
 
-$(BUILD)/main_theme.vgc : data/main_test.vgm
+$(BUILD)/main_theme.vgi : data/main_test.vgm
 	$(SHELLCMD) mkdir $(BUILD)
-	$(VGMPACKER) -o "$@" "$<"
+	$(VGIPACKER) -o "$@" "$<"
 
-$(BUILD)/outro_theme.vgc : data/outro_test.vgm
+$(BUILD)/outro_theme.vgi : data/outro_test.vgm
 	$(SHELLCMD) mkdir $(BUILD)
-	$(VGMPACKER) -o "$@" "$<"
+	$(VGIPACKER) -o "$@" "$<"
 
 $(BUILD)/logo_mode1.exo : ./data/BeeBShifters.png
 	$(SHELLCMD) mkdir $(BUILD)
