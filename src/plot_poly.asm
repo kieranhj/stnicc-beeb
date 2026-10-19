@@ -280,12 +280,13 @@ IF _FAST_EDGES
     .untrimmed
 IF _CPC
     \\ A dithered colour's bottom line byte swaps its pixels on odd rows (span_loop
-    \\ EORs cpc_delta in after each row), so start it on the first row's parity
+    \\ EORs cpc_delta_eor's operand in after each row), so start it on the first
+    \\ row's parity
     lda span_buffer_min_y
     lsr a
     bcc even_row
     lda span_colour2
-    eor cpc_delta
+    eor cpc_delta_eor+1
     sta span_colour2
     .even_row
 ENDIF
@@ -406,7 +407,8 @@ endif
 
 IF _CPC
     lda span_colour2            ; 3c
-    eor cpc_delta               ; 3c    the next row's bottom line byte
+    .^cpc_delta_eor
+    eor #0                      ; 2c    the polygon's (parse_frame): the next row's bottom line byte
     sta span_colour2            ; 3c
 ENDIF
 

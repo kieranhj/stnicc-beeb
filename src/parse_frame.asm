@@ -222,7 +222,7 @@ if _CPC
 	lda cpc_colour_bottom,x
 	sta span_colour2
 	lda cpc_colour_delta,x
-	sta cpc_delta
+	sta cpc_delta_eor+1         ; span_loop's EOR for a dithered colour
 else
 	lda mode2_pixels,x
 	sta span_colour

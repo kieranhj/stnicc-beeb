@@ -235,7 +235,6 @@ GUARD zp_top
 if _CPC
 .span_colour2       skip 1      ; the bottom line's byte
 .cpc_count          skip 1
-.cpc_delta          skip 1      ; the polygon's: EOR with span_colour2 from row to row
 .cpc_colour_delta   skip 16     ; each colour's (cpc_palette_update)
 endif
 .shortptr			skip 2
