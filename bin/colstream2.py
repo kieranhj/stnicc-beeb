@@ -382,6 +382,9 @@ def align_blocks(frames_bytes):
             start = len(out)
         starts.append(start)
         out += fb
+        if len(out) % BLOCK == 0:
+            out[start] |= E_SKIP << 5           # it fills its block: the player must wrap
+    out[starts[-1]] &= ~(E_SKIP << 5)
     out[starts[-1]] |= E_END << 5
     return out
 
@@ -494,9 +497,9 @@ class Decoder:
             if e_bits == E_END:
                 return
             if e_bits == E_SKIP:
-                p = (p // BLOCK + 1) * BLOCK
+                p = (p + BLOCK - 1) // BLOCK * BLOCK
             else:
-                assert e_bits == E_NEXT
+                assert e_bits == E_NEXT and p % BLOCK, "the player's ring would not wrap"
 
     @staticmethod
     def read_pixel(rd, cands):

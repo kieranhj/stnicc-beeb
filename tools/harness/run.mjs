@@ -58,8 +58,10 @@ const VARIANTS = {
     cpc: { defines: ["_QUALITY=1", "_NULA=-1", "_CPC=-1"], exe: "CPC" }, // the intro's choice without a NuLA
     // the CPC version from the column stream, on its own disc (stnicc-cols.asm)
     cols: { defines: [], exe: "CPCCOL", source: "stnicc-cols.asm", disc: "build/beeb-niccc-cpc.dsd" },
+    // all 1800 frames from the version 2 column stream (stnicc-cols2.asm)
+    cols2: { defines: [], exe: "CPCCOL2", source: "stnicc-cols2.asm", disc: "build/beeb-niccc-cpc1800.dsd" },
 };
-if (!VARIANTS[variant]) throw new Error(`--variant ${variant}: low, nula, cpc or cols`);
+if (!VARIANTS[variant]) throw new Error(`--variant ${variant}: low, nula, cpc, cols or cols2`);
 const disc = path.resolve(repo, opt("--disc", VARIANTS[variant].disc ?? "build/beeb-niccc.dsd"));
 const src = path.resolve(repo, opt("--src", "."));
 const lowPath = path.join(src, "build", VARIANTS[variant].exe);
@@ -179,7 +181,7 @@ await runUntilPc(0x1100, 120_000_000);
 const pressC = args.includes("--press-c");
 const withNula = pressC && args.includes("--with-nula");
 cpu.writemem(0x7d, variant === "nula" || withNula ? 0xff : 0);
-cpu.writemem(0x7e, withNula ? 0x80 : pressC ? 0 : ({ nula: 0x80, cpc: 0x40, cols: 0x40 }[variant] ?? 0));
+cpu.writemem(0x7e, withNula ? 0x80 : pressC ? 0 : ({ nula: 0x80, cpc: 0x40, cols: 0x40, cols2: 0x40 }[variant] ?? 0));
 await s.runFor(1);
 if (pressC) {
     // the intro polls the keys while its text is being drawn

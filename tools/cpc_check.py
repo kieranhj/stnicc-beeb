@@ -2,7 +2,9 @@
 # byte, and its ULA palette (logical 0-7 = the BBC's eight colours).
 #
 # node tools/harness/run.mjs --no-inject --variant cpc --dump dir
-# python tools/cpc_check.py dir
+# python tools/cpc_check.py dir [polygon stream]
+# The 1800-frame column player's model is the full-rate stream's:
+# python tools/cpc_check.py dir data/scene1.full.7680.bin
 
 import os
 import sys
@@ -15,7 +17,8 @@ from stnicc_stream import parse_stream  # noqa: E402
 
 def main():
     dump_dir = sys.argv[1]
-    frames = list(parse_stream(open("data/scene1.half.7680.bin", "rb").read()))
+    src = sys.argv[2] if len(sys.argv) > 2 else "data/scene1.half.7680.bin"
+    frames = list(parse_stream(open(src, "rb").read()))
     bad = []
     for n, want in enumerate(model_frames(frames)):
         got = open(os.path.join(dump_dir, f"f{n:04d}.bin"), "rb").read()

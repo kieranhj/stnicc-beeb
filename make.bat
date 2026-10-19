@@ -36,3 +36,8 @@ echo Building the COLUMN DISC (the CPC version from the column stream)...
 %BEEBASM% -i stnicc-cols-build.asm -do build\cols-1.ssd -title BEEB-NICCC-C -opt 3 -v > build\cols-build.txt
 %BEEBASM% -i src\part-2-cols.asm -title BEEB-NICCC-D -do build\cols-2.ssd
 bin\bbcim -interss sd build\cols-1.ssd build\cols-2.ssd build\beeb-niccc-cpc.dsd
+echo Building the 1800-FRAME COLUMN DISC (every frame, from the version 2 column stream)...
+%BEEBASM% -i stnicc-cols2.asm -v > build\cols2.txt
+%BEEBASM% -i stnicc-cols2-build.asm -do build\cols2-1.ssd -title BEEB-NICCC-E -opt 3 -v > build\cols2-build.txt
+%BEEBASM% -i src\part-2-cols2.asm -title BEEB-NICCC-F -do build\cols2-2.ssd
+bin\bbcim -interss sd build\cols2-1.ssd build\cols2-2.ssd build\beeb-niccc-cpc1800.dsd
