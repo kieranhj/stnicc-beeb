@@ -48,7 +48,6 @@ function findJsbeeb() {
 }
 const jsbeeb = findJsbeeb();
 const beebasm = path.resolve(repo, process.env.BEEBASM ?? "../beebasm/beebasm.exe");
-const disc = path.resolve(repo, opt("--disc", "build/beeb-niccc.dsd"));
 // --variant nula runs the NuLA player (the intro chains to /NULA) and hashes the
 // rendered NuLA palette; --src assembles another tree (e.g. a worktree of the
 // release, with --disc of the release image, for a baseline).
@@ -57,8 +56,11 @@ const VARIANTS = {
     low: { defines: ["_QUALITY=0", "_NULA=0"], exe: "LOW" },
     nula: { defines: ["_QUALITY=1", "_NULA=-1"], exe: "NULA" },
     cpc: { defines: ["_QUALITY=1", "_NULA=-1", "_CPC=-1"], exe: "CPC" }, // the intro's choice without a NuLA
+    // the CPC version from the column stream, on its own disc (stnicc-cols.asm)
+    cols: { defines: [], exe: "CPCCOL", source: "stnicc-cols.asm", disc: "build/beeb-niccc-cpc.dsd" },
 };
-if (!VARIANTS[variant]) throw new Error(`--variant ${variant}: low, nula or cpc`);
+if (!VARIANTS[variant]) throw new Error(`--variant ${variant}: low, nula, cpc or cols`);
+const disc = path.resolve(repo, opt("--disc", VARIANTS[variant].disc ?? "build/beeb-niccc.dsd"));
 const src = path.resolve(repo, opt("--src", "."));
 const lowPath = path.join(src, "build", VARIANTS[variant].exe);
 const refPath = opt("--ref");
@@ -74,7 +76,7 @@ function buildLow() {
     // -d dumps every symbol as 'name':valueL, comma separated
     const defines = VARIANTS[variant].defines.flatMap((d) => ["-D", d]);
     if (parseOnly) defines.push("-D", "_TEST_PARSE_ONLY=-1");
-    const out = execFileSync(beebasm, [...defines, "-i", "stnicc-beeb.asm", "-d", "-v"], {
+    const out = execFileSync(beebasm, [...defines, "-i", VARIANTS[variant].source ?? "stnicc-beeb.asm", "-d", "-v"], {
         cwd: src,
         maxBuffer: 64 << 20,
     }).toString();
@@ -177,7 +179,7 @@ await runUntilPc(0x1100, 120_000_000);
 const pressC = args.includes("--press-c");
 const withNula = pressC && args.includes("--with-nula");
 cpu.writemem(0x7d, variant === "nula" || withNula ? 0xff : 0);
-cpu.writemem(0x7e, withNula ? 0x80 : pressC ? 0 : ({ nula: 0x80, cpc: 0x40 }[variant] ?? 0));
+cpu.writemem(0x7e, withNula ? 0x80 : pressC ? 0 : ({ nula: 0x80, cpc: 0x40, cols: 0x40 }[variant] ?? 0));
 await s.runFor(1);
 if (pressC) {
     // the intro polls the keys while its text is being drawn
@@ -399,8 +401,11 @@ if (!finished) {
     const st = ["track_no", "osword_params_drive", "error_flag", "buffer_lock", "load_to_HI"].map((k) => `${k}=${mem(syms[k]).toString(16)}`);
     throw new Error(`stream did not finish; ${frames.length} frames; pc=${cpu.pc.toString(16)} ${st.join(" ")} ptr=${mem(1).toString(16)}${mem(0).toString(16).padStart(2, "0")}`);
 }
-// The main loop sees eof_flag and copies vsync_counter to vsync_final within a field or so.
+// The main loop sees eof_flag and copies vsync_counter to vsync_final within a field or
+// so, or once a track read it is in the middle of returns (the column disc's stream ends
+// before the disc does, and the loader reads on).
 await s.runFor(200_000);
+for (let t = 0; t < 20 && !(mem(syms.vsync_final) | mem(syms.vsync_final + 1)); t++) await s.runFor(200_000);
 
 const vsyncFinal = mem(syms.vsync_final) | (mem(syms.vsync_final + 1) << 8);
 const errorFlag = mem(syms.error_flag);

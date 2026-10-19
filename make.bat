@@ -30,3 +30,9 @@ echo Building COMBINED DISCS...
 del /Q build\*.dsd
 bin\bbcim -interss sd build\part-1.ssd build\part-2.ssd build\beeb-niccc.dsd
 rem bin\bbcim -interss sd build\part-3.ssd build\part-4.ssd build\stnicc-B.dsd
+echo Building the COLUMN DISC (the CPC version from the column stream)...
+%BEEBASM% -D _CPC_ONLY=-1 -i src\intro.asm -v > build\introc.txt
+%BEEBASM% -i stnicc-cols.asm -v > build\cols.txt
+%BEEBASM% -i stnicc-cols-build.asm -do build\cols-1.ssd -title BEEB-NICCC-C -opt 3 -v > build\cols-build.txt
+%BEEBASM% -i src\part-2-cols.asm -title BEEB-NICCC-D -do build\cols-2.ssd
+bin\bbcim -interss sd build\cols-1.ssd build\cols-2.ssd build\beeb-niccc-cpc.dsd

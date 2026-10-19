@@ -13,6 +13,13 @@ if __name__ == '__main__':
     argv = sys.argv
     argc = len(argv)
 
+    # split.py stream [first track [prefix]]: another disc layout, as the column
+    # disc's (src/cols_disc.h.asm)
+    if argc > 2:
+        DISK1_FIRST_TRACK = int(argv[2])
+        FIRST_SIZE = (80 - DISK1_FIRST_TRACK) * TRACK_SIZE
+    prefix = argv[3] if argc > 3 else 'scene1_disk'
+
     f = open(argv[1], 'rb')
     data = f.read()
     size = len(data)
@@ -25,7 +32,7 @@ if __name__ == '__main__':
 
     print("size=", size, " first=",first_chunk, " split=",SPLIT_SIZE)
 
-    nf = open('scene1_disk.00.bin', 'wb')
+    nf = open(prefix + '.00.bin', 'wb')
     nf.write(data[0:first_chunk])
     nf.close()
 
@@ -36,14 +43,14 @@ if __name__ == '__main__':
     chunk = data[first_chunk:first_chunk + 1*SPLIT_SIZE]
     chunk += b'\x55' * (SPLIT_SIZE - len(chunk))
     tracks = [chunk[i:i + TRACK_SIZE] for i in range(0, SPLIT_SIZE, TRACK_SIZE)]
-    nf = open('scene1_disk.01.bin', 'wb')
+    nf = open(prefix + '.01.bin', 'wb')
     nf.write(b''.join(reversed(tracks)))
     nf.close()
 
-    nf = open('scene1_disk.02.bin', 'wb')
+    nf = open(prefix + '.02.bin', 'wb')
     nf.write(data[first_chunk + 1*SPLIT_SIZE:first_chunk + 2*SPLIT_SIZE])
     nf.close()
 
-    nf = open('scene1_disk.03.bin', 'wb')
+    nf = open(prefix + '.03.bin', 'wb')
     nf.write(data[first_chunk + 2*SPLIT_SIZE:first_chunk + 3*SPLIT_SIZE])
     nf.close()

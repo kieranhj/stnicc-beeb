@@ -4,6 +4,9 @@
 \ ******************************************************************
 
 _DEBUG_RASTERS = FALSE
+; The column disc's intro (stnicc-cols-build.asm): it only has the CPC player,
+; so N and C do nothing and the loader has set &7E for /CPC
+_CPC_ONLY =? FALSE
 
 INCLUDE "src/zp.h.asm"
 INCLUDE "src/music.h.asm"
@@ -763,6 +766,7 @@ rts
 
 .check_keys
 {
+IF NOT(_CPC_ONLY)
 .nula_toggle_check
 lda NULA_AVAILABLE_ZP
 beq nula_toggle_checked			; taken if no NuLA
@@ -781,6 +785,7 @@ sta NULA_FLAG_ZP
 jsr set_text_palette
 
 .nula_toggle_checked
+ENDIF
 bit MUSIC_SLOT_ZP
 bmi music_toggle_checked
 
@@ -794,6 +799,7 @@ jsr enable_or_disable_music
 
 .music_toggle_checked
 
+IF NOT(_CPC_ONLY)
 lda #cpc_toggle_debounce
 ldx #CPC_TOGGLE_INKEY AND 255
 jsr check_key
@@ -808,6 +814,7 @@ sta NULA_FLAG_ZP
 jsr set_text_palette
 
 .cpc_toggle_checked
+ENDIF
 
 .keys_checked
 rts
@@ -1706,4 +1713,8 @@ skip 9
 \ *	Save the code
 \ ******************************************************************
 
+IF _CPC_ONLY
+SAVE "build/INTROC", start, end, main
+ELSE
 SAVE "build/INTRO", start, end, main
+ENDIF
