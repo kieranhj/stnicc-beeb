@@ -1,4 +1,4 @@
-\ -*- mode:beebasm -*-
+\\ -*- mode:beebasm -*-
 \ ******************************************************************
 \ *	BEEB-NICCC: THE COLUMN PLAYER (CPC PALETTE)
 \ ******************************************************************
@@ -131,14 +131,15 @@ GUARD zp_top
 
 \\ the column decoder
 .ctl                skip 1      ; control byte bits not yet taken, above a sentinel bit
-.last               skip 1      ; end row of the run just decoded
+.last               skip 1      ; end row of the run before (the next run's first row)
+run_s = last                    ; the run being stored's first row
 .prev_base          skip 1      ; where the column to the left's runs start in the lists (0 or 128)
 .cur_base           skip 1      ; and this column's
 .col_x              skip 1      ; byte column * 8
 .tmp                skip 1
+.colour             skip 1      ; rebuild_colour's
 
 \\ the fill
-.run_s              skip 1      ; its first row
 .run_e              skip 1      ; and the row after its last
 .run_p              skip 1      ; its value (pixel pair)
 .run_n              skip 1      ; rows left to store (short runs)
@@ -168,6 +169,9 @@ pair_bottom_odd = &A00          ; bottom line, odd rows
 
 cpc_colour_top = &B00           ; each colour's top line byte (cpc_palette_update)
 cpc_colour_bottom = &B10        ; and its bottom line byte on even rows
+shadow_top = &B20               ; the colours the pair tables were built from
+shadow_bottom = &B30
+shadow_delta = &B40
 
 \ ******************************************************************
 \ *	CODE START
@@ -189,6 +193,14 @@ GUARD STREAM_buffer_start
     inx
     cpx #zp_top
     bne zp_loop
+
+    \\ No colours yet: the first palette builds every pair (update_pair_tables)
+    lda #&FF
+    ldx #&2F
+    .shadow_loop
+    sta shadow_top, X
+    dex
+    bpl shadow_loop
 
     \\ Set stream pointer
     lda #LO(STREAM_buffer_start-1)
@@ -594,7 +606,7 @@ ENDMACRO
 
 	ldy #0
 	jsr cpc_palette_update
-	jsr build_pair_tables
+	jsr update_pair_tables
 	.no_palette
 
 	lda #0
@@ -649,16 +661,6 @@ MACRO CODE_FIRST_BIT
 	.have
 ENDMACRO
 
-\\ The next 2-bit code in A
-.get_code
-{
-	CODE_FIRST_BIT
-	lda #0
-	rol a
-	asl ctl
-	rol a
-	rts
-}
 
 \\ Decode a column into the lists at cur_base, against the column to the left at
 \\ prev_base (bin/colstream.py's decode_column), storing each run as it is
@@ -716,21 +718,24 @@ ENDMACRO
 	rts
 
 	.escape
-	jsr get_code
-	beq op_kx
-	cmp #2
-	bcc op_d
-	beq op_i
+	CODE_FIRST_BIT
+	bcs escape_1x
+	asl ctl
+	bcs op_d
+	jmp op_kx
+	.escape_1x
+	asl ctl
+	bcs op_r
+	jmp op_i
 
 	\\ 11 11: R, the left column's run carries on in a new value
+	.op_r
 	jsr get_byte
 	sta run_p
-	jsr get_code
-	cmp #3
-	beq r_end
-	cmp #1
-	beq r_plus
-	bcs r_minus
+	CODE_FIRST_BIT
+	bcs r_1x
+	asl ctl
+	bcs r_plus
 	lda LEND, X                 ; +0
 	clc
 	adc LSLOPE, X
@@ -740,8 +745,10 @@ ENDMACRO
 	sec
 	adc LSLOPE, X
 	jmp r_store
-	.r_minus
-	lda LEND, X
+	.r_1x
+	asl ctl
+	bcs r_end
+	lda LEND, X                 ; -1
 	clc
 	adc LSLOPE, X
 	sec
@@ -777,15 +784,19 @@ ENDMACRO
 	jsr get_byte
 	sta LVAL, Y
 	sta run_p
-	jsr get_code
-	cmp #3
-	bne i_short
+	CODE_FIRST_BIT              ; the length: 00, 01, 10 for 1-3 rows, 11 for a byte
+	bcs i_1x
+	asl ctl
+	lda #1
+	adc #0                      ; 1 or 2
+	bne i_length                ; always
+	.i_1x
+	asl ctl
+	lda #3
+	bcc i_length
 	jsr get_byte
-	clc
-	bcc i_length                ; always
-	.i_short
-	adc #1                      ; C = 0: 1 to 3 rows
 	.i_length
+	clc
 	adc last
 	sta LEND, Y
 	sta run_e
@@ -834,12 +845,9 @@ ENDMACRO
 {
 	stx save_x
 	sty save_y
-	lda last
-	sta run_s
 	lda run_e
-	sta last
 	sec
-	sbc run_s
+	sbc run_s                   ; run_s is last
 	ldx col_x
 	ldy run_p
 	cmp #SHORT_RUN+1
@@ -909,57 +917,120 @@ ENDMACRO
 	.done
 	ldx save_x
 	ldy save_y
-	lda last
+	lda run_e
+	sta last
 	cmp #ROWS
 	rts
 }
 
-\ Each pixel pair's three bytes from the colours' (colour 0 is the background)
-.build_pair_tables
+\\ Each pixel pair's three bytes from the colours' (colour 0 is the background):
+\\ rebuild the pairs with a colour that changed since the last time
+.update_pair_tables
 {
 	lda #0
 	sta cpc_colour_top
 	sta cpc_colour_bottom
 	sta cpc_colour_delta
-	tax                         ; pixel pair
-	.left
-	txa
-	lsr a:lsr a:lsr a:lsr a
-	tay                         ; left colour
-	lda cpc_colour_top, Y
+	ldx #15
+	.check
+	lda cpc_colour_top, X
+	cmp shadow_top, X
+	bne changed
+	lda cpc_colour_bottom, X
+	cmp shadow_bottom, X
+	bne changed
+	lda cpc_colour_delta, X
+	cmp shadow_delta, X
+	beq same
+	.changed
+	jsr rebuild_colour
+	.same
+	dex
+	bpl check
+	rts
+}
+
+\\ The 32 pairs with colour X on the left or the right; X kept
+.rebuild_colour
+{
+	stx colour
+	lda cpc_colour_top, X
+	sta shadow_top, X
 	and #&AA
-	sta top_left+1
-	lda cpc_colour_bottom, Y
+	sta row_top+1
+	lda cpc_colour_top, X
+	and #&55
+	sta col_top+1
+	lda cpc_colour_bottom, X
+	sta shadow_bottom, X
 	and #&AA
-	sta even_left+1
-	lda cpc_colour_bottom, Y
-	eor cpc_colour_delta, Y
+	sta row_even+1
+	lda cpc_colour_bottom, X
+	and #&55
+	sta col_even+1
+	lda cpc_colour_delta, X
+	sta shadow_delta, X
+	eor cpc_colour_bottom, X
+	pha
 	and #&AA
-	sta odd_left+1
-	ldy #0                      ; right colour
-	.right
+	sta row_odd+1
+	pla
+	and #&55
+	sta col_odd+1
+
+	txa                         ; colour X on the left: pairs X*16 to X*16+15
+	asl a:asl a:asl a:asl a
+	tax
+	ldy #0
+	.row
 	lda cpc_colour_top, Y
 	and #&55
-	.top_left
+	.row_top
 	ora #0
 	sta pair_top, X
 	lda cpc_colour_bottom, Y
 	and #&55
-	.even_left
+	.row_even
 	ora #0
 	sta pair_bottom_even, X
 	lda cpc_colour_bottom, Y
 	eor cpc_colour_delta, Y
 	and #&55
-	.odd_left
+	.row_odd
 	ora #0
 	sta pair_bottom_odd, X
 	inx
 	iny
 	cpy #16
-	bne right
+	bne row
+
+	ldx colour                  ; on the right: pairs X, X+16, ...
+	ldy #0
+	.col
+	lda cpc_colour_top, Y
+	and #&AA
+	.col_top
+	ora #0
+	sta pair_top, X
+	lda cpc_colour_bottom, Y
+	and #&AA
+	.col_even
+	ora #0
+	sta pair_bottom_even, X
+	lda cpc_colour_bottom, Y
+	eor cpc_colour_delta, Y
+	and #&AA
+	.col_odd
+	ora #0
+	sta pair_bottom_odd, X
 	txa
-	bne left
+	clc
+	adc #16
+	tax
+	iny
+	cpy #16
+	bne col
+	ldx colour
 	rts
 }
 
