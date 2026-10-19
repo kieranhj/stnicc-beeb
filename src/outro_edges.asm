@@ -14,12 +14,17 @@
 \\ It shows every other frame, so as to take about as long as the credits:
 \\ each frame drawn follows one decoded but not drawn (decode_unseen; the
 \\ stream keeps frames 2n and 2n + 1 in one block, so that one never ends a
-\\ block or the stream).
+\\ block or the stream). That one is decoded as soon as the frame before is
+\\ drawn (decode_ahead), while its swap waits for vsync.
 \\
-\\ Each run the decoder keeps draws its own edges (run_sink): across its first
-\\ row where it differs from the run above, down its rows where its two pixels
-\\ differ, and down its rows where the column to the left's right pixel differs
-\\ from its left pixel (a walker through that column, ew).
+\\ Each run the decoder keeps draws its own edges (run_sink), down its rows a
+\\ segment at a time: a segment ends where the column to the left's run does
+\\ (a walker through that column, ew). In each segment a row's bits are the
+\\ left pixel's first bit if the column to the left's right pixel differs from
+\\ it, and the right pixel's first bit if the run's two pixels differ; the run's
+\\ first row also has the bits of the pixels that differ from the run above.
+\\ (In column 0 the column to the left is background, and its left pixel's
+\\ first bit is the box's left edge, set already.)
 
 \\ The palette changes are stepped over
 MACRO PALETTE_CHANGE
@@ -52,91 +57,126 @@ INCLUDE "src/cols2_decode.asm"
 	stx save_x
 	sty save_y
 
-	\\ Across its first row (not the top), the pixels that differ from the run above
+	\\ Across its first row: the pixels that differ from the run above (none at the top)
+	lda #0
 	ldy last
-	beq no_top
+	beq across_done
 	lda run_p
 	eor above
-	sta tmp
-	lda #0
-	sta m
-	lda tmp
 	cmp #&10
-	bcc no_left
-	lda hl
-	sta m
-	.no_left
-	lda tmp
+	bcc right_only
 	and #&0F
-	beq no_right
-	lda m
-	ora hr
-	sta m
-	.no_right
-	lda edge_row_lo, Y
-	sta ep
-	lda edge_row_hi, Y
-	clc
-	adc draw_buffer_HI
-	sta ep+1
-	ldy ecol
-	lda (ep), Y
-	ora m
-	sta (ep), Y
-	.no_top
+	beq left_only
+	lda hlr
+	bne across_done
+	.left_only
+	lda hl
+	bne across_done
+	.right_only
+	lda hr
+	.across_done
+	sta hm
 	lda run_p
 	sta above
 
-	\\ Down its rows between its two pixels, if they differ
+	\\ Between its two pixels, if they differ
 	lsr a:lsr a:lsr a:lsr a
 	sta lpix
 	eor run_p
 	and #&0F
 	beq no_inner
 	lda vr
-	sta m
-	lda last
-	sta y0
-	lda run_e
-	sta y1
-	jsr vline
 	.no_inner
+	sta inner
 
-	\\ Down its rows where the column to the left's right pixel differs from its left
-	lda col_x
-	beq done
-	lda vl
-	sta m
+	\\ Down its rows, a segment at a time
 	lda last
 	sta y0
-	.across
 	ldy ew
-	lda y0
-	.walk
+	.walk                       ; the column to the left's run at row y0
 	cmp (lc_end), Y
-	bcc found                   ; y0 < the end of the run there
+	bcc segment
 	iny
 	bne walk
-	.found
-	sty ew
-	lda (lc_end), Y
+	.segment
+	lda (lc_end), Y             ; the segment ends where either run does
 	cmp run_e
-	bcc to_its_end
+	bcc y1_ok
 	lda run_e
-	.to_its_end
+	.y1_ok
 	sta y1
-	lda (lc_val), Y
+	lda (lc_val), Y             ; the left pixel against the right pixel there
 	and #&0F
-	cmp lpix
+	eor lpix
 	beq same
-	jsr vline
+	lda vl
 	.same
+	ora inner
+	sta vm
+	ora hm
+	beq next_segment
+
+	\\ Rows y0 to y1 - 1, through the character cell: Y = the line in it
+	sty ew
+	ldx y0
+	lda cellrow_lo, X
+	clc
+	adc ecol
+	sta ep
+	lda cellrow_hi, X
+	adc draw_buffer_HI
+	sta ep+1
+	txa
+	and #7
+	tay
 	lda y1
-	sta y0
+	sec
+	sbc y0
+	tax
+	lda vm                      ; the first row, with the bits across
+	ora hm
+	ora (ep), Y
+	sta (ep), Y
+	lda #0
+	sta hm
+	lda vm
+	beq rows_done
+	dex
+	beq rows_done
+	.row
+	iny
+	cpy #8
+	beq next_cell
+	.in_cell
+	lda (ep), Y
+	ora vm
+	sta (ep), Y
+	dex
+	bne row
+	beq rows_done               ; always
+	.next_cell
+	lda ep                      ; on to the next character row
+	clc
+	adc #LO(MODE4_ROW_BYTES)
+	sta ep
+	lda ep+1
+	adc #HI(MODE4_ROW_BYTES)
+	sta ep+1
+	ldy #0
+	beq in_cell                 ; always
+	.rows_done
+	ldy ew
+
+	.next_segment
+	lda y1
 	cmp run_e
-	bcc across
+	bcs done
+	sta y0
+	iny
+	bne segment                 ; always
 
 	.done
+	sty ew
 	ldx save_x
 	ldy save_y
 	lda run_e
@@ -185,6 +225,8 @@ INCLUDE "src/cols2_decode_ops.asm"
 	sta hl
 	lda #%00110000
 	sta hr
+	lda #%11110000
+	sta hlr
 	lda #%10000000
 	sta vl
 	lda #%00100000
@@ -195,10 +237,30 @@ INCLUDE "src/cols2_decode_ops.asm"
 	sta hl
 	lda #%00000011
 	sta hr
+	lda #%00001111
+	sta hlr
 	lda #%00001000
 	sta vl
 	lda #%00000010
 	sta vr
+	rts
+}
+
+\\ After a frame is drawn, while its swap waits for vsync: decode the next pair's
+\\ first frame, unless the stream has ended or is short of data (the check before
+\\ sets buffer_lock unless STREAM_FRAME_PAGES are loaded: enough for a pair)
+.decode_ahead
+{
+	lda #0
+	sta unseen_done
+	lda eof_flag
+	cmp #POLY_DESC_END_OF_STREAM
+	beq done
+	lda buffer_lock
+	bne done
+	jsr decode_unseen
+	dec unseen_done
+	.done
 	rts
 }
 
@@ -210,42 +272,5 @@ INCLUDE "src/cols2_decode_ops.asm"
 	jsr parse_frame
 	lda #&80
 	sta drawing
-	rts
-}
-
-\\ OR m into byte column ecol of the window, rows y0 to y1 - 1 (X lost)
-.vline
-{
-	ldy y0
-	lda edge_row_lo, Y
-	sta ep
-	lda edge_row_hi, Y
-	clc
-	adc draw_buffer_HI
-	sta ep+1
-	lda y1
-	sec
-	sbc y0
-	tax
-	ldy ecol
-	.loop
-	lda (ep), Y
-	ora m
-	sta (ep), Y
-	dex
-	beq done
-	inc ep                      ; the next line (each character row's lines start
-	lda ep                      ; at a multiple of 8)
-	and #7
-	bne loop
-	lda ep                      ; on to the next character row
-	clc
-	adc #LO(MODE4_ROW_BYTES - 8)
-	sta ep
-	lda ep+1
-	adc #HI(MODE4_ROW_BYTES - 8)
-	sta ep+1
-	bne loop                    ; always
-	.done
 	rts
 }

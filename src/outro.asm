@@ -217,17 +217,21 @@ INCLUDE "src/cols2_decode_zp.asm"
 .save_y             skip 1
 .above              skip 1      ; the value of the run above
 .lpix               skip 1      ; the run's left pixel
-.m                  skip 1      ; the bits to set
-.ep                 skip 2      ; a row in the window
-.y0                 skip 1      ; rows y0 to y1 - 1 of an edge down a column
+.hm                 skip 1      ; the bits across the run's first row
+.inner              skip 1      ; the bit between its pixels, or 0
+.vm                 skip 1      ; a segment's bits down its rows
+.ep                 skip 2      ; a character cell in the window
+.y0                 skip 1      ; a segment: rows y0 to y1 - 1
 .y1                 skip 1
 .ecol               skip 1      ; the column's character cell * 8
 .hl                 skip 1      ; its left pixel's two bits
 .hr                 skip 1      ; and its right pixel's
+.hlr                skip 1      ; and both
 .vl                 skip 1      ; the left pixel's first bit
 .vr                 skip 1      ; and the right pixel's
 .ew                 skip 1      ; the walker through the column to the left
 .drawing            skip 1      ; bit 7 set: draw this frame's edges
+.unseen_done        skip 1      ; bit 7 set: the next pair's first frame is decoded
 .frame_no           skip 2
 ELSE
 ; vars for plot_span
@@ -328,8 +332,8 @@ GUARD &1000
 .screen_row_HI		skip 16
 .screen_col_LO		skip 80
 .screen_col_HI		skip 80
-.edge_row_lo		skip ROWS	; each picture row's line in the window
-.edge_row_hi		skip ROWS
+.cellrow_lo			skip ROWS	; each picture row's character row in the window
+.cellrow_hi			skip ROWS
 .reloc_to_end
 ELSE
 ; Can't use &300 until we remove any actual VDU calls
@@ -1004,7 +1008,10 @@ ELSE
 
 		\\ Parse and draw the next frame
 IF _COLS
+		bit unseen_done             ; (decode_ahead did it, unless short of data)
+		bmi unseen_ok
 		jsr decode_unseen
+		.unseen_ok
 		jsr clear_window
 ENDIF
 		jsr parse_frame
@@ -1073,6 +1080,17 @@ ENDIF
 		jsr show_vsync_counter
 		ENDIF
 
+IF _COLS
+		\\ The frame is ready: swap at the next vsync, while the next is decoded
+		SEI
+		lda #&ff:sta screen_lock
+		lda draw_buffer_HI
+		eor #HI(screen1_addr EOR screen2_addr)
+		sta draw_buffer_HI
+		CLI
+		jsr decode_ahead
+ENDIF
+
 		\\ Disable interrupts again!
 		SEI
 	}
@@ -1083,6 +1101,7 @@ ENDIF
 	\\ Remove our work lock
 	DEC decode_lock
 
+IF _COLS = FALSE
 	\\ Set our screen lock until frame swap
 	lda #&ff:sta screen_lock
 
@@ -1090,6 +1109,7 @@ ENDIF
     lda draw_buffer_HI
     eor #HI(screen1_addr EOR screen2_addr)
     sta draw_buffer_HI
+ENDIF
 ENDIF
 
 	\\ Pass on to OS IRQ handler
@@ -2052,13 +2072,13 @@ EQUB HI(c * 8)
 NEXT
 
 IF _COLS
-.reloc_edge_row_lo
+.reloc_cellrow_lo
 FOR y, 0, ROWS - 1
-EQUB LO((WIREFRAME_CORNER_Y + y DIV 8) * MODE4_ROW_BYTES + WIREFRAME_CORNER_X + (y MOD 8))
+EQUB LO((WIREFRAME_CORNER_Y + y DIV 8) * MODE4_ROW_BYTES + WIREFRAME_CORNER_X)
 NEXT
-.reloc_edge_row_hi
+.reloc_cellrow_hi
 FOR y, 0, ROWS - 1
-EQUB HI((WIREFRAME_CORNER_Y + y DIV 8) * MODE4_ROW_BYTES + WIREFRAME_CORNER_X + (y MOD 8))
+EQUB HI((WIREFRAME_CORNER_Y + y DIV 8) * MODE4_ROW_BYTES + WIREFRAME_CORNER_X)
 NEXT
 
 ; (after the tables relocated to &E00)
