@@ -403,5 +403,17 @@ if (profile) {
         out.push(`${pc.toString(16)} ${c} ${((100 * c) / totalRender).toFixed(2)} ${labelAt[pc] ?? ""}`);
     writeFileSync(profilePath, out.join("\n"));
 }
+// --outro dir: run on after the stream for --outro-secs (default 60) seconds of
+// machine time, saving a screenshot every 2 s (outro.NNN.png) to see what follows.
+const outroDir = opt("--outro");
+if (outroDir) {
+    mkdirSync(outroDir, { recursive: true });
+    const secs = Number(opt("--outro-secs", "60"));
+    for (let t = 0; t < secs; t += 2) {
+        await s.runFor(4_000_000);
+        writeFileSync(path.join(outroDir, `outro.${String(t + 2).padStart(3, "0")}.png`), await s.screenshot());
+    }
+    console.log(`outro: ${secs / 2} screenshots in ${outroDir}; pc=${cpu.pc.toString(16)}`);
+}
 s.destroy();
 process.exit(result.pass === false ? 1 : 0);
