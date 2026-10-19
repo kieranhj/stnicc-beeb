@@ -5,3 +5,4 @@ build
 intro.txt
 data/out.txt
 *.pyc
+data/out-full.txt
