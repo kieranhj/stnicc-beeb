@@ -1256,56 +1256,23 @@ ENDMACRO
 	cmp #SHORT_RUN+1
 	bcs long
 
-	\\ A short run: store it row by row through dptr, X = its value
-	sta run_n
+	\\ A short run (C = 0): through dptr at its first row's character cell, by
+	\\ a routine for that row's place in the cell and the run's length
 	ldy run_s
-	txa                         ; byte column * 8
-	ora row_offset, Y           ; 2 * (row AND 3)
-	sta dptr
+	adc short_index, Y           ; (row AND 3) * 4 + length
+	tax
+	lda short_lo - 1, X
+	sta short_jump+1
+	lda short_hi - 1, X
+	sta short_jump+2
 	lda row_page, Y             ; row DIV 4
-	clc
-	adc draw_buffer_HI
+	adc draw_buffer_HI          ; (C = 0)
 	sta dptr+1
+	lda col_x
+	sta dptr
 	ldx run_p
-	tya
-	lsr a
-	bcs odd_row
-	.even_row
-	ldy #0
-	lda pair_top, X
-	sta (dptr), Y
-	iny
-	lda pair_bottom_even, X
-	sta (dptr), Y
-	dec run_n
-	beq short_done
-	lda dptr                    ; the odd row below: the same character row
-	clc
-	adc #2
-	sta dptr
-	.odd_row
-	ldy #0
-	lda pair_top, X
-	sta (dptr), Y
-	iny
-	lda pair_bottom_odd, X
-	sta (dptr), Y
-	dec run_n
-	beq short_done
-	lda dptr
-	clc
-	adc #2
-	sta dptr
-	and #7
-	bne even_row
-	lda dptr                    ; on to the next character row
-	sec
-	sbc #8
-	sta dptr
-	inc dptr+1
-	bne even_row                ; always
-	.short_done
-	jmp done
+	.short_jump
+	jmp &FFFF
 
 	.long
 	lda code_or
@@ -1317,6 +1284,7 @@ ENDMACRO
 	LONG_PASSES seq_top_hi2, seq_bottom_hi2, seq_even_hi2, seq_odd_hi2
 
 	.done
+	.^fill_done
 	ldx save_x
 	ldy save_y
 	lda run_e
@@ -1858,14 +1826,17 @@ INCLUDE "src/clock.asm"
 
 .screen1_cls
 {
+	lda #HI(screen1_addr)
+	sta loop+2
 	lda #0
 	tax
 	.loop
-	FOR page,0,SCREEN_SIZE_BYTES-1,&100
-	sta screen1_addr + page, X
-	NEXT
+	sta screen1_addr, X
 	inx
 	bne loop
+	inc loop+2
+	ldy loop+2
+	bpl loop                    ; up to &8000
 	rts
 }
 
@@ -1977,12 +1948,62 @@ SEQ_TABLE column_code1, SEQ_ODD, 0, 2, ROWS/2, 1
 .seq_odd_hi2
 SEQ_TABLE column_code2, SEQ_ODD, 0, 2, ROWS/2, 1
 
+\\ The short runs' routines, by first row's place in its character cell (p)
+\\ and length (n): a row's two bytes at 2 * its place, X = the value
+MACRO SHORT_RUN_CODE p, n
+FOR k, 0, n - 1
+q = p + k
+IF q = 4
+	inc dptr+1                  ; on to the next character row
+ENDIF
+	ldy #(q AND 3) * 2
+	lda pair_top, X
+	sta (dptr), Y
+	iny
+IF (q AND 1) = 0
+	lda pair_bottom_even, X
+ELSE
+	lda pair_bottom_odd, X
+ENDIF
+	sta (dptr), Y
+NEXT
+	jmp fill_done
+ENDMACRO
+
+ASSERT SHORT_RUN = 4
+.short_code
+FOR p, 0, 3
+FOR n, 1, SHORT_RUN
+	SHORT_RUN_CODE p, n
+NEXT
+NEXT
+ASSERT P% - short_code = 4 * 142 + 12
+
+\\ Each routine's address: 13 bytes a row, 3 for the JMP and 2 more for a run
+\\ into the next character row (so 142 + 2p for each place p's four)
+.short_index
+FOR y, 0, ROWS - 1
+EQUB (y AND 3) * 4
+NEXT
+.short_lo
+FOR p, 0, 3
+FOR n, 1, 4
+EQUB LO(short_code + 142 * p + p * (p - 1) + 13 * (n - 1) * n / 2 + 3 * (n - 1) + (n - 5 + p + ABS(n - 5 + p)))
+NEXT
+NEXT
+.short_hi
+FOR p, 0, 3
+FOR n, 1, 4
+EQUB HI(short_code + 142 * p + p * (p - 1) + 13 * (n - 1) * n / 2 + 3 * (n - 1) + (n - 5 + p + ABS(n - 5 + p)))
+NEXT
+NEXT
+
+
 .end
 
 \\ Bottom line, odd rows (the other two pair tables are in low RAM), past the
 \\ end of the executable: the first frame's palette builds every pair
-ALIGN &100
-.pair_bottom_odd
+.pair_bottom_odd                ; (not page aligned: a few reads a frame cross a page)
 SKIP 256
 ASSERT P% <= STREAM_buffer_start
 

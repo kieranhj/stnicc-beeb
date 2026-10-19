@@ -10,4 +10,4 @@
 COLS2_FIRST_TRACK = 20
 
 \\ Sector-rounded size of the 1800-frame column player (asserted by stnicc-cols2.asm)
-EXE_SIZE_COLS2 = &1C00
+EXE_SIZE_COLS2 = &1E00
