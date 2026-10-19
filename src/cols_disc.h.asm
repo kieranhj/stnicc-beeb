@@ -10,4 +10,4 @@
 COLS_FIRST_TRACK = 20
 
 \\ Sector-rounded size of the column player (asserted by stnicc-cols.asm)
-EXE_SIZE_COLS = &1700
+EXE_SIZE_COLS = &1C00

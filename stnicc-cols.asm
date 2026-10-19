@@ -143,9 +143,6 @@ run_s = last                    ; the run being stored's first row
 .run_e              skip 1      ; and the row after its last
 .run_p              skip 1      ; its value (pixel pair)
 .run_n              skip 1      ; rows left to store (short runs)
-.val_t              skip 1      ; top line byte
-.val_b              skip 1      ; this row's bottom line byte
-.val_bd             skip 1      ; what turns it into the next row's
 .save_x             skip 1      ; the decoder's X and Y, while a run is stored
 .save_y             skip 1
 .vB                 skip 2      ; and the store it is stopped at
@@ -818,13 +815,11 @@ MACRO FILL_PASS lo, hi, bytes
 	lda lo, Y
 	sta vB
 	lda hi, Y
-	ora code_or
 	sta vB+1
 	ldy run_s
 	lda lo, Y
 	sta pass+1
 	lda hi, Y
-	ora code_or
 	sta pass+2
 	ldy #0
 	lda #OPCODE_RTS
@@ -836,6 +831,24 @@ MACRO FILL_PASS lo, hi, bytes
 	ldy #0
 	lda #OPCODE_STA_ABSX
 	sta (vB), Y
+ENDMACRO
+
+\\ A long run's passes, Y = its value: two for a chequer, three when its bottom line
+\\ alternates (the even rows, then the odd)
+MACRO LONG_PASSES top_hi, bottom_hi, even_hi, odd_hi
+	lda pair_bottom_even, Y
+	cmp pair_bottom_odd, Y
+	beq chequer
+	jmp dithered
+	.chequer
+	FILL_PASS seq_top_lo, top_hi, pair_top
+	FILL_PASS seq_bottom_lo, bottom_hi, pair_bottom_even
+	jmp done
+	.dithered
+	FILL_PASS seq_top_lo, top_hi, pair_top
+	FILL_PASS seq_even_lo, even_hi, pair_bottom_even
+	FILL_PASS seq_odd_lo, odd_hi, pair_bottom_odd
+	jmp done
 ENDMACRO
 
 \\ Store the run just decoded, from row last to run_e - 1, value run_p, in the
@@ -853,66 +866,65 @@ ENDMACRO
 	cmp #SHORT_RUN+1
 	bcs long
 
-	\\ A short run: store it row by row through dptr
+	\\ A short run: store it row by row through dptr, X = its value
 	sta run_n
-	lda pair_top, Y
-	sta val_t
-	lda pair_bottom_even, Y
-	eor pair_bottom_odd, Y
-	sta val_bd
-	lda run_s
-	lsr a
-	lda pair_bottom_even, Y
-	bcc even_start
-	lda pair_bottom_odd, Y
-	.even_start
-	sta val_b
 	ldy run_s
-	txa
+	txa                         ; byte column * 8
 	ora row_offset, Y           ; 2 * (row AND 3)
 	sta dptr
 	lda row_page, Y             ; row DIV 4
 	clc
 	adc draw_buffer_HI
 	sta dptr+1
-	.row
+	ldx run_p
+	tya
+	lsr a
+	bcs odd_row
+	.even_row
 	ldy #0
-	lda val_t
+	lda pair_top, X
 	sta (dptr), Y
 	iny
-	lda val_b
+	lda pair_bottom_even, X
 	sta (dptr), Y
 	dec run_n
-	bne next_row
-	jmp done
-	.next_row
-	lda val_b
-	eor val_bd
-	sta val_b
+	beq short_done
+	lda dptr                    ; the odd row below: the same character row
+	clc
+	adc #2
+	sta dptr
+	.odd_row
+	ldy #0
+	lda pair_top, X
+	sta (dptr), Y
+	iny
+	lda pair_bottom_odd, X
+	sta (dptr), Y
+	dec run_n
+	beq short_done
 	lda dptr
 	clc
 	adc #2
 	sta dptr
 	and #7
-	bne row
+	bne even_row
 	lda dptr                    ; on to the next character row
 	sec
 	sbc #8
 	sta dptr
 	inc dptr+1
-	bne row                     ; always
+	bne even_row                ; always
+	.short_done
+	jmp done
 
 	.long
-	lda pair_bottom_even, Y
-	cmp pair_bottom_odd, Y
-	bne dithered
-	FILL_PASS seq_top_lo, seq_top_hi, pair_top
-	FILL_PASS seq_bottom_lo, seq_bottom_hi, pair_bottom_even
-	jmp done
-	.dithered                   ; its bottom line alternates: the even rows, then the odd
-	FILL_PASS seq_top_lo, seq_top_hi, pair_top
-	FILL_PASS seq_even_lo, seq_even_hi, pair_bottom_even
-	FILL_PASS seq_odd_lo, seq_odd_hi, pair_bottom_odd
+	lda code_or
+	beq long1
+	jmp long2
+	.long1
+	LONG_PASSES seq_top_hi1, seq_bottom_hi1, seq_even_hi1, seq_odd_hi1
+	.long2
+	LONG_PASSES seq_top_hi2, seq_bottom_hi2, seq_even_hi2, seq_odd_hi2
 
 	.done
 	ldx save_x
@@ -1227,45 +1239,6 @@ MACRO COLUMN_CODE scr
 	EQUB 0                      ; SEQ_DUMMY
 ENDMACRO
 
-\\ Each run of stores' entry by row: the store for the first row at or after it
-\\ that the run has, or SEQ_DUMMY past the last
-.seq_top_lo
-FOR r,0,ROWS
-IF r < ROWS:EQUB LO(column_code1 + SEQ_TOP + r * 3):ELSE:EQUB LO(column_code1 + SEQ_DUMMY):ENDIF
-NEXT
-.seq_top_hi
-FOR r,0,ROWS
-IF r < ROWS:EQUB HI(column_code1 + SEQ_TOP + r * 3):ELSE:EQUB HI(column_code1 + SEQ_DUMMY):ENDIF
-NEXT
-.seq_bottom_lo
-FOR r,0,ROWS
-IF r < ROWS:EQUB LO(column_code1 + SEQ_BOTTOM + r * 3):ELSE:EQUB LO(column_code1 + SEQ_DUMMY):ENDIF
-NEXT
-.seq_bottom_hi
-FOR r,0,ROWS
-IF r < ROWS:EQUB HI(column_code1 + SEQ_BOTTOM + r * 3):ELSE:EQUB HI(column_code1 + SEQ_DUMMY):ENDIF
-NEXT
-.seq_even_lo
-FOR r,0,ROWS
-s = (r + 1) DIV 2
-IF s < ROWS/2:EQUB LO(column_code1 + SEQ_EVEN + s * 3):ELSE:EQUB LO(column_code1 + SEQ_DUMMY):ENDIF
-NEXT
-.seq_even_hi
-FOR r,0,ROWS
-s = (r + 1) DIV 2
-IF s < ROWS/2:EQUB HI(column_code1 + SEQ_EVEN + s * 3):ELSE:EQUB HI(column_code1 + SEQ_DUMMY):ENDIF
-NEXT
-.seq_odd_lo
-FOR r,0,ROWS
-s = r DIV 2
-IF s < ROWS/2:EQUB LO(column_code1 + SEQ_ODD + s * 3):ELSE:EQUB LO(column_code1 + SEQ_DUMMY):ENDIF
-NEXT
-.seq_odd_hi
-FOR r,0,ROWS
-s = r DIV 2
-IF s < ROWS/2:EQUB HI(column_code1 + SEQ_ODD + s * 3):ELSE:EQUB HI(column_code1 + SEQ_DUMMY):ENDIF
-NEXT
-
 ALIGN COLUMN_CODE_PAGES * 2 * &100
 .column_code1                   ; screen 1
 COLUMN_CODE screen1_addr
@@ -1275,6 +1248,66 @@ ORG column_code1 + COLUMN_CODE_PAGES * &100
 COLUMN_CODE screen2_addr
 ASSERT P% <= column_code2 + COLUMN_CODE_PAGES * &100
 ORG column_code2 + COLUMN_CODE_PAGES * &100
+
+\\ Each run of stores' entry by row: the store for the first row at or after it
+\\ that the run has, or SEQ_DUMMY past the last. The low bytes serve both
+\\ screens' copies; each has its high bytes.
+.seq_top_lo
+FOR r,0,ROWS
+IF r < ROWS:EQUB LO(column_code1 + SEQ_TOP + r * 3):ELSE:EQUB LO(column_code1 + SEQ_DUMMY):ENDIF
+NEXT
+.seq_top_hi1
+FOR r,0,ROWS
+IF r < ROWS:EQUB HI(column_code1 + SEQ_TOP + r * 3):ELSE:EQUB HI(column_code1 + SEQ_DUMMY):ENDIF
+NEXT
+.seq_top_hi2
+FOR r,0,ROWS
+IF r < ROWS:EQUB HI(column_code2 + SEQ_TOP + r * 3):ELSE:EQUB HI(column_code2 + SEQ_DUMMY):ENDIF
+NEXT
+.seq_bottom_lo
+FOR r,0,ROWS
+IF r < ROWS:EQUB LO(column_code1 + SEQ_BOTTOM + r * 3):ELSE:EQUB LO(column_code1 + SEQ_DUMMY):ENDIF
+NEXT
+.seq_bottom_hi1
+FOR r,0,ROWS
+IF r < ROWS:EQUB HI(column_code1 + SEQ_BOTTOM + r * 3):ELSE:EQUB HI(column_code1 + SEQ_DUMMY):ENDIF
+NEXT
+.seq_bottom_hi2
+FOR r,0,ROWS
+IF r < ROWS:EQUB HI(column_code2 + SEQ_BOTTOM + r * 3):ELSE:EQUB HI(column_code2 + SEQ_DUMMY):ENDIF
+NEXT
+.seq_even_lo
+FOR r,0,ROWS
+s = (r + 1) DIV 2
+IF s < ROWS/2:EQUB LO(column_code1 + SEQ_EVEN + s * 3):ELSE:EQUB LO(column_code1 + SEQ_DUMMY):ENDIF
+NEXT
+.seq_even_hi1
+FOR r,0,ROWS
+s = (r + 1) DIV 2
+IF s < ROWS/2:EQUB HI(column_code1 + SEQ_EVEN + s * 3):ELSE:EQUB HI(column_code1 + SEQ_DUMMY):ENDIF
+NEXT
+.seq_even_hi2
+FOR r,0,ROWS
+s = (r + 1) DIV 2
+IF s < ROWS/2:EQUB HI(column_code2 + SEQ_EVEN + s * 3):ELSE:EQUB HI(column_code2 + SEQ_DUMMY):ENDIF
+NEXT
+.seq_odd_lo
+FOR r,0,ROWS
+s = r DIV 2
+IF s < ROWS/2:EQUB LO(column_code1 + SEQ_ODD + s * 3):ELSE:EQUB LO(column_code1 + SEQ_DUMMY):ENDIF
+NEXT
+.seq_odd_hi1
+FOR r,0,ROWS
+s = r DIV 2
+IF s < ROWS/2:EQUB HI(column_code1 + SEQ_ODD + s * 3):ELSE:EQUB HI(column_code1 + SEQ_DUMMY):ENDIF
+NEXT
+
+
+.seq_odd_hi2
+FOR r,0,ROWS
+s = r DIV 2
+IF s < ROWS/2:EQUB HI(column_code2 + SEQ_ODD + s * 3):ELSE:EQUB HI(column_code2 + SEQ_DUMMY):ENDIF
+NEXT
 
 .end
 
