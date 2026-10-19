@@ -57,9 +57,13 @@ const profilePath = opt("--profile");
 
 // ---------------------------------------------------------------- build + symbols
 
+const parseOnly = args.includes("--parse-only");
+
 function buildLow() {
     // -d dumps every symbol as 'name':valueL, comma separated
-    const out = execFileSync(beebasm, ["-D", "_QUALITY=0", "-D", "_NULA=0", "-i", "stnicc-beeb.asm", "-d", "-v"], {
+    const defines = ["-D", "_QUALITY=0", "-D", "_NULA=0"];
+    if (parseOnly) defines.push("-D", "_TEST_PARSE_ONLY=-1");
+    const out = execFileSync(beebasm, [...defines, "-i", "stnicc-beeb.asm", "-d", "-v"], {
         cwd: repo,
         maxBuffer: 64 << 20,
     }).toString();
@@ -174,6 +178,7 @@ const spansFrames = Number(opt("--spans-frames", "3"));
 const spans = spansPath ? [] : null;
 let rendering = false;
 let renderCycles = 0;
+let polyCount = 0;
 let prevPc = -1;
 let prevCycles = 0;
 let finished = false;
@@ -192,10 +197,13 @@ const hook = cpu.debugInstruction.add((pc) => {
     if (pc === syms.parse_frame) {
         rendering = true;
         renderCycles = 0;
+        polyCount = 0;
+    } else if (pc === syms.plot_poly_span) {
+        polyCount++;
     } else if (pc === parseReturn && rendering) {
         rendering = false;
         // A = parse_frame's return: &FD on the last frame of the stream
-        frames.push({ render: renderCycles, last: cpu.a === 0xfd });
+        frames.push({ render: renderCycles, last: cpu.a === 0xfd, polys: polyCount });
     } else if (pc === syms.swap_frame_buffers) {
         const hi = mem(syms.draw_buffer_HI);
         const buf = new Uint8Array(6400);
@@ -244,7 +252,7 @@ const result = {
     vsync_final: vsyncFinal,
     error_flag: errorFlag,
     wall_cycles: s.elapsedCycles - runStart,
-    per_frame: frames.map((f) => ({ render: f.render, hash: f.hash })),
+    per_frame: frames.map((f) => ({ render: f.render, hash: f.hash, polys: f.polys })),
 };
 
 console.log(`boot ${bootSecs.toFixed(1)}s, run ${((Date.now() - t0) / 1000 - bootSecs).toFixed(1)}s host time`);

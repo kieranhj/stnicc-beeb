@@ -59,7 +59,9 @@ ENDIF
     sta frame_flags
 
     and #FLAG_CLEAR_SCREEN
-IF _PLOT_WIREFRAME = FALSE
+IF _TEST_PARSE_ONLY
+    jmp no_clear_screen
+ELIF _PLOT_WIREFRAME = FALSE
     beq no_clear_screen
 ENDIF
 

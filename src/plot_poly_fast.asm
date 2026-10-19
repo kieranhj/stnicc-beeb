@@ -31,6 +31,9 @@ OPCODE_DEC_ABS = &CE
 .plot_poly_span
 {
     ; X = poly_num_verts
+IF _TEST_PARSE_ONLY
+    jmp return_here_from_plot_poly
+ENDIF
 
     \\ Close the polygon
     lda poly_verts_x:sta poly_verts_x, X

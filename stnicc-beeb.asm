@@ -16,6 +16,9 @@ _STOP_AT_FRAME = -1
 ; Debug defines
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
+; Stream test: parse frames but draw nothing, so decoding outruns the disc
+; (tools/harness/run.mjs --parse-only)
+_TEST_PARSE_ONLY =? FALSE
 
 ; Rendering defines
 _HALF_VERTICAL_RES = (_QUALITY < 2)
@@ -534,6 +537,30 @@ endif
 	cmp #POLY_DESC_END_OF_STREAM
     beq track_load_error
 
+IF _FAST_POLY
+	\\ The track at load_to can be refilled once the reader has left it: when
+	\\ the page of the next byte to read is a track or more past load_to round
+	\\ the ring. Inside that track the ring is full, unless the decoder is
+	\\ locked waiting for data (a block skip caught the loader up), when the
+	\\ track is stale and must be loaded.
+	\\ (The original measures the distance in plain address order, which stops
+	\\ loading when the reader is just below load_to: with the decoder's
+	\\ look-ahead lock that would wait for ever.)
+	lda STREAM_ptr_LO
+	cmp #&ff                    ; C=1: next byte is on the next page
+	lda STREAM_ptr_HI
+	adc #0
+	sec
+	sbc load_to_HI
+	bcs sectors_to_load_1
+	adc #HI(STREAM_buffer_size)
+	.sectors_to_load_1
+	cmp #STREAMING_sectors_to_load
+	bcs ready_to_load
+	lda buffer_lock
+	beq not_ready_to_load
+	.ready_to_load
+ELSE
 	\\ Which page are we reading crunched data from?
 	sec
 	lda STREAM_ptr_HI
@@ -546,6 +573,7 @@ endif
 	.sectors_to_load_1
 	CMP #STREAMING_sectors_to_load
 	BCC not_ready_to_load
+ENDIF
 
 	\\ If so, load a track's worth of data into our buffer
 	JSR load_next_track
