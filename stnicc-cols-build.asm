@@ -13,7 +13,7 @@ EXEC_ADDRESS = &FF1100
 
 \ Sector-rounded sizes, for the padding (make.bat checks where 00 lands)
 INTROC_SIZE = &1C00
-OUTRO_SIZE = &1200
+OUTRO_SIZE = &E00                ; build/OUTRON: the credits only
 LOADER_COLS_SIZE = &B00
 
 include "src/exe_sizes.h.asm"     ; EXE_SIZE_MUSIC
@@ -24,7 +24,7 @@ PUTBASIC "src/loader-cols.bas", "LOADER"
 PUTFILE "build/INTROC", "INTRO", LOAD_ADDRESS, EXEC_ADDRESS
 PUTFILE "build/MUSIC", "MUSIC", &8000, &8000
 PUTFILE "build/CPCCOL", "CPC", LOAD_ADDRESS, EXEC_ADDRESS
-PUTFILE "build/OUTRO", "OUTRO", LOAD_ADDRESS, EXEC_ADDRESS
+PUTFILE "build/OUTRON", "OUTRO", LOAD_ADDRESS, EXEC_ADDRESS
 
 DFS_sector_size = 256
 DFS_sectors_per_track = 10

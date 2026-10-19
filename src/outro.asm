@@ -20,6 +20,12 @@ _HALF_VERTICAL_RES = TRUE
 _NULA = FALSE
 _ENABLE_MUSIC = TRUE
 
+; The column discs' outros (stnicc-cols-build.asm, stnicc-cols2-build.asm):
+; -D _COLS=-1 plays the 1800-frame column stream as its edges (src/outro_edges.asm)
+; in place of the polygon wireframe; -D _NO_STREAM=-1 has the credits only.
+_COLS =? FALSE
+_NO_STREAM =? FALSE
+
 PRINT "------"
 PRINT "STNICC-BEEB OUTRO"
 PRINT "------"
@@ -142,7 +148,18 @@ STREAMING_tracks_per_disk = 79
 STREAMING_sectors_to_load = 10
 
 DISK1_drive_no = 0
+IF _COLS
+include "src/cols2_disc.h.asm"
+DISK1_first_track = COLS2_FIRST_TRACK
+ROWS = 100
+include "src/cols2_ring.h.asm"
+; the window clear (src/outro_window.asm) runs in the text screen's memory below
+; the 17 rows it shows (17 * 320 bytes from screen3_addr)
+WINDOW_CODE = &5A40
+WINDOW_CODE_END = &5C00
+ELSE
 DISK1_first_track = 24      ; as stnicc-beeb.asm: the stream runs to the end of the disc
+ENDIF
 DISK1_last_track = 80
 
 \\ Side 2 is read backwards, from track 79 down to 1 (bin/split.py)
@@ -187,6 +204,26 @@ GUARD zp_top
 .STREAM_ptr_LO      skip 1
 .STREAM_ptr_HI      skip 1
 
+IF _COLS
+INCLUDE "src/cols2_decode_zp.asm"
+
+; the edge view (src/outro_edges.asm)
+.save_x             skip 1      ; the decoder's X and Y, while a run's edges are drawn
+.save_y             skip 1
+.above              skip 1      ; the value of the run above
+.lpix               skip 1      ; the run's left pixel
+.m                  skip 1      ; the bits to set
+.ep                 skip 2      ; a row in the window
+.y0                 skip 1      ; rows y0 to y1 - 1 of an edge down a column
+.y1                 skip 1
+.ecol               skip 1      ; the column's character cell * 8
+.hl                 skip 1      ; its left pixel's two bits
+.hr                 skip 1      ; and its right pixel's
+.vl                 skip 1      ; the left pixel's first bit
+.vr                 skip 1      ; and the right pixel's
+.ew                 skip 1      ; the walker through the column to the left
+.frame_no           skip 2
+ELSE
 ; vars for plot_span
 .writeptr           skip 2
 .span_start         skip 1
@@ -223,6 +260,7 @@ ENDIF
 .frame_flags        skip 1
 .frame_bitmask      skip 2
 .indexed_num_verts  skip 1
+ENDIF
 .stream_frame_HI    skip 1      ; page the frame being decoded starts on
 ;.poly_descriptor    skip 1
 .eof_flag			skip 1
@@ -265,12 +303,29 @@ ENDIF
 .music_enabled		skip 1
 .music_lock			skip 1
 
+IF _NO_STREAM
+.credits_done		skip 1		; the credits have been typed once
+ENDIF
+
 .zp_end
 
 \ ******************************************************************
 \ *	BSS DATA IN LOWER RAM
 \ ******************************************************************
 
+IF _COLS
+; &400-&CFF is the column decoder's run ring (src/cols2_ring.h.asm)
+ORG &E00
+GUARD &1000
+.reloc_to_start
+.screen_row_LO		skip 16
+.screen_row_HI		skip 16
+.screen_col_LO		skip 80
+.screen_col_HI		skip 80
+.edge_row_lo		skip ROWS	; each picture row's line in the window
+.edge_row_hi		skip ROWS
+.reloc_to_end
+ELSE
 ; Can't use &300 until we remove any actual VDU calls
 ORG &400
 GUARD &B00
@@ -285,6 +340,7 @@ GUARD &B00
 
 ORG &E00
 GUARD &1000
+ENDIF
 
 \ ******************************************************************
 \ *	CODE START
@@ -311,6 +367,10 @@ GUARD screen3_addr
     inx
     cpx #zp_top
     bne zp_loop
+
+IF _COLS
+    RING_INIT
+ENDIF
 
     ; fix up the NuLA message, if appropriate
 	bit NULA_FLAG_ZP
@@ -339,11 +399,28 @@ GUARD screen3_addr
 	ldx #HI(stnicc_screen1_addr - screen3_addr)	; number pages
 	jsr clear_pages
 
+IF _COLS
+	\\ The window clear, to below the text screen's rows
+	ldx #0
+	.window_copy1
+	lda reloc_window_code, X
+	sta WINDOW_CODE, X
+	inx
+	bne window_copy1
+	.window_copy2
+	lda reloc_window_code + &100, X
+	sta WINDOW_CODE + &100, X
+	inx
+	cpx #LO(window_code_end - window_code_start)
+	bne window_copy2
+ENDIF
+
 	IF 0
     lda #8:sta &fe00:lda #&C0:sta &fe01  ; cursor off
 	lda #7:sta &fe00:lda #34:sta &fe01	 ; vsync pos
 	ENDIF
 
+IF _NO_STREAM = FALSE
     \\ Set stream pointer
     lda #LO(STREAM_buffer_start-1)
     sta STREAM_ptr_LO
@@ -373,6 +450,7 @@ GUARD screen3_addr
 
         .read_error
 	}
+ENDIF
 
     \\ Init system
     lda #HI(screen1_addr)
@@ -470,6 +548,10 @@ ENDIF
 	lda #8:sta &fe00:lda #&c0:sta &fe01		; show the screen!
 
     .loop
+IF _NO_STREAM
+    lda credits_done            ; on once the credits have been typed
+    beq loop
+ELSE
     \\ Debug
     IF _DEBUG
     {
@@ -511,6 +593,7 @@ ENDIF
 	\\ Check for errors
 	LDA error_flag
 	BEQ loop
+ENDIF
 
 	.track_load_error
 	\\ Wait for vsync
@@ -885,6 +968,9 @@ ENDIF
 
 	.do_plot
 	SETBGCOL PAL_green
+IF _NO_STREAM
+	jmp return_to_os            ; credits only
+ELSE
 
 	\\ If we're already busy just exit function
 	LDA decode_lock
@@ -911,6 +997,9 @@ ENDIF
 		CLI
 
 		\\ Parse and draw the next frame
+IF _COLS
+		jsr clear_window
+ENDIF
 		jsr parse_frame
 		sta eof_flag
 
@@ -994,6 +1083,7 @@ ENDIF
     lda draw_buffer_HI
     eor #HI(screen1_addr EOR screen2_addr)
     sta draw_buffer_HI
+ENDIF
 
 	\\ Pass on to OS IRQ handler
 	.return_to_os
@@ -1092,6 +1182,9 @@ ENDIF
 \ *	PARSE A FRAME OF DATA FROM STNICCC STREAM
 \ ******************************************************************
 
+IF _COLS
+INCLUDE "src/outro_edges.asm"
+ELIF _NO_STREAM = FALSE
 IF 0		; this also makes no sense!
 .deliberate_pause
 {
@@ -1303,6 +1396,7 @@ ENDIF
 }
 
 INCLUDE "src/screen4.asm"
+ENDIF
 
 \ ******************************************************************
 \ *	CREDITS BIT
@@ -1637,6 +1731,9 @@ ENDMACRO
 	rts
 
 	.eos
+IF _NO_STREAM
+	inc credits_done
+ENDIF
 	lda #LO(credits_text)
 	sta text_ptr
 	lda #HI(credits_text)
@@ -1895,6 +1992,13 @@ EQUS "/INTRO", 13
 EQUS "12-bit NuLA colour"
 .nula_message_end
 
+IF _COLS
+; the credits stay in main RAM (low RAM holds the run ring)
+.credits_text
+INCLUDE "src/outro_credits.asm"
+.credits_end
+ENDIF
+
 .data_end
 
 \ ******************************************************************
@@ -1903,7 +2007,9 @@ EQUS "12-bit NuLA colour"
 
 .additional_start
 
+IF _COLS = FALSE AND _NO_STREAM = FALSE
 INCLUDE "src/plot_line4.asm"
+ENDIF
 INCLUDE "src/debug4.asm"
 
 .additional_end
@@ -1938,175 +2044,38 @@ FOR c,0,79,1
 EQUB HI(c * 8)
 NEXT
 
+IF _COLS
+.reloc_edge_row_lo
+FOR y, 0, ROWS - 1
+EQUB LO((WIREFRAME_CORNER_Y + y DIV 8) * MODE4_ROW_BYTES + WIREFRAME_CORNER_X + (y MOD 8))
+NEXT
+.reloc_edge_row_hi
+FOR y, 0, ROWS - 1
+EQUB HI((WIREFRAME_CORNER_Y + y DIV 8) * MODE4_ROW_BYTES + WIREFRAME_CORNER_X + (y MOD 8))
+NEXT
+
+; (after the tables relocated to &E00)
+reloc_window_code = P%
+CLEAR WINDOW_CODE, WINDOW_CODE_END
+ORG WINDOW_CODE
+GUARD WINDOW_CODE_END
+.window_code_start
+INCLUDE "src/outro_window.asm"
+.window_code_end
+COPYBLOCK window_code_start, window_code_end, reloc_window_code
+CLEAR window_code_start, window_code_end
+ORG reloc_window_code + window_code_end - window_code_start
+PRINT "Window clear at", ~WINDOW_CODE, ":", window_code_end - window_code_start, "bytes"
+ASSERT window_code_end - window_code_start > 256
+
+ELSE
 .reloc_credits_text
-; Page 0
-;    |---------------------|
-EQUS 31, 0, 0, 1, 150
-EQUS "BBC Computer 32K"
-EQUS 13, 13
-EQUS "Acorn DFS"
-EQUS 13, 13
-EQUS "BASIC"
-EQUS 13, 13
-EQUS ">", 1, 100
-EQUS 31, 5, 4, 8, 8, 8, 8, 8, 1, 50
-EQUS "BITSHIFTERS"
-EQUS 31, 1, 6, 1, 150, 12
-
-; Page 1
-;    |--------------------|
-EQUS "ST-NICCC 2000", 1, 50
-EQUS 8, 8, 8, 8, "BEEB", 1, 50, 13, 13
-EQUS ">", 1, 25
-EQUS "2MHz 6502 CPU", 1, 50, 13
-EQUS ">", 1, 25
-EQUS "32K RAM + 16K SWRAM"
-EQUS ">", 1, 50
-EQUS "5", QUARTER_CODE, '"'," 400K floppy", 1, 50, 13
-EQUS ">", 1, 25
-EQUS "No VIC, no Blitter", 1, 50, 13
-EQUS ">", 1, 25
-.just_3bit_colour_begin:EQUS "Just 3-bit colour!":.just_3bit_colour_end:EQUS 1, 50, 13
-EQUS ">", 1, 25
-EQUS "SN76489 sound chip", 1, 150, 12
-
-; Page 2
-;    |--------------------|
-EQUS "Sorry we are a year", 13
-EQUS "late to the STNICCC", 13
-EQUS "patarty", 1, 25
-EQUS 8, 8, 8, 8, 8, "rty.", 1, 50
-EQUS 13, 13
-EQUS "Squeezing a 16-bit", 13
-EQUS "1 Mb demo into", 13
-EQUS "8-bits and 48K took", 13
-EQUS "us some time...", 1, 50
-EQUS "!", 1, 50, 12
-
-; Page 2
-;    |--------------------|
-EQUS "Original ST polygon", 13
-EQUS "stream data repacked"
-EQUS "with half the bits.", 13
-EQUS ">> 320K vs 625K <<", 1, 100, 13
-EQUS 13
-EQUS "2MHz 6502", 13
-EQUS 31,5,6,"vs 8MHz 68000", 1, 50
-EQUS "!", 1, 50, 12
-
-; Page 3
-;    |--------------------|
-EQUS "CREDITS", 1, 50, 13, 13
-EQUS "Code:       kieranhj", 1, 50
-EQUS "Code:     Tom Seddon", 1, 50
-EQUS "Code:         Henley", 1, 50
-EQUS "Logo by:    Dethmunk"
-EQUS 1, 100, 12
-
-; Page 4
-;    |--------------------|
-EQUS "MUSIC", 1, 50, 13, 13
-EQUS "All music composed",13
-EQUS "in Arkos Tracker 2",13
-EQUS "by Rhino / Torment", 1, 75
-EQUS 13, 13
-EQUS "Checknobankh by"
-EQUS 31,2,7,"Laxity / Kefrens"
-EQUS 1, 100, 12
-
-; Page 5
-;    |--------------------|
-EQUS "BITSHIFTERS THANKS", 1, 50, 13, 13
-EQUS "Matt Godbolt.....RTW"
-EQUS "scarybeasts....StewB"
-EQUS "The Master....Tricky"
-EQUS "0xC0DE....VectorEyes"
-EQUS "HEx.....HorsenBurger"
-EQUS 1, 100, 12
-
-; Page 6
-;    |--------------------|
-EQUS "BITSHIFTERS GREETZ", 1, 50, 13, 13
-EQUS ">", 1, 25
-EQUS "Ate Bit", 1, 25, 13
-EQUS ">", 1, 25
-EQUS "CRTC", 1, 25, 13
-EQUS ">", 1, 25
-EQUS "DESiRE", 1, 25, 13
-EQUS ">", 1, 25
-EQUS "HOOY-PROGRAM", 1, 25, 13
-EQUS ">", 1, 25
-EQUS "Inverse Phase", 1, 25, 13
-EQUS ">", 1, 25
-EQUS "Logicoma", 1, 25
-EQUS 12
-
-; Page 7
-; Greets continued
-;    |--------------------|
-EQUS "BITSHIFTERS GREETZ", 1, 50, 13, 13
-EQUS ">", 1, 25
-EQUS "Oxygene", 1, 25, 13
-EQUS ">", 1, 25
-EQUS "Polarity", 1, 25, 13
-EQUS ">", 1, 25
-EQUS "RiFT", 1, 25, 13
-EQUS ">", 1, 25
-EQUS "Slipstream", 1, 25, 13
-EQUS ">", 1, 25
-EQUS "Torment", 1, 25, 13
-EQUS ">", 1, 25
-EQUS "YM Rockerz", 1, 25
-EQUS 12
-
-; Page 8
-; BASIC
-;    |--------------------|
-EQUS 1, 100
-EQUS "BASIC", 13, 13
-EQUS ">", 1, 75
-EQUS "10 CLS", 13
-EQUS ">", 1, 25
-EQUS "20 PRINT ", '"', "THANKS FOR WATCHING!", '"', 13
-EQUS ">", 1, 25
-EQUS "30 GOTO 20", 13
-EQUS ">", 1, 50
-EQUS "RUN", 13
-EQUS 1, 50, 12
-
-; Page 9
-; BASIC
-;    |--------------------|
-EQUS "THANKS FOR WATCHING!"
-EQUS "THANKS FOR WATCHING!"
-EQUS "THANKS FOR WATCHING!"
-EQUS "THANKS FOR WATCHING!"
-EQUS "THANKS FOR WATCHING!"
-EQUS "THANKS FOR WATCHING!"
-EQUS "THANKS FOR WATCHING!"
-EQUS "THANKS FOR WATCHING"
-EQUS 1, 50, 12
-
-; Page 10
-; Bitshifters Flux
-;    |--------------------|
-EQUS 1, 50
-EQUS 31,7,0,32,32,32,128,128,128,1,50
-EQUS 31,7,1,32,32,32,128,128,128,1,50
-EQUS 31,7,2,128,128,128,128,128,128,1,50
-EQUS 31,7,3,128,128,128,128,128,128,1,50
-EQUS 31,7,4,128,128,128,128,128,128,1,50
-EQUS 31,7,5,128,128,128,32,32,32,1,50
-EQUS 31,7,6,128,128,128,32,32,32
-EQUS 31,19,7
-EQUS 1, 255, 1, 255, 12
-
-; Time for 9 pages max!
-EQUS 0
+INCLUDE "src/outro_credits.asm"
 .reloc_credits_end
 
 IF (P%-reloc_credits_text) > (credits_end-credits_text)
 	ERROR "Need more space for credits_text."
+ENDIF
 ENDIF
 
 IF nula_message_end-nula_message_begin<>just_3bit_colour_end-just_3bit_colour_begin
@@ -2125,7 +2094,13 @@ endif
 \ *	Save the code
 \ ******************************************************************
 
+IF _COLS
+SAVE "build/OUTROC2", start, end, main
+ELIF _NO_STREAM
+SAVE "build/OUTRON", start, end, main
+ELSE
 SAVE "build/OUTRO", start, end, main
+ENDIF
 
 \ ******************************************************************
 \ *	Space reserved for runtime buffers not preinitialised
@@ -2157,7 +2132,11 @@ PRINT "FX size = ", ~fx_end-fx_start
 PRINT "DATA size =",~data_end-data_start
 PRINT "ADDITIONAL size =",~additional_end-additional_start
 PRINT "RELOC size =",~reloc_from_end-reloc_from_start
+IF _COLS
+PRINT "CREDITS TEXT size =", (credits_end-credits_text)
+ELSE
 PRINT "CREDITS TEXT size =", (reloc_credits_end-reloc_credits_text), " allocated =",(credits_end-credits_text)
+ENDIF
 PRINT "BSS size =",~bss_end-bss_start
 PRINT "------"
 PRINT "HIGH WATERMARK =", ~P%

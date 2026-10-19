@@ -59,7 +59,8 @@ const VARIANTS = {
     // the CPC version from the column stream, on its own disc (stnicc-cols.asm)
     cols: { defines: [], exe: "CPCCOL", source: "stnicc-cols.asm", disc: "build/beeb-niccc-cpc.dsd" },
     // all 1800 frames from the version 2 column stream (stnicc-cols2.asm)
-    cols2: { defines: [], exe: "CPCCOL2", source: "stnicc-cols2.asm", disc: "build/beeb-niccc-cpc1800.dsd" },
+    cols2: { defines: [], exe: "CPCCOL2", source: "stnicc-cols2.asm", disc: "build/beeb-niccc-cpc1800.dsd",
+        outro: { defines: ["_COLS=-1"], exe: "OUTROC2" } },
 };
 if (!VARIANTS[variant]) throw new Error(`--variant ${variant}: low, nula, cpc, cols or cols2`);
 const disc = path.resolve(repo, opt("--disc", VARIANTS[variant].disc ?? "build/beeb-niccc.dsd"));
@@ -481,6 +482,74 @@ if (profile) {
 }
 // --outro dir: run on after the stream for --outro-secs (default 60) seconds of
 // machine time, saving a screenshot every 2 s (outro.NNN.png) to see what follows.
+// --outro-dump dir (cols2): play on into the outro and save each of its frames'
+// window, 100 lines of 16 bytes (o0000.bin...), for tools/outro_check.py.
+const outroDump = opt("--outro-dump");
+if (outroDump) {
+    const o = VARIANTS[variant].outro;
+    if (!o) throw new Error(`--outro-dump: no outro build for --variant ${variant}`);
+    const out = execFileSync(beebasm, [...o.defines.flatMap((d) => ["-D", d]), "-i", "src/outro.asm", "-d", "-v"], { cwd: src, maxBuffer: 64 << 20 }).toString();
+    const osyms = {};
+    for (const m of out.matchAll(/'([A-Za-z_0-9]+)':(-?\d+)L/g)) osyms[m[1]] = Number(m[2]);
+    const bin = readFileSync(path.join(src, "build", o.exe));
+    let ret = -1;
+    for (let i = osyms.irq_handler - 0x1100; i < bin.length - 2 && ret < 0; i++)
+        if (bin[i] === 0x20 && bin[i + 1] === (osyms.parse_frame & 0xff) && bin[i + 2] === osyms.parse_frame >> 8) ret = 0x1100 + i + 3;
+    if (ret < 0) throw new Error("--outro-dump: jsr parse_frame not found in the outro's irq_handler");
+    mkdirSync(outroDump, { recursive: true });
+    let n = 0;
+    let first = 0;
+    let lastCycle = 0;
+    let done = false;
+    // --outro-profile f.txt: cycles by instruction from the outro's parse_frame to
+    // its return, leaving out interrupt handlers (as render cycles are counted)
+    const oprofPath = opt("--outro-profile");
+    const oprof = oprofPath ? new Float64Array(65536) : null;
+    let inFrame = false;
+    let oPrev = -1;
+    let oPrevCycles = 0;
+    let oRender = 0;
+    const oh = cpu.debugInstruction.add((pc) => {
+        const now = s.elapsedCycles;
+        if (inFrame && oPrev >= 0 && ((oPrev >= osyms.fx_start && oPrev < osyms.get_char_def) || (oPrev >= 0x5a40 && oPrev < 0x5c00))) {
+            let d = now - oPrevCycles;
+            if (pc === irqVec || pc === nmiVec) d -= 7;
+            oRender += d;
+            if (oprof) oprof[oPrev] += d;
+        }
+        oPrev = pc;
+        oPrevCycles = now;
+        if ((pc === osyms.parse_frame || pc === 0x5a40) && mem(0x1100) === bin[0] && mem(0x1101) === bin[1]) inFrame = true;
+        // the outro is the code at &1100 now: its frame's return, in its IRQ handler
+        if (pc !== ret || mem(0x1100) !== bin[0] || mem(0x1101) !== bin[1]) return;
+        inFrame = false;
+        const hi = mem(osyms.draw_buffer_HI);
+        const win = new Uint8Array(100 * 16);
+        for (let y = 0; y < 100; y++) {
+            const line = 8 + y;
+            for (let k = 0; k < 16; k++) win[y * 16 + k] = mem((hi << 8) + (line >> 3) * 320 + 96 + k * 8 + (line & 7));
+        }
+        writeFileSync(path.join(outroDump, `o${String(n).padStart(4, "0")}.bin`), win);
+        if (n === 0) first = s.elapsedCycles;
+        lastCycle = s.elapsedCycles;
+        n++;
+        if (cpu.a === 0xfd) {
+            done = true;
+            return true;
+        }
+    });
+    for (let budget = 2_000_000 * 400; budget > 0 && !done; budget -= 20_000_000) await s.runFor(20_000_000);
+    oh.remove();
+    console.log(`outro: ${n} frames dumped in ${outroDump}${done ? "" : " (did not reach the end)"}; ` +
+        `${((lastCycle - first) / 2e6).toFixed(1)} s from the first to the last (${((lastCycle - first) / 39936).toFixed(0)} fields); ` +
+        `${(oRender / 1e6).toFixed(1)}M cycles in parse_frame (${(oRender / Math.max(n, 1) / 1000).toFixed(0)}K a frame)`);
+    if (oprof) {
+        const out = ["pc cycles"];
+        for (let pc = 0; pc < 65536; pc++) if (oprof[pc]) out.push(`${pc.toString(16).padStart(4, "0")} ${oprof[pc]}`);
+        writeFileSync(oprofPath, out.join("\n"));
+    }
+}
+
 const outroDir = opt("--outro");
 if (outroDir) {
     mkdirSync(outroDir, { recursive: true });

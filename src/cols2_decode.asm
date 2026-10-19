@@ -14,8 +14,8 @@
 \\   second bit) alone, through keep_column; FALSE to redraw them;
 \\ - the run sink, straight after this file, as run_sink: each run kept is in
 \\   the ring, its first row in last (run_s), its end in run_e and its value in
-\\   run_p; it must keep X and Y, set last to run_e, and fall into
-\\   src/cols2_decode_ops.asm with C = 1 once run_e reaches ROWS (cmp #ROWS).
+\\   run_p; it must keep X and Y, set last to run_e, then go to column_done
+\\   once run_e reaches ROWS, else fall into src/cols2_decode_ops.asm (next_op).
 
 \\ C = the next bit of the stream. ctl holds the control byte's bits not yet
 \\ taken, high first, above a sentinel bit: when shifting out a bit leaves it
