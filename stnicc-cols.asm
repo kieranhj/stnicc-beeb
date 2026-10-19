@@ -130,8 +130,7 @@ GUARD zp_top
 .music_lock			skip 1
 
 \\ the column decoder
-.ctl                skip 1      ; control byte, codes taken from the top
-.ctl_left           skip 1      ; codes left in it, less one
+.ctl                skip 1      ; control byte bits not yet taken, above a sentinel bit
 .last               skip 1      ; end row of the run just decoded
 .prev_base          skip 1      ; where the column to the left's runs start in the lists (0 or 128)
 .cur_base           skip 1      ; and this column's
@@ -139,7 +138,6 @@ GUARD zp_top
 .tmp                skip 1
 
 \\ the fill
-.run_k              skip 1      ; list index of the run being stored
 .run_s              skip 1      ; its first row
 .run_e              skip 1      ; and the row after its last
 .run_p              skip 1      ; its value (pixel pair)
@@ -147,7 +145,8 @@ GUARD zp_top
 .val_t              skip 1      ; top line byte
 .val_b              skip 1      ; this row's bottom line byte
 .val_bd             skip 1      ; what turns it into the next row's
-.vA                 skip 2      ; where a pass enters the column code
+.save_x             skip 1      ; the decoder's X and Y, while a run is stored
+.save_y             skip 1
 .vB                 skip 2      ; and the store it is stopped at
 .dptr               skip 2      ; screen pointer (short runs)
 .zp_end
@@ -560,7 +559,7 @@ ENDMACRO
 
 .fx_start
 
-\\ Decode and draw a frame. Returns its end byte (&FF, &FE or &FD).
+\\\ Decode and draw a frame. Returns its end byte (&FF, &FE or &FD).
 .parse_frame
 {
     inc frame_no
@@ -599,15 +598,14 @@ ENDMACRO
 	.no_palette
 
 	lda #0
-	sta ctl_left
+	sta ctl                     ; empty: the first code reads a control byte
 	sta col_x
 	sta prev_base
 	lda #128
 	sta cur_base
 
 	.column_loop
-	jsr decode_column
-	jsr fill_column
+	jsr decode_column           ; stores each run as it goes
 	lda cur_base
 	sta prev_base
 	eor #128
@@ -638,18 +636,24 @@ ENDMACRO
 	rts
 get_byte_address = get_byte_read + 1
 
+\\ C = the next code's first bit. ctl holds the control byte's bits not yet
+\\ taken, high first, above a sentinel bit: when shifting out a code's first bit
+\\ leaves it empty, that bit was the sentinel and the next control byte is due.
+MACRO CODE_FIRST_BIT
+	asl ctl
+	bne have
+	jsr get_byte
+	sec
+	rol a
+	sta ctl
+	.have
+ENDMACRO
+
 \\ The next 2-bit code in A
 .get_code
 {
-	dec ctl_left
-	bpl have
-	jsr get_byte
-	sta ctl
-	lda #3
-	sta ctl_left
-	.have
+	CODE_FIRST_BIT
 	lda #0
-	asl ctl
 	rol a
 	asl ctl
 	rol a
@@ -657,8 +661,8 @@ get_byte_address = get_byte_read + 1
 }
 
 \\ Decode a column into the lists at cur_base, against the column to the left at
-\\ prev_base (bin/colstream.py's decode_column). X = the left column's next run,
-\\ Y = this column's.
+\\ prev_base (bin/colstream.py's decode_column), storing each run as it is
+\\ decoded. X = the left column's next run, Y = this column's.
 .decode_column
 {
 	lda #0
@@ -667,19 +671,11 @@ get_byte_address = get_byte_read + 1
 	ldy cur_base
 
 	.^next_op
-	dec ctl_left
-	bpl have
-	jsr get_byte
-	sta ctl
-	lda #3
-	sta ctl_left
-	.have
-	asl ctl
+	CODE_FIRST_BIT
 	bcs code_1x
 	asl ctl
 	bcs k_plus
-	\\ 00: K, end = left end + slope
-	lda LEND, X
+	lda LEND, X                 ; 00: K, end = left end + slope
 	clc
 	adc LSLOPE, X
 	jmp k_store
@@ -691,38 +687,32 @@ get_byte_address = get_byte_read + 1
 	.code_1x
 	asl ctl
 	bcs escape
-	\\ 10: K, end - 1
-	lda LEND, X
+	lda LEND, X                 ; 10: K, end - 1
 	clc
 	adc LSLOPE, X
 	sec
 	sbc #1
-	\\ fall through
 
 	\\ A = the run's end, 100 at most: carry the left column's run on to it
 	.^k_store
 	cmp #ROWS
-	bcs k_last
+	bcc k_in
+	lda #ROWS
+	.k_in
 	sta LEND, Y
-	sta last
+	sta run_e
 	sec
 	sbc LEND, X
 	sta LSLOPE, Y
 	lda LVAL, X
 	sta LVAL, Y
+	sta run_p
 	inx
 	iny
+	jsr store_run
+	bcs column_done
 	jmp next_op
-
-	.k_last                     ; reaches the bottom: the column is done
-	lda #ROWS
-	sta LEND, Y
-	sec
-	sbc LEND, X
-	sta LSLOPE, Y
-	lda LVAL, X
-	sta LVAL, Y
-	iny
+	.column_done
 	rts
 
 	.escape
@@ -734,7 +724,7 @@ get_byte_address = get_byte_read + 1
 
 	\\ 11 11: R, the left column's run carries on in a new value
 	jsr get_byte
-	sta tmp
+	sta run_p
 	jsr get_code
 	cmp #3
 	beq r_end
@@ -765,18 +755,15 @@ get_byte_address = get_byte_read + 1
 	lda #ROWS
 	.r_in
 	sta LEND, Y
-	sta last
+	sta run_e
 	sec
 	sbc LEND, X
 	sta LSLOPE, Y
-	lda tmp
+	lda run_p
 	sta LVAL, Y
 	inx
 	iny
-	lda last
-	cmp #ROWS
-	bcc to_next_op
-	rts
+	jmp store_and_next
 
 	.op_kx                      ; 11 00: K to an end row byte
 	jsr get_byte
@@ -784,12 +771,12 @@ get_byte_address = get_byte_read + 1
 
 	.op_d                       ; 11 01: drop the left column's run
 	inx
-	.to_next_op
 	jmp next_op
 
 	.op_i                       ; 11 10: a new run
 	jsr get_byte
 	sta LVAL, Y
+	sta run_p
 	jsr get_code
 	cmp #3
 	bne i_short
@@ -801,36 +788,15 @@ get_byte_address = get_byte_read + 1
 	.i_length
 	adc last
 	sta LEND, Y
-	sta last
+	sta run_e
 	lda #0
 	sta LSLOPE, Y
 	iny
-	lda last
-	cmp #ROWS
-	bcc to_next_op
-	rts
-}
-
-\\ Store the column just decoded (the runs at cur_base) into the draw buffer
-.fill_column
-{
-	lda #0
-	sta run_s
-	lda cur_base
-	sta run_k
-	.loop
-	ldy run_k
-	lda LEND, Y
-	sta run_e
-	lda LVAL, Y
-	sta run_p
-	ldx col_x
-	jsr fill_run
-	lda run_e
-	sta run_s
-	inc run_k
-	cmp #ROWS
-	bcc loop
+	.store_and_next
+	jsr store_run
+	bcs done
+	jmp next_op
+	.done
 	rts
 }
 
@@ -845,28 +811,37 @@ MACRO FILL_PASS lo, hi, bytes
 	sta vB+1
 	ldy run_s
 	lda lo, Y
-	sta vA
+	sta pass+1
 	lda hi, Y
 	ora code_or
-	sta vA+1
+	sta pass+2
 	ldy #0
 	lda #OPCODE_RTS
 	sta (vB), Y
 	ldy run_p
 	lda bytes, Y
-	jsr jump_vA
+	.pass
+	jsr &ffff
 	ldy #0
 	lda #OPCODE_STA_ABSX
 	sta (vB), Y
 ENDMACRO
 
-\\ Store the run from row run_s to run_e - 1, value run_p, in byte column X/8
-.fill_run
+\\ Store the run just decoded, from row last to run_e - 1, value run_p, in the
+\\ draw buffer, and move last on to run_e. Returns C = 1 once the column is
+\\ done; X and Y kept.
+.store_run
 {
-	ldy run_p
+	stx save_x
+	sty save_y
+	lda last
+	sta run_s
 	lda run_e
+	sta last
 	sec
 	sbc run_s
+	ldx col_x
+	ldy run_p
 	cmp #SHORT_RUN+1
 	bcs long
 
@@ -900,7 +875,9 @@ ENDMACRO
 	lda val_b
 	sta (dptr), Y
 	dec run_n
-	beq done
+	bne next_row
+	jmp done
+	.next_row
 	lda val_b
 	eor val_bd
 	sta val_b
@@ -916,8 +893,6 @@ ENDMACRO
 	sta dptr
 	inc dptr+1
 	bne row                     ; always
-	.done
-	rts
 
 	.long
 	lda pair_bottom_even, Y
@@ -925,18 +900,21 @@ ENDMACRO
 	bne dithered
 	FILL_PASS seq_top_lo, seq_top_hi, pair_top
 	FILL_PASS seq_bottom_lo, seq_bottom_hi, pair_bottom_even
-	rts
+	jmp done
 	.dithered                   ; its bottom line alternates: the even rows, then the odd
 	FILL_PASS seq_top_lo, seq_top_hi, pair_top
 	FILL_PASS seq_even_lo, seq_even_hi, pair_bottom_even
 	FILL_PASS seq_odd_lo, seq_odd_hi, pair_bottom_odd
+
+	.done
+	ldx save_x
+	ldy save_y
+	lda last
+	cmp #ROWS
 	rts
 }
 
-.jump_vA
-	jmp (vA)
-
-\\ Each pixel pair's three bytes from the colours' (colour 0 is the background)
+\ Each pixel pair's three bytes from the colours' (colour 0 is the background)
 .build_pair_tables
 {
 	lda #0
