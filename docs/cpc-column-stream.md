@@ -2,8 +2,8 @@
 
 Status (2026-10-19, branch `column-stream`): built and working. `bin/colstream.py` writes
 the stream, `stnicc-cols.asm` plays it from its own disc, `build/beeb-niccc-cpc.dsd`. All 900
-frames match the CPC model byte for byte (also with `--slow-disc 700`): **129.4M render
-cycles and 4,243 fields, against 249.0M and 7,424 for the polygon CPC player.** See
+frames match the CPC model byte for byte (also with `--slow-disc 700`): **117.8M render
+cycles and 3,931 fields, against 249.0M and 7,424 for the polygon CPC player.** See
 "What was built" at the end; the plan below is as written before it.
 
 
@@ -159,7 +159,9 @@ Run from the repo root.
 - **The fill.** Runs of up to `SHORT_RUN` (4) rows are stored through a pointer; longer
   ones through unrolled `sta abs,X` code, entered at the first row and stopped by an RTS
   put over the store after the last. Each run is stored as soon as it is decoded.
-- **Measured (per frame, about 144K cycles):** unrolled stores 31K, entering and leaving
+- **Measured at 129.4M (per frame, about 144K cycles),** before the second optimisation pass
+  (escape codes by branch, X-indexed short runs, per-screen long-run passes, incremental
+  pair tables: 117.8M): unrolled stores 31K, entering and leaving
   passes 30K, short runs 16K, decoding about 35K, per-run set-up (`store_run`) 15K.
 - **Further ideas, each worth a few K a frame:** per-screen slot tables in place of
   `ora code_or`; a row-ordered store sequence (top, bottom, top, bottom, reloading the
