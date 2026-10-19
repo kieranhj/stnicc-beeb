@@ -108,6 +108,19 @@ function findReturnSite() {
 }
 const parseReturn = findReturnSite();
 
+// --stream-log f.json: every track read (start, end, drive, track, ring slot)
+// and every frame start (cycle, stream pointer page), to work out how close
+// each read came to starving the decoder (tools/stream_margin.py).
+const streamLogPath = opt("--stream-log");
+const loadReturns = new Set();
+for (let i = 0; i < lowBin.length - 2; i++) {
+    if (lowBin[i] === 0x20 && lowBin[i + 1] === (syms.load_next_track & 0xff) && lowBin[i + 2] === syms.load_next_track >> 8)
+        loadReturns.add(syms.main + i + 3);
+}
+const streamLog = streamLogPath ? { ring: [syms.STREAM_buffer_start >> 8, syms.STREAM_buffer_end >> 8], loads: [], frames: [], locks: [] } : null;
+let loadOpen = null;
+let lockOn = null;
+
 // ---------------------------------------------------------------- machine
 
 const { MachineSession } = await import(pathToFileURL(path.join(jsbeeb, "src/machine-session.js")).href);
@@ -190,6 +203,18 @@ let prevPc = -1;
 let prevCycles = 0;
 let finished = false;
 
+if (streamLog) {
+    // the 8271's timers during each read (seek step, settle / head load, ...), and its commands
+    const fdc = cpu.fdc;
+    const setTimerMs = fdc._setTimerMs.bind(fdc);
+    fdc._setTimerMs = (state, ms) => {
+        if (loadOpen) (loadOpen.timers[state] ??= [0, 0]), loadOpen.timers[state][0]++, (loadOpen.timers[state][1] += ms);
+        return setTimerMs(state, ms);
+    };
+    fdc._logCommands = true;
+    fdc._log = (m) => { if (loadOpen) loadOpen.fdcLog.push(m); };
+}
+
 // --timeline: every cycle from the first frame's decode to the end, by what the
 // machine was doing; the decoder's idle time split by what it waits for.
 const timeline = args.includes("--timeline") ? {} : null;
@@ -204,9 +229,22 @@ function timelineCategory(pc) {
     return "idle: waiting for the Timer 1 tick to start a frame";
 }
 
+// --trap-wild: stop when the CPU enters &8000-&BFFF other than from the IRQ
+// handler (the music call) or the MOS, and print the instructions that led there.
+const trapWild = args.includes("--trap-wild");
+const trail = [];
+
 const hook = cpu.debugInstruction.add((pc) => {
     const now = s.elapsedCycles;
-    if (timelineOn && prevPc >= 0) {
+    if (trapWild && timelineOn) {
+        trail.push(pc);
+        if (trail.length > 64) trail.shift();
+        if (pc >= 0x8000 && pc < 0xc000 && prevPc < 0x8000 && !(prevPc >= syms.irq_handler && prevPc < syms.swap_frame_buffers) && prevPc !== irqVec && !(prevPc >= 0x0d00 && prevPc < 0x0e00)) {
+            console.log(`wild jump to ${pc.toString(16)} in frame ${frames.length}: ` + trail.map((x) => x.toString(16)).join(" "));
+            process.exit(2);
+        }
+    }
+    if (timeline && timelineOn && prevPc >= 0) {
         const c = timelineCategory(prevPc);
         timeline[c] = (timeline[c] ?? 0) + (now - prevCycles);
     }
@@ -219,8 +257,29 @@ const hook = cpu.debugInstruction.add((pc) => {
     prevPc = pc;
     prevCycles = now;
 
+    if (streamLog) {
+        const locked = mem(syms.buffer_lock) !== 0;
+        if (locked && lockOn === null) lockOn = now;
+        else if (!locked && lockOn !== null) {
+            streamLog.locks.push([lockOn, now]);
+            lockOn = null;
+        }
+        if (pc === syms.load_next_track && mem(syms.track_no) & 0x80) {
+            // no more to read: returns at once
+        } else if (pc === syms.load_next_track) {
+            loadOpen = { start: now, drive: mem(syms.osword_params_drive), track: mem(syms.track_no), slot: mem(syms.load_to_HI),
+                timers: {}, fdcLog: [], regs: Array.from(cpu.fdc._regs.slice(0x0d, 0x20)) };
+        } else if (loadOpen && loadReturns.has(pc)) {
+            loadOpen.end = now;
+            loadOpen.error = mem(syms.error_flag);
+            streamLog.loads.push(loadOpen);
+            loadOpen = null;
+        } else if (pc === syms.parse_frame) {
+            streamLog.frames.push([now, mem(syms.STREAM_ptr_HI), mem(syms.STREAM_ptr_LO)]);
+        }
+    }
     if (pc === syms.parse_frame) {
-        if (timeline) timelineOn = true;
+        if (timeline || trapWild) timelineOn = true;
         rendering = true;
         renderCycles = 0;
         polyCount = 0;
@@ -266,7 +325,11 @@ const hook = cpu.debugInstruction.add((pc) => {
 const runStart = s.elapsedCycles;
 await s.runFor(2_000_000 * 900);
 hook.remove();
-if (!finished) throw new Error(`stream did not finish; ${frames.length} frames`);
+if (streamLog) writeFileSync(streamLogPath, JSON.stringify(streamLog));
+if (!finished) {
+    const st = ["track_no", "osword_params_drive", "error_flag", "buffer_lock", "load_to_HI"].map((k) => `${k}=${mem(syms[k]).toString(16)}`);
+    throw new Error(`stream did not finish; ${frames.length} frames; pc=${cpu.pc.toString(16)} ${st.join(" ")} ptr=${mem(1).toString(16)}${mem(0).toString(16).padStart(2, "0")}`);
+}
 // The main loop sees eof_flag and copies vsync_counter to vsync_final within a field or so.
 await s.runFor(200_000);
 
@@ -306,6 +369,7 @@ if (refPath && existsSync(refPath)) {
 }
 if (outPath) writeFileSync(outPath, JSON.stringify(result, null, 1));
 if (spans) writeFileSync(spansPath, JSON.stringify(spans));
+if (streamLog) writeFileSync(streamLogPath, JSON.stringify(streamLog));
 if (timeline) {
     const total = Object.values(timeline).reduce((a, b) => a + b, 0);
     console.log(`timeline: ${total} cycles (${(total / 39936).toFixed(0)} fields) from the first frame's decode to the last swap`);
