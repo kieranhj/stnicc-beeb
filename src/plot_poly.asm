@@ -3,7 +3,11 @@
 \ *	SPAN BUFFER POLYGON FILL ROUTINES
 \ ******************************************************************
 
+IF _CPC
+_SHORT_SPAN_MAX_BYTES=3     ; so each set of short-span routines still fits its page
+ELSE
 _SHORT_SPAN_MAX_BYTES=4
+ENDIF
 
 if _NULA
 
@@ -67,7 +71,18 @@ and #%01010101
 eor (writeptr),y
 sta (writeptr),y
 
-if _DOUBLE_PLOT_Y:iny:sta (writeptr),y:dey:endif
+if _CPC
+\\ the bottom line has its own byte, and its neighbour pixel is not the top's
+iny
+lda (writeptr),y
+eor span_colour2
+and #%01010101
+eor (writeptr),y
+sta (writeptr),y
+dey
+elif _DOUBLE_PLOT_Y
+iny:sta (writeptr),y:dey
+endif
 
 dec span_width
 
@@ -164,8 +179,13 @@ endif
     .branch_to_done_double_plot
     bne done_double_plot                    ; 6c
 
+    IF _CPC
+    iny:lda span_colour2                    ; bottom line: its own byte
+    jmp jump_to_unrolled_span_row
+    ELSE
     iny:bne do_unrolled_span                ; 5c
     CHECK_SAME_PAGE_AS do_unrolled_span
+    ENDIF
 
     .done_double_plot
     CHECK_SAME_PAGE_AS branch_to_done_double_plot
@@ -190,6 +210,15 @@ and #%10101010
 eor (writeptr),y
 sta (writeptr),y
 
+if _CPC
+iny
+lda (writeptr),y
+eor span_colour2
+and #%10101010
+eor (writeptr),y
+sta (writeptr),y
+endif
+
 else
 
     \\ Last byte?
@@ -211,7 +240,7 @@ else
 
 endif
 
-    IF _DOUBLE_PLOT_Y
+    IF _DOUBLE_PLOT_Y AND NOT(_CPC)
     iny:sta (writeptr), Y                   ; 8c
     ENDIF
     .skip_last_byte
@@ -497,7 +526,14 @@ and #%01010101
 eor (shortptr),y
 sta (shortptr),y
 
-if _DOUBLE_PLOT_Y
+if _CPC
+iny
+lda (shortptr),y
+eor span_colour2
+and #%01010101
+eor (shortptr),y
+sta (shortptr),y
+elif _DOUBLE_PLOT_Y
 iny
 sta (shortptr),y
 endif
@@ -517,6 +553,19 @@ endif
 
 if npixels DIV 2>0
 
+if _CPC
+
+FOR x,0,npixels DIV 2-1
+ldy #yoffset+x*8
+lda span_colour
+sta (shortptr),y
+iny
+lda span_colour2
+sta (shortptr),y
+NEXT
+
+else
+
 lda span_colour
 
 FOR x,0,npixels DIV 2-1
@@ -532,6 +581,8 @@ NEXT
 
 endif
 
+endif
+
 if (npixels MOD 2)<>0
 
 ldy #yoffset+(npixels div 2)*8
@@ -541,7 +592,14 @@ and #%10101010
 eor (shortptr),y
 sta (shortptr),y
 
-if _DOUBLE_PLOT_Y
+if _CPC
+iny
+lda (shortptr),y
+eor span_colour2
+and #%10101010
+eor (shortptr),y
+sta (shortptr),y
+elif _DOUBLE_PLOT_Y
 iny
 sta (shortptr),y
 endif
@@ -560,8 +618,10 @@ equb (nula_short_span_odd_2>>shift) and 255
 equb (nula_short_span_odd_3>>shift) and 255
 equb (nula_short_span_odd_4>>shift) and 255
 equb (nula_short_span_odd_5>>shift) and 255
+if _SHORT_SPAN_MAX_PIXELS > 5
 equb (nula_short_span_odd_6>>shift) and 255
 equb (nula_short_span_odd_7>>shift) and 255
+endif
 ENDMACRO
 
 MACRO NULA_SHORT_SPAN_EVEN_TABLE shift
@@ -571,8 +631,10 @@ equb (nula_short_span_even_2>>shift) and 255
 equb (nula_short_span_even_3>>shift) and 255
 equb (nula_short_span_even_4>>shift) and 255
 equb (nula_short_span_even_5>>shift) and 255
+if _SHORT_SPAN_MAX_PIXELS > 5
 equb (nula_short_span_even_6>>shift) and 255
 equb (nula_short_span_even_7>>shift) and 255
+endif
 ENDMACRO
 
 ; .nula_short_span_odd_table_HI:NULA_SHORT_SPAN_ODD_TABLE 8
@@ -585,8 +647,10 @@ PAGE_ALIGN
 .nula_short_span_even_3:NULA_SHORT_SPAN FALSE,3
 .nula_short_span_even_4:NULA_SHORT_SPAN FALSE,4
 .nula_short_span_even_5:NULA_SHORT_SPAN FALSE,5
+if _SHORT_SPAN_MAX_PIXELS > 5
 .nula_short_span_even_6:NULA_SHORT_SPAN FALSE,6
 .nula_short_span_even_7:NULA_SHORT_SPAN FALSE,7
+endif
 .nula_short_span_even_table_LO:NULA_SHORT_SPAN_EVEN_TABLE 0
 CHECK_SAME_PAGE_AS nula_short_span_even_1
 
@@ -596,8 +660,10 @@ PAGE_ALIGN
 .nula_short_span_odd_3:NULA_SHORT_SPAN TRUE,3
 .nula_short_span_odd_4:NULA_SHORT_SPAN TRUE,4
 .nula_short_span_odd_5:NULA_SHORT_SPAN TRUE,5
+if _SHORT_SPAN_MAX_PIXELS > 5
 .nula_short_span_odd_6:NULA_SHORT_SPAN TRUE,6
 .nula_short_span_odd_7:NULA_SHORT_SPAN TRUE,7
+endif
 .nula_short_span_odd_table_LO:NULA_SHORT_SPAN_ODD_TABLE 0
 CHECK_SAME_PAGE_AS nula_short_span_odd_1
 

@@ -25,3 +25,6 @@ ENDIF
 
 \\ MUSIC (src/music.asm, which asserts it): the VGI player and its three tunes
 EXE_SIZE_MUSIC = &3200
+
+\\ CPC (stnicc-beeb.asm with _CPC): the NULA build with the CPC palette and its data
+EXE_SIZE_CPC = &2700

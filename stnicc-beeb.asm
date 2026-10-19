@@ -29,11 +29,19 @@ _SKIP_ODD_FRAMES = FALSE
 ; Optimised renderer, LOW only for now (see src/plot_poly_fast.asm)
 _FAST_POLY = (_QUALITY = 0) AND NOT(_NULA) AND NOT(_PLOT_WIREFRAME)
 
+; CPC: the NULA build's MODE 2 (64 x 100, each row on both its scanlines) with
+; the BBC's standard eight colours, no NuLA: each polygon colour is one of the
+; Amstrad CPC's 27, a chequer of two pens, pixels A,B on the top line and B,A on
+; the bottom (data/cpc_palette.bin, from tools/cpc_palette.py). Built with
+; -D _QUALITY=1 -D _NULA=-1 -D _CPC=-1.
+_CPC =? FALSE
+
 PRINT "------"
 PRINT "STNICC-BEEB"
 PRINT "------"
 PRINT "_QUALITY =",_QUALITY
 PRINT "_NULA =",_NULA
+PRINT "_CPC =",_CPC
 PRINT "_DEBUG =",_DEBUG
 PRINT "_TESTS =",_TESTS
 PRINT "_SHOW_STREAMING_INFO =",_SHOW_STREAMING_INFO
@@ -207,6 +215,10 @@ GUARD zp_top
 ;.span_end           skip 1
 .span_width         skip 1
 .span_colour        skip 1
+if _CPC
+.span_colour2       skip 1      ; the bottom line's byte
+.cpc_count          skip 1
+endif
 .shortptr			skip 2
 
 ; vars for drawline
@@ -327,6 +339,12 @@ skip &40
 endif
 .screen_col_LO
 skip &80
+if _CPC
+.cpc_colour_top         ; each polygon colour's top-line byte
+skip 16
+.cpc_colour_bottom      ; and its bottom-line byte
+skip 16
+endif
 .reloc_to_end
 
 ORG &A00
@@ -373,7 +391,7 @@ GUARD screen2_addr
 	ldx #HI(reloc_to_end - reloc_to_start + &ff)
 	jsr copy_pages
 
-if not(_NULA)
+if not(_NULA) OR _CPC
 	lda #HI(palette_stream_start)
 	ldy #HI(palette_stream_buffer)
 	ldx #HI(palette_stream_end - palette_stream_start + &ff)
@@ -479,6 +497,7 @@ if _NULA
 	adc #$11
 	bcc reset_palette_loop
 
+if NOT(_CPC)  ; without a NuLA, &FE22 and &FE23 are the ULA's &FE20 and &FE21
 ; disable NuLA auxiliary palette
 	lda #$10
 	sta $fe22
@@ -487,6 +506,7 @@ if _NULA
     lda #$00
 	sta $fe23
 	sta $fe23
+endif
 else
 	jsr set_palette
 endif
@@ -1093,7 +1113,7 @@ endif
 
 .fx_start
 
-if not(_NULA)
+if not(_NULA) OR _CPC
 MACRO GET_PAL_BYTE
 {
     inc pal_ptr_LO
@@ -1245,6 +1265,29 @@ INCLUDE "src/clock.asm"
 \\ (A subroutine here, after the plotters, not inline in irq_handler: NULA
 \\ has only a few bytes to spare before plot_poly.asm's page-aligned code
 \\ and below its stream buffer.)
+if _CPC
+\\ A palette change: the colours whose CPC colour changed, from the palette
+\\ stream (data/cpc_palette.bin): count, then (colour, top byte, bottom byte).
+\\ Y = 0 for GET_PAL_BYTE.
+.cpc_palette_update
+{
+	GET_PAL_BYTE
+	beq done
+	sta cpc_count
+	.loop
+	GET_PAL_BYTE
+	tax
+	GET_PAL_BYTE
+	sta cpc_colour_top, X
+	GET_PAL_BYTE
+	sta cpc_colour_bottom, X
+	dec cpc_count
+	bne loop
+	.done
+	rts
+}
+endif
+
 .stream_check_ahead
 {
 	lda track_no
@@ -1364,6 +1407,9 @@ col=n DIV 4
 endif
 EQUB LO(col*8)
 NEXT
+if _CPC
+FOR n,1,32:EQUB 0:NEXT  ; cpc_colour_top, cpc_colour_bottom: black until the first palette
+endif
 CHECK_SAME_PAGE_AS reloc_screen_col_LO
 
 .reloc_from_end
@@ -1402,6 +1448,12 @@ if not(_NULA)
 PAGE_ALIGN
 GUARD P%+&300
 include "src/palette_stream.asm"
+elif _CPC
+PAGE_ALIGN
+GUARD P%+&300
+.palette_stream_start
+INCBIN "data/cpc_palette.bin"
+.palette_stream_end
 endif
 
 \ ******************************************************************
@@ -1420,7 +1472,10 @@ include "src/exe_sizes.h.asm"
 exe_sectors_size = (end - start + &FF) AND &FF00
 PRINT "Executable size =", ~end - start, "(", ~exe_sectors_size, "in sectors )"
 
-IF _NULA
+IF _CPC
+ASSERT exe_sectors_size = EXE_SIZE_CPC
+SAVE "build/CPC", start, end, main
+ELIF _NULA
 ASSERT exe_sectors_size = EXE_SIZE_NULA
 SAVE "build/NULA", start, end, main
 ELIF _QUALITY == 2
@@ -1464,7 +1519,7 @@ PRINT "FX size = ", ~fx_end-fx_start
 PRINT "DATA size =",~data_end-data_start
 PRINT "ADDITIONAL size =",~additional_end-additional_start
 PRINT "RELOC size =",~reloc_from_end-reloc_from_start
-if not(_NULA)
+if not(_NULA) OR _CPC
 PRINT "PALETTE STREAM size =",~palette_stream_end-palette_stream_start
 endif
 PRINT "BSS size =",~bss_end-bss_start

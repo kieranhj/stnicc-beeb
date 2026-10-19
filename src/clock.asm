@@ -17,7 +17,7 @@ CLOCK_ROW = 11
 	sta &248			; OS copy
 	sta &fe20
 
-if _NULA
+if _NULA AND NOT(_CPC)
 
     lda #$40					; reset extended features to defaults
 	sta $fe22

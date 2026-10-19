@@ -1375,8 +1375,8 @@ EQUB %01100111
 EQUB %00000001
 EQUB %00000000
 
-.low_cmd
-EQUS "/LOW", 13
+.low_cmd                ; without a NuLA: the CPC-palette MODE 2 player
+EQUS "/CPC", 13
 
 .nula_cmd
 EQUS "/NULA",13

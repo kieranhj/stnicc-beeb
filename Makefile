@@ -36,6 +36,7 @@ build: $(BUILD)/logo_mode1.exo $(BUILD)/intro_theme.vgi $(BUILD)/main_theme.vgi 
 #	$(BEEBASM) -D _QUALITY=1 -D _NULA=0 -i stnicc-beeb.asm -v > $(BUILD)/medium.txt
 	$(BEEBASM) -D _QUALITY=0 -D _NULA=0 -i stnicc-beeb.asm -v > $(BUILD)/low.txt
 	$(BEEBASM) -D _QUALITY=1 -D _NULA=-1 -i stnicc-beeb.asm -v > $(BUILD)/nula.txt
+	$(BEEBASM) -D _QUALITY=1 -D _NULA=-1 -D _CPC=-1 -i stnicc-beeb.asm -v > $(BUILD)/cpc.txt
 
 	$(BEEBASM) -i src/intro.asm -v > $(BUILD)/intro.txt
 	$(BEEBASM) -i src/outro.asm -v > $(BUILD)/outro.txt
@@ -70,6 +71,7 @@ $(BUILD)/logo_mode1.exo : ./data/BeeBShifters.png
 data:
 	cd data && $(PYTHON) ../bin/encoder.py scene1.bin -o scene1.half.7680.bin -a 7680 -f 2 -b --optimise --capacity 345600 > out.txt
 	cd data && $(PYTHON) ../bin/split.py scene1.half.7680.bin
+	cd data && $(PYTHON) ../tools/cpc_palette.py scene1.half.7680.bin cpc_palette.bin
 
 ##########################################################################
 ##########################################################################

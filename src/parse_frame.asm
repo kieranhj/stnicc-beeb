@@ -13,7 +13,7 @@ MACRO GET_BYTE
 }
 ENDMACRO
 
-if _NULA
+if _NULA AND NOT(_CPC)
 .mode2_pixels
 equb %00000000
 equb %00000011
@@ -111,18 +111,22 @@ ENDIF
 
 	GET_BYTE
 
-if _NULA
+if _NULA AND NOT(_CPC)
    sta $fe23
 endif
 
 	GET_BYTE
 
-if _NULA
+if _NULA AND NOT(_CPC)
    sta $fe23
 endif
 
     dex
     bne parse_palette_loop
+
+if _CPC
+    jsr cpc_palette_update
+endif
 
 if NOT(_NULA)
     GET_PAL_BYTE
@@ -212,8 +216,15 @@ if _NULA
 
     lsr a:lsr a:lsr a:lsr a
 	tax
+if _CPC
+	lda cpc_colour_top,x
+	sta span_colour
+	lda cpc_colour_bottom,x
+	sta span_colour2
+else
 	lda mode2_pixels,x
 	sta span_colour
+endif
 
 else
 	

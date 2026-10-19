@@ -53,8 +53,12 @@ const disc = path.resolve(repo, opt("--disc", "build/beeb-niccc.dsd"));
 // rendered NuLA palette; --src assembles another tree (e.g. a worktree of the
 // release, with --disc of the release image, for a baseline).
 const variant = opt("--variant", "low");
-const VARIANTS = { low: { defines: ["_QUALITY=0", "_NULA=0"], exe: "LOW" }, nula: { defines: ["_QUALITY=1", "_NULA=-1"], exe: "NULA" } };
-if (!VARIANTS[variant]) throw new Error(`--variant ${variant}: low or nula`);
+const VARIANTS = {
+    low: { defines: ["_QUALITY=0", "_NULA=0"], exe: "LOW" },
+    nula: { defines: ["_QUALITY=1", "_NULA=-1"], exe: "NULA" },
+    cpc: { defines: ["_QUALITY=1", "_NULA=-1", "_CPC=-1"], exe: "CPC" }, // the intro's choice without a NuLA
+};
+if (!VARIANTS[variant]) throw new Error(`--variant ${variant}: low, nula or cpc`);
 const src = path.resolve(repo, opt("--src", "."));
 const lowPath = path.join(src, "build", VARIANTS[variant].exe);
 const refPath = opt("--ref");
@@ -242,6 +246,12 @@ function timelineCategory(pc) {
 // --trap-wild: stop when the CPU enters &8000-&BFFF other than from the IRQ
 // handler (the music call) or the MOS, and print the instructions that led there.
 const trapWild = args.includes("--trap-wild");
+
+// --shot N file (repeatable): a screenshot of frame N on screen
+const shots = [];
+for (let i = 0; i < args.length; i++) if (args[i] === "--shot") shots.push([Number(args[i + 1]), args[i + 2]]);
+shots.sort((a, b) => a[0] - b[0]);
+let shotDue = false;
 const trail = [];
 
 const hook = cpu.debugInstruction.add((pc) => {
@@ -316,6 +326,10 @@ const hook = cpu.debugInstruction.add((pc) => {
             finished = true;
             return true;
         }
+        if (shots.length && frames.length - 1 === shots[0][0]) {
+            shotDue = true;
+            return true;
+        }
     } else if (pc === syms.track_load_error) {
         // The main loop leaves on a disc error (or end of stream) without the last frame.
         finished = true;
@@ -333,7 +347,20 @@ const hook = cpu.debugInstruction.add((pc) => {
 });
 
 const runStart = s.elapsedCycles;
-await s.runFor(2_000_000 * 900);
+for (let budget = 2_000_000 * 900; ; ) {
+    const before = s.elapsedCycles;
+    await s.runFor(budget);
+    budget -= s.elapsedCycles - before;
+    if (!shotDue || budget <= 0) break;
+    // --shot: the frame just drawn is shown at the next vsync; a field later, capture it
+    shotDue = false;
+    const [n, file] = shots.shift();
+    const t = s.elapsedCycles;
+    await s.runFor(2 * 39936);
+    budget -= s.elapsedCycles - t;
+    writeFileSync(file, await s.screenshot());
+    console.log(`shot: frame ${n} -> ${file}`);
+}
 hook.remove();
 if (streamLog) writeFileSync(streamLogPath, JSON.stringify(streamLog));
 if (!finished) {
