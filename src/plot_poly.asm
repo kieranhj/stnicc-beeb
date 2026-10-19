@@ -258,6 +258,26 @@ endif
 IF _FAST_EDGES
     \\ NULA and CPC: plot_poly_fast.asm made the spans and jumps here
     .^plot_poly_rows
+    \\ Leave out the rows the stream's trim says end the frame overdrawn (the
+    \\ encoder's --trim-mode both makes them safe on the 64-wide raster too)
+    lda poly_trim
+    beq untrimmed
+    lsr a:lsr a:lsr a:lsr a
+    clc
+    adc span_buffer_min_y
+    sta span_buffer_min_y
+    lda poly_trim
+    and #&0f
+    eor #&ff
+    sec
+    adc span_buffer_max_y       ; max_y - bottom, C=0 if below 0
+    bcc nothing
+    sta span_buffer_max_y
+    cmp span_buffer_min_y
+    bcs untrimmed
+    .nothing
+    jmp return_here_from_plot_poly
+    .untrimmed
 ELSE
 .^plot_poly_span
     ; X=poly_num_verts

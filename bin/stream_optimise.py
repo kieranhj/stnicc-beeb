@@ -3,8 +3,10 @@
 #
 # - Cull: leave out polygons that end the frame with no pixel showing in any
 #   player's raster (LOW/MEDIUM, HIGH and NULA, see stnicc_raster.RASTERS).
-# - Trim (LOW): rows at the top and bottom of a polygon that end the frame
-#   entirely overdrawn need not be plotted. Up to 15 each way, in one byte.
+# - Trim: rows at the top and bottom of a polygon that end the frame entirely
+#   overdrawn need not be plotted. Up to 15 each way, in one byte. For LOW only
+#   (trim_mode "low"), or rows hidden on LOW's and the 64-wide raster both, so
+#   that NULA and CPC can use them too ("both").
 # - Clear mask (LOW): a clearing frame only needs to clear the rows that its
 #   polygons leave a pixel of uncovered. 13 bytes, one bit per row.
 #
@@ -16,6 +18,7 @@ from stnicc_stream import FLAG_CLEAR_SCREEN, POLY_DESC_END_OF_STREAM, POLY_TRIM,
 
 # Rough LOW costs, in 2 MHz cycles, used only to rank the candidates
 CYCLES_PER_SPAN_ROW = 150       # a plotted row, all in
+CYCLES_PER_SPAN_ROW_64 = 220    # NULA and CPC (both scanlines, 2020 plotter)
 CYCLES_FULL_CLEAR = 16900       # screen_cls
 CYCLES_MASKED_CLEAR = 250       # mask walk
 CYCLES_PER_CLEARED_ROW = 185    # one row through the unrolled span code
@@ -28,9 +31,25 @@ def beeb_polys(frame):
     return [(p._colour_index, [(v._x // 2, v._y // 2) for v in p._vertices]) for p in frame._polygons]
 
 
-def analyse(frames):
+def trim_for(owners, raster, i):
+    """(top, bottom) rows of polygon i hidden at the end of the frame in one raster
+    (all of a polygon hidden there: as many as a trim can take)."""
+    spans, owner = owners[raster]
+    vis = visible_rows(spans, owner, i)
+    ys = sorted(spans[i])
+    if vis:
+        return min(vis[0] - ys[0], TRIM_MAX), min(ys[-1] - vis[-1], TRIM_MAX)
+    # Kept for another player but hidden here: skip what a trim can (all of it
+    # when 30 rows or fewer; the plotters take top + bottom past the polygon's
+    # height as nothing to plot)
+    top = min(len(ys), TRIM_MAX)
+    return top, min(len(ys) - top, TRIM_MAX)
+
+
+def analyse(frames, trim_mode="low"):
     """Culls every frame (in place) and returns the trim and clear-mask candidates:
-    (value in cycles, cost in bytes, apply function)."""
+    (value in cycles, cost in bytes, apply function). trim_mode: trims for LOW only
+    ("low"), or safe in both LOW's and the 64-wide raster ("both")."""
     candidates = []
     culled = 0
     for frame_no, f in frames:
@@ -44,22 +63,19 @@ def analyse(frames):
 
         spans, owner = owners["low"]
         for i in keep:
-            vis = visible_rows(spans, owner, i)
-            ys = sorted(spans[i])
-            if vis:
-                top = min(vis[0] - ys[0], TRIM_MAX)
-                bottom = min(ys[-1] - vis[-1], TRIM_MAX)
-            else:
-                # Kept for another player but hidden in LOW: skip what a trim can
-                # (all of it when 30 rows or fewer; the plotter takes top + bottom
-                # past the polygon's height as nothing to plot)
-                top = min(len(ys), TRIM_MAX)
-                bottom = min(len(ys) - top, TRIM_MAX)
+            low = trim_for(owners, "low", i)
             poly = f._polygons[keep.index(i)]
             if (poly._colour_index << 4 | POLY_TRIM | poly.get_num_verts()) >= POLY_DESC_END_OF_STREAM:
                 continue                # colour 15 with 5-7 vertices: the descriptor would read as an end marker
-            if top or bottom:
-                candidates.append(((top + bottom) * CYCLES_PER_SPAN_ROW, 1, trim_setter(f, poly, (top, bottom))))
+            if trim_mode == "low":
+                if sum(low):
+                    candidates.append((sum(low) * CYCLES_PER_SPAN_ROW, 1, trim_setter(f, poly, low)))
+                continue
+            wide = trim_for(owners, "nula", i)
+            both = (min(low[0], wide[0]), min(low[1], wide[1]))
+            if sum(both):
+                value = sum(both) * (CYCLES_PER_SPAN_ROW + CYCLES_PER_SPAN_ROW_64)
+                candidates.append((value, 1, trim_setter(f, poly, both)))
 
         if f._flags & FLAG_CLEAR_SCREEN:
             rows = [y for y in range(100) if any(o < 0 for o in owner[y])]
@@ -100,7 +116,7 @@ def pictures(polys, raster, trims=None):
     return pic
 
 
-def verify(data, reference):
+def verify(data, reference, trim_mode="low"):
     """Check the written stream against the frames before optimisation (a list of
     (flags, [(colour, verts), ...])): every player's picture of every frame is
     unchanged, and every row a clear mask leaves out is fully drawn over."""
@@ -111,9 +127,10 @@ def verify(data, reference):
         assert f.flags & 3 == ref_flags & 3, f"frame {n}: flags {f.flags:#x} against {ref_flags:#x}"
         polys = [(c, v) for c, v, _ in f.polys]
         trims = [t for _, _, t in f.polys]
+        wide = trims if trim_mode == "both" else None
         for r in RASTERS:
             want = pictures(ref_polys, r)
-            got = pictures(polys, r, trims if r == "low" else None)
+            got = pictures(polys, r, trims if r == "low" else wide if r == "nula" else None)
             assert got == want, f"frame {n}: {r} picture differs"
             if r == "low" and f.clear_mask:
                 for y in range(100):

@@ -204,7 +204,7 @@ endif
     beq no_trim                 ; A = 0
     GET_BYTE
     .no_trim
-IF _FAST_POLY
+IF _FAST_EDGES
     sta poly_trim
 ENDIF
 
