@@ -170,12 +170,14 @@ async function runUntilPc(target, maxCycles) {
 // First &1100 is INTRO: set the NuLA flags so it chains to /LOW (clear) or /NULA (set).
 await runUntilPc(0x1100, 120_000_000);
 // &7E bit 7: NuLA; bit 6: the CPC version (C in the intro)
-cpu.writemem(0x7d, variant === "nula" ? 0xff : 0);
 // --press-c: leave the flag clear and choose the CPC version with the intro's
 // C key instead (held for a few frames, as its debounce needs), so --no-inject
-// checks that the key reaches /CPC.
+// checks that the key reaches /CPC. With --with-nula the loader has found NuLA
+// and selected it, and C must switch NuLA off.
 const pressC = args.includes("--press-c");
-cpu.writemem(0x7e, pressC ? 0 : ({ nula: 0x80, cpc: 0x40 }[variant] ?? 0));
+const withNula = pressC && args.includes("--with-nula");
+cpu.writemem(0x7d, variant === "nula" || withNula ? 0xff : 0);
+cpu.writemem(0x7e, withNula ? 0x80 : pressC ? 0 : ({ nula: 0x80, cpc: 0x40 }[variant] ?? 0));
 await s.runFor(1);
 if (pressC) {
     // the intro polls the keys while its text is being drawn

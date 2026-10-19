@@ -795,8 +795,12 @@ ldx #CPC_TOGGLE_INKEY AND 255
 jsr check_key
 bne cpc_toggle_checked
 
-; toggle the CPC version
-lda NULA_FLAG_ZP:eor #$40:sta NULA_FLAG_ZP
+; toggle the CPC version; switching it on switches NuLA off
+lda NULA_FLAG_ZP:eor #$40
+bit NULA_FLAG_ZP:bvs cpc_set	; was on: now off
+and #$40						; now on: NuLA off
+.cpc_set
+sta NULA_FLAG_ZP
 jsr set_text_palette
 
 .cpc_toggle_checked

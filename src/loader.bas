@@ -80,6 +80,7 @@ RTS
 NEXT
 CALL CODE
 PRINT"BEEB-NICCC by the BITSHIFTERS COLLECTIVE"
+PRINT"Version 1.2"
 PRINT'"Detected ";16-?&70;" SWRAM banks:";
 IF ?&70 <> 16 THEN FOR X% = ?&70 TO 15 : PRINT;" ";X%?&70; : NEXT
 IF ?&70 = 16 THEN ?&7F = 255:PRINT''"No SWRAM = No music, sorry!" ELSE PRINT''"Using SWRAM bank ";?&7F;" for music."'"=> Press Q during intro to toggle audio.";:?&7C=&80
