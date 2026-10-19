@@ -182,6 +182,16 @@ if (args.includes("--no-inject")) {
 }
 const bootSecs = (Date.now() - t0) / 1000;
 
+// --slow-disc ms: every seek's settle (and so every track read) takes this much
+// longer, as on a slower drive than jsbeeb's: a test that the decoder never
+// outruns the loader (frames must still match, only taking more fields).
+const slowDisc = Number(opt("--slow-disc", "0"));
+if (slowDisc) {
+    const fdc = cpu.fdc;
+    const set = fdc._setTimerMs.bind(fdc);
+    fdc._setTimerMs = (state, ms) => set(state, state === 2 ? ms + slowDisc : ms); // 2: postSeek
+}
+
 // ---------------------------------------------------------------- measure
 
 const irqVec = mem(0xfffe) | (mem(0xffff) << 8);

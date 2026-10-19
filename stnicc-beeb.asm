@@ -162,9 +162,11 @@ OPCODE_DEC_zp = &C6             ; load_next_track's track step on side 2
 STREAM_buffer_size = 3 * DFS_track_size
 
 ; Pages of stream that must be loaded before a frame may start (see irq_handler).
-; The largest frame is 1194 bytes, so 6 pages (at least 1280 bytes past the
-; current page) for the fast renderer; 4 as before otherwise.
-IF _FAST_POLY:STREAM_pages_ahead = 6:ELSE:STREAM_pages_ahead = 4:ENDIF
+; The largest frame of the re-encoded stream is 1548 bytes (frame 5; 1495 past the
+; initial fill), and N pages from the frame's start page guarantee (N-1)*256+1
+; bytes, so 8 (1793 bytes). Every player: the re-encoded stream is denser, and
+; NULA without the lock outran a slower disc than jsbeeb's early on.
+STREAM_pages_ahead = 8
 
 ; STNICCC scene1.bin constants
 MAX_VERTS_PER_POLY = 7
@@ -549,7 +551,6 @@ endif
 	cmp #POLY_DESC_END_OF_STREAM
     beq track_load_error
 
-IF _FAST_POLY
 	\\ The track at load_to can be refilled once the reader has left it: when
 	\\ the page the frame being decoded starts on is a track or more past
 	\\ load_to round the ring. (The frame start, not the stream pointer: the
@@ -571,21 +572,6 @@ IF _FAST_POLY
 	lda buffer_lock
 	beq not_ready_to_load
 	.ready_to_load
-ELSE
-	\\ Which page are we reading crunched data from? (The page the frame being
-	\\ decoded starts on: its vertices are read from there.)
-	sec
-	lda stream_frame_HI
-
-	\\ Is it more than a "track" away?
-	SBC load_to_HI
-	BCS sectors_to_load_1
-	EOR #255
-	ADC #1
-	.sectors_to_load_1
-	CMP #STREAMING_sectors_to_load
-	BCC not_ready_to_load
-ENDIF
 
 	\\ If so, load a track's worth of data into our buffer
 	JSR load_next_track
@@ -735,6 +721,7 @@ ENDIF
 }
 ENDIF
 
+
 \ ******************************************************************
 \ *	Streaming tracks from disk
 \ ******************************************************************
@@ -859,21 +846,13 @@ ENDIF
     INC vsync_counter+1
     .no_carry
 
-	\\ (vsync_done is a JMP within reach: the fast renderer's stream check
-	\\ pushes return_to_os out of branch range)
+	\\ (vsync_done is a JMP within reach: the stream check pushes
+	\\ return_to_os out of branch range)
     lda music_enabled
-IF _FAST_POLY
     beq vsync_done
-ELSE
-    beq return_to_os
-ENDIF
 
 	lda music_lock
-IF _FAST_POLY
 	bne vsync_done
-ELSE
-	bne return_to_os
-ENDIF
 
 	inc music_lock
 	lda &f4:pha
@@ -947,44 +926,8 @@ ENDIF
 		lda #&ff:sta buffer_lock
 
 		.stream_ok
-		\\ A renderer faster than the disc must not start a frame on data not yet
-		\\ loaded: lock the decoder unless STREAM_pages_ahead pages are loaded.
-		IF _PLOT_WIREFRAME OR _SKIP_ODD_FRAMES OR _FAST_POLY
-		{
-			lda track_no
-			bmi enough_data_for_next_frame
-			
-			lda STREAM_ptr_HI
-			cmp load_to_HI
-			bcs stream_ptr_gt_load_to
-
-			\\ Stream Ptr < Load To
-			sec
-			lda load_to_HI
-			sbc STREAM_ptr_HI
-			cmp #STREAM_pages_ahead
-			bcs enough_data_for_next_frame
-
-			\\ Otherwise lock our buffer
-			lda #&ff:sta buffer_lock
-			bne enough_data_for_next_frame
-
-			.stream_ptr_gt_load_to
-			\\ Stream Ptr > Load To
-			clc
-			lda load_to_HI
-			adc #HI(STREAM_buffer_size)
-			sec
-			sbc STREAM_ptr_HI
-			cmp #STREAM_pages_ahead
-			bcs enough_data_for_next_frame
-
-			\\ Otherwise lock our buffer
-			lda #&ff:sta buffer_lock
-
-			.enough_data_for_next_frame
-		}
-		ENDIF
+		\\ Lock the decoder unless enough of the stream is loaded
+		jsr stream_check_ahead
 
 if _NULA AND NOT(_DOUBLE_PLOT_Y)
 
@@ -1296,6 +1239,31 @@ INCLUDE "src/plot_line.asm"
 INCLUDE "src/debug.asm"
 INCLUDE "src/tests.asm"
 INCLUDE "src/clock.asm"
+
+\\ A renderer faster than the disc must not start a frame on data not yet
+\\ loaded: lock the decoder unless STREAM_pages_ahead pages are loaded.
+\\ (A subroutine here, after the plotters, not inline in irq_handler: NULA
+\\ has only a few bytes to spare before plot_poly.asm's page-aligned code
+\\ and below its stream buffer.)
+.stream_check_ahead
+{
+	lda track_no
+	bmi enough                  ; nothing more to load
+
+	\\ Pages loaded ahead of the reader, less one: load_to - ptr - 1 round the
+	\\ ring (ptr = load_to is a full ring, 29 here)
+	lda load_to_HI
+	clc
+	sbc STREAM_ptr_HI
+	bcs no_wrap
+	adc #HI(STREAM_buffer_size)
+	.no_wrap
+	cmp #STREAM_pages_ahead - 1
+	bcs enough
+	lda #&ff:sta buffer_lock
+	.enough
+	rts
+}
 
 .screen_clear_full
 {
