@@ -169,3 +169,42 @@ Run from the repo root.
   (make.bat); the intro is built with `-D _CPC_ONLY` (N and C do nothing) and
   `src/loader-cols.bas` sets &7E for /CPC. `run.mjs --variant cols` plays it; check with
   `tools/cpc_check.py` as for the CPC player.
+
+## Next: all 1800 frames (planned 2026-10-19, not started)
+
+The stream keeps every other frame of the original (`encoder.py -f 2`). Playing all 1800
+looks feasible on one disc, but only with a richer code. Modelled in Python
+(`tools/colstream/frames1800.py`, `v2model.py`); nothing built yet.
+
+| Coding, all 1800 frames | Size |
+|---|---|
+| Today's code (left-column prediction only) | 633K |
+| Best per column of left column or previous frame | 452K |
+| ...plus each edge's motion from frame to frame | 429K |
+| ...plus variable-length codes | 387K |
+| ...plus predicting new runs' pixels from their neighbours (estimate) | about 355K |
+
+A disc holds about 368K from track 14, so the margin is about 13K before palettes and
+block padding.
+
+- **Modes per column:** predict from the column to the left (as now), from the same
+  column in the previous frame, or from it plus each run's motion (its end less the end
+  of the run it came from in the frame before). At full rate 57% of columns are cheaper
+  from the previous frame. Every run keeps a spatial and a temporal slope, each known
+  only when it was coded that way (else 0); the encoder mirrors that exactly.
+- **Variable-length codes:** carry on as predicted 37% of ops (1 bit); +1, -1 and a
+  bigger jump 3 bits, then the jump as sign and size (2-9 in 3 bits, else an escape);
+  new run, drop and recolour 4-5 bits; new runs' lengths 1, 2-3, 4-7 rows or a byte.
+  Mode: 1 bit for left, 2 for the others.
+- **New runs' values (81K of them, 81K bytes as now):** the left pixel is the left
+  column's right pixel at that row 67% of the time (one of a few neighbours 87%); the
+  right pixel is the previous frame's right column's left pixel 50% (81% any). Coding
+  each pixel as a hit on a ranked neighbour or 4 bits costs about 5 bits, not 8.
+  Move-to-front on values does not work (34% misses).
+- **The player:** bit-level decoding, three modes, and the neighbour lookups for new
+  runs; it must keep every column's runs from the last frame (at most 525 runs, 35 in a
+  column: about 3.2K for two frames' lists, against about 2.75K free plus today's 768).
+  About 150K cycles a frame: about 270M render cycles and 5,500-6,000 fields for 1800
+  frames (the 900-frame column player: 4,243).
+- **Also:** `cpc_colour_map.py` and the CPC model for the 1800-frame sequence.
+- **Order:** the encoder first, to confirm it fits, then the decoder, then disc and checks.
