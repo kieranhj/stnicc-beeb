@@ -46,6 +46,7 @@ def parse_stream(data, block=7680):
     """Yields StreamFrame for each frame of the stream."""
     p = 0
     while True:
+        start = p
         f = StreamFrame(data[p])
         p += 1
         if f.flags & FLAG_CLEAR_MASK:
@@ -81,6 +82,8 @@ def parse_stream(data, block=7680):
                 verts = [(data[p + 2 * i], data[p + 2 * i + 1]) for i in range(nv)]
                 p += 2 * nv
             f.polys.append((d >> 4, verts, trim))
+        if (p - 1) // block != start // block:
+            raise ValueError(f"frame at {start} ends at {p - 1}, past its {block}-byte block")
         yield f
         if d == POLY_DESC_END_OF_STREAM:
             return

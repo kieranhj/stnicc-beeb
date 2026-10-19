@@ -381,7 +381,11 @@ class Sequence:
 
             frame_size = f.get_size()
             this_chunk = total // self._alignment
-            next_chunk = (total + frame_size) // self._alignment
+            # The frame follows the previous frame's end marker (at total) and is
+            # followed by its own, so that marker must be in the block too. (The
+            # 2020 encoder left it out: a frame could end on the block's last
+            # byte with its marker in the next block, read from past the ring.)
+            next_chunk = (total + 1 + frame_size) // self._alignment
 
             eof_byte = POLY_DESC_END_OF_FRAME
 
