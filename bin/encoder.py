@@ -8,6 +8,9 @@ import os
 FLAG_CLEAR_SCREEN = 0x01
 FLAG_CONTAINS_PALETTE = 0x02
 FLAG_INDEXED_DATA = 0x4
+FLAG_CLEAR_MASK = 0x8           # a 13-byte mask of the rows to clear follows the flags
+
+POLY_TRIM = 0x8                 # descriptor: a trim byte (top << 4 | bottom rows) follows
 
 POLY_DESC_END_OF_STREAM = 0xFD
 POLY_DESC_SKIP_TO_64K = 0xFE
@@ -44,8 +47,8 @@ class Vertex:
 
     def write(self, data, beeb):
         if beeb == True:
-            data.append(self._x / 2)
-            data.append(self._y / 2)
+            data.append(self._x // 2)
+            data.append(self._y // 2)
         else:
             data.append(self._x)
             data.append(self._y)
@@ -59,6 +62,7 @@ class Polygon:
     def __init__(self):
         self._vertices = []
         self._colour_index = 0
+        self._trim = None       # (top, bottom) rows the players may leave out, or None
 
     def add_vertex(self, v):
         self._vertices.append(v)
@@ -73,18 +77,22 @@ class Polygon:
         return self._colour_index << 4 | num_verts(self)
 
     def get_size_indexed(self):
-        # 1 byte descriptor + 1 byte per vertex index
-        return 1 + self.get_num_verts()
+        # 1 byte descriptor (+ trim) + 1 byte per vertex index
+        return 1 + (self._trim is not None) + self.get_num_verts()
 
     def get_size_non_indexed(self):
-        # 1 byte descriptor + 2 bytes per vertex coordinates
-        return 1 + 2 * self.get_num_verts()
+        # 1 byte descriptor (+ trim) + 2 bytes per vertex coordinates
+        return 1 + (self._trim is not None) + 2 * self.get_num_verts()
 
     def write(self, indexed, vert_array, data, beeb):
         # Write poly descriptor
         poly_descriptor = (self._colour_index << 4) + self.get_num_verts()
+        if self._trim is not None:
+            poly_descriptor |= POLY_TRIM
         # print "    Poly descriptor: {0:2x}".format(poly_descriptor)
         data.append(poly_descriptor)
+        if self._trim is not None:
+            data.append(self._trim[0] << 4 | self._trim[1])
 
         # print "    Num verts: {0}".format(self.get_num_verts())
 
@@ -130,7 +138,8 @@ class Palette:
             # 2 bytes bitmask + 2 bytes per palette entry
             return 2 + 2 * num_entries
 
-    def write(self, data, beeb):
+    def write(self, data, beeb, quiet=False):
+        say = (lambda *a: None) if quiet else print
         if beeb:
             assert len(self._entries)>0
             # dummy byte :( - don't fancy changing the data size...
@@ -144,11 +153,11 @@ class Palette:
             data.append(bitmask >> 8)
             data.append(bitmask & 0xff)
 
-        entries=sorted(self._entries,lambda a,b:cmp(a[0],b[0]))
+        entries=sorted(self._entries,key=lambda a:a[0])
 
-        print "    Entries: {0}".format(len(self._entries))
+        say("    Entries: {0}".format(len(self._entries)))
         for e in entries:
-            print "      {0} = {1}".format(e[0], e[1])
+            say("      {0} = {1}".format(e[0], e[1]))
             if beeb:
                 nula_rgb=[get_NuLA_value(e[1][0]),
                         get_NuLA_value(e[1][1]),
@@ -170,6 +179,29 @@ class Frame:
         self._palette = Palette()
         self._flags = 0
         self._data_size = 0
+        self._clear_mask = None     # 13 bytes: the rows a clear has to clear, or None
+
+    def set_polygons(self, polys):
+        # Replace the polygons (e.g. leaving out hidden ones): the vertex list is
+        # rebuilt from them in the same first-use order the reader made.
+        self._polygons = list(polys)
+        self._vertices = []
+        for p in self._polygons:
+            for v in p._vertices:
+                self.add_vertex(v)
+        self.invalidate_size()
+
+    def set_clear_mask(self, mask):
+        assert mask is None or self._flags & FLAG_CLEAR_SCREEN
+        self._clear_mask = mask
+        if mask is None:
+            self._flags &= ~FLAG_CLEAR_MASK
+        else:
+            self._flags |= FLAG_CLEAR_MASK
+
+    def invalidate_size(self):
+        self._data_size = 0
+        self._flags &= ~FLAG_INDEXED_DATA
 
     def set_clear_screen_flag(self):
         self._flags |= FLAG_CLEAR_SCREEN
@@ -230,52 +262,58 @@ class Frame:
                 self._flags |= FLAG_INDEXED_DATA
 
     def get_size(self):
-        # 1 byte flag + optional palette (+ 1 byte terminator added by Sequence)
+        # 1 byte flag + optional clear mask + optional palette (+ 1 byte terminator added by Sequence)
         base_size = 1 + self._palette.get_size()
+        if self._clear_mask is not None:
+            base_size += len(self._clear_mask)
 
         if self._data_size == 0:
             self.calc_size()
 
         return base_size + self._data_size
 
-    def write(self, data, beeb):
+    def write(self, data, beeb, quiet=False):
+        say = (lambda *a: None) if quiet else print
         # Write frame flags
         data.append(self._flags)
 
+        if self._clear_mask is not None:
+            data.extend(self._clear_mask)
+
         if self._flags & FLAG_CLEAR_SCREEN:
-            print "    Clear screen!"
+            say("    Clear screen!")
 
         if self._flags & FLAG_CONTAINS_PALETTE:
-            print "    Contains palette!"
-            self._palette.write(data, beeb)
+            say("    Contains palette!")
+            self._palette.write(data, beeb, quiet)
 
         if self._flags & FLAG_INDEXED_DATA:
-            print "    Indexed data!"
+            say("    Indexed data!")
             # Write num verts
             data.append(self.num_unique_verts())
             # Write each vert
             if beeb == True:
                 # Write de-interleaved
                 for v in self._vertices:
-                    data.append(v._x / 2)
+                    data.append(v._x // 2)
                 for v in self._vertices:
-                    data.append(v._y / 2)
+                    data.append(v._y // 2)
             else:
                 # Write interleaved
                 for v in self._vertices:
                     v.write(data, beeb)
 
         else:
-            print "    Non-indexed data!"
+            say("    Non-indexed data!")
 
-        print "    Unique verts: {0}".format(self.num_unique_verts())
-        print "    Num polys: {0}".format(self.num_polys())
+        say("    Unique verts: {0}".format(self.num_unique_verts()))
+        say("    Num polys: {0}".format(self.num_polys()))
 
         # Write each poly
         for p in self._polygons:
             p.write(self._flags & FLAG_INDEXED_DATA, self._vertices, data, beeb)
 
-        print "    Data size: {0}".format(self.get_size())
+        say("    Data size: {0}".format(self.get_size()))
 
 class Sequence:
 
@@ -302,10 +340,11 @@ class Sequence:
     def num_frames(self):
         return len(self._frames)
 
-    def write(self, data, frame_step, beeb):
-        print "Sequence: {0} frames".format(self.num_frames())
+    def output_frames(self, frame_step):
+        # The frames that are written, every frame_step'th, each taking the palette
+        # changes of the frames skipped before it. Call once: it merges palettes.
+        out = []
         frame_no = 0
-        total = 0
         merge_pal = None
 
         for f in self._frames:
@@ -324,20 +363,39 @@ class Sequence:
                 merge_pal = f.get_palette()
                 continue
 
-            print "  Frame: {0}".format(frame_no)
+            out.append((frame_no, f))
+        return out
+
+    def write(self, data, frame_step, beeb):
+        return self.write_frames(data, self.output_frames(frame_step), beeb)
+
+    def write_frames(self, data, frames, beeb, quiet=False):
+        if not quiet:
+            print("Sequence: {0} frames".format(self.num_frames()))
+        total = 0
+
+        for frame_no, f in frames:
+
+            if not quiet:
+                print("  Frame: {0}".format(frame_no))
 
             frame_size = f.get_size()
-            this_chunk = total / self._alignment
-            next_chunk = (total + frame_size) / self._alignment
+            this_chunk = total // self._alignment
+            # The frame follows the previous frame's end marker (at total) and is
+            # followed by its own, so that marker must be in the block too. (The
+            # 2020 encoder left it out: a frame could end on the block's last
+            # byte with its marker in the next block, read from past the ring.)
+            next_chunk = (total + 1 + frame_size) // self._alignment
 
             eof_byte = POLY_DESC_END_OF_FRAME
 
             if next_chunk != this_chunk:
-                print "    Align data to next chunk!"
+                if not quiet:
+                    print("    Align data to next chunk!")
                 eof_byte = POLY_DESC_SKIP_TO_64K
 
             # Write EOF marker for previous frame.
-            if f != self._frames[0]:
+            if f != frames[0][1]:
                 data.append(eof_byte)
                 total += 1
 
@@ -346,10 +404,10 @@ class Sequence:
                 align_by = next_chunk * self._alignment - total
                 total = next_chunk * self._alignment
 
-                for i in xrange(0,align_by):
+                for i in range(0,align_by):
                     data.append(0x55)
 
-            f.write(data, beeb)
+            f.write(data, beeb, quiet)
 
             total += frame_size
             assert total == len(data)
@@ -376,7 +434,7 @@ def make_sequence_from_file(file):
             palette_bitmask = get_byte(file) << 8 | get_byte(file)
 
             # Read palette data
-            for b in xrange(15,-1,-1):
+            for b in range(15,-1,-1):
                 if palette_bitmask & (1<<b):
                     palette_word = get_byte(file) << 8 | get_byte(file)
                     palette_colour = colour_word_to_rgb(palette_word)
@@ -392,7 +450,7 @@ def make_sequence_from_file(file):
             # Get num vertices
             num_verts = get_byte(file)
 
-            for v in xrange(0, num_verts):
+            for v in range(0, num_verts):
                 x = get_byte(file)
                 y = get_byte(file)
 
@@ -420,7 +478,7 @@ def make_sequence_from_file(file):
             # Indexed
             if indexed:
                 # Reading vertices
-                for v in xrange(0, poly_num_verts):
+                for v in range(0, poly_num_verts):
                     vert_idx = get_byte(file)
                     x = verts_x[vert_idx]
                     y = verts_y[vert_idx]
@@ -430,7 +488,7 @@ def make_sequence_from_file(file):
 
             else:
                 # Reading x, y values
-                for v in xrange(0, poly_num_verts):
+                for v in range(0, poly_num_verts):
                     x = get_byte(file)
                     y = get_byte(file)
                     v = Vertex(x, y)
@@ -460,6 +518,12 @@ if __name__ == '__main__':
     parser.add_argument("-b", "--beeb", help="Enable BBC specific data changes", default=False, action="store_true")
     parser.add_argument("-f", "--frame_step", type=int, default=1, metavar="<n>", help="Set frame step for output <f>, default: 1")
     parser.add_argument("-v", "--verbose", help="Enable verbose mode", action="store_true")
+    parser.add_argument("--optimise", help="Cull hidden polygons, and spend the bytes up to --capacity on row trims and clear masks (needs -b)", action="store_true")
+    parser.add_argument("--capacity", type=int, default=0, metavar="<n>", help="Bytes of disc the stream may fill, for --optimise")
+    parser.add_argument("--trim-mode", default="low", choices=["low", "both"],
+                        help="Row trims for LOW only (low), or safe on LOW's and the 64-wide raster too, for NULA and CPC (both)")
+    parser.add_argument("--mask-mode", default="low", choices=["low", "both"],
+                        help="Clear masks of the rows LOW leaves uncovered (low), or of the rows LOW or the 64-wide raster does, so that NULA and CPC can use them too (both)")
     args = parser.parse_args()
 
     src = args.input
@@ -474,12 +538,12 @@ if __name__ == '__main__':
 
     input_file = open(src, 'rb')
 
-    print "STNICC polygon data stream.\n"
+    print("STNICC polygon data stream.\n")
 
     my_sequence = make_sequence_from_file(input_file)
     input_file.close()
 
-    print "Total frames {0}, unaligned data size: {1}".format(my_sequence.num_frames(), my_sequence.get_size())
+    print("Total frames {0}, unaligned data size: {1}".format(my_sequence.num_frames(), my_sequence.get_size()))
 
     output_file = open(dst, 'wb')
 
@@ -488,10 +552,49 @@ if __name__ == '__main__':
 
     data = bytearray()
 
-    # Write out the sequence...
-    actual = my_sequence.write(data, args.frame_step, args.beeb)
+    frames = my_sequence.output_frames(args.frame_step)
 
-    print "Actual written bytes: {0} vs {1}".format(actual, len(data))
+    if args.optimise:
+        import stream_optimise
+        assert args.beeb and args.capacity > 0, "--optimise needs -b and --capacity"
+
+        reference = [(f._flags, stream_optimise.beeb_polys(f)) for _, f in frames]
+        candidates, culled = stream_optimise.analyse(frames, args.trim_mode, args.mask_mode)
+        candidates.sort(key=lambda c: c[0] / c[1], reverse=True)
+
+        def written_with(k):
+            # The stream with the k best candidates applied
+            for i, c in enumerate(candidates):
+                c[2](i < k)
+            d = bytearray()
+            my_sequence.write_frames(d, frames, args.beeb, quiet=True)
+            return d
+
+        base = len(written_with(0))
+        if base > args.capacity:
+            print("ERROR: stream is {0} bytes with no trims or masks, capacity {1}".format(base, args.capacity))
+            sys.exit(1)
+        lo, hi = 0, len(candidates)
+        while lo < hi:
+            mid = (lo + hi + 1) // 2
+            if len(written_with(mid)) <= args.capacity:
+                lo = mid
+            else:
+                hi = mid - 1
+        written_with(lo)
+        chosen = candidates[:lo]
+        print("Optimise: culled {0} polygons; {1} of {2} trims/masks fit ({3} trims, {4} masks), est. {5} LOW cycles saved; {6} bytes without them".format(
+            culled, lo, len(candidates), sum(1 for c in chosen if c[1] == 1), sum(1 for c in chosen if c[1] == 13),
+            sum(c[0] for c in chosen), base))
+
+    # Write out the sequence...
+    actual = my_sequence.write_frames(data, frames, args.beeb)
+
+    if args.optimise:
+        n = stream_optimise.verify(data, reference, args.trim_mode, args.mask_mode)
+        print("Verified: {0} frames, every player's picture unchanged".format(n))
+
+    print("Actual written bytes: {0} vs {1}".format(actual, len(data)))
 
     output_file.write(data)
     output_file.close()

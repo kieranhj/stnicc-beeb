@@ -10,17 +10,11 @@ EXEC_ADDRESS = &FF1100
 \\ NEED A BETTER WAY OF DOING THIS NEXT TIME!
 INTRO_SIZE = &1c00
 OUTRO_SIZE = &1200
-MUSIC_SIZE = &2C00
+\\ MUSIC_SIZE is EXE_SIZE_MUSIC in src/exe_sizes.h.asm
 README_SIZE = &600
 LOADER_SIZE = &C00
 
-IF _DEBUG
-EXE_SIZE = &2700
-NULA_SIZE = &2500
-ELSE
-EXE_SIZE = &2700
-NULA_SIZE = &2400
-ENDIF
+include "src/exe_sizes.h.asm"     ; asserted by stnicc-beeb.asm
 
 \ ******************************************************************
 \ *	EXES
@@ -31,8 +25,8 @@ PUTBASIC "src/loader.bas", "LOADER"
 PUTFILE "build/INTRO", "INTRO", LOAD_ADDRESS, EXEC_ADDRESS
 PUTFILE "build/MUSIC", "MUSIC", &8000, &8000
 PUTFILE "build/LOW", "LOW", LOAD_ADDRESS, EXEC_ADDRESS
-PUTFILE "build/HIGH", "HIGH", LOAD_ADDRESS, EXEC_ADDRESS
-PUTFILE "build/MEDIUM", "MEDIUM", LOAD_ADDRESS, EXEC_ADDRESS
+PUTFILE "build/CPC", "CPC", LOAD_ADDRESS, EXEC_ADDRESS
+\\ MEDIUM and HIGH are left off: the intro runs LOW, CPC (C) or NULA (N)
 PUTFILE "build/NULA", "NULA", LOAD_ADDRESS, EXEC_ADDRESS
 PUTFILE "build/OUTRO", "OUTRO", LOAD_ADDRESS, EXEC_ADDRESS
 PUTTEXT "data/readme.txt", "README", 0, 0
@@ -45,9 +39,9 @@ DFS_sector_size = 256
 DFS_sectors_per_track = 10
 DFS_track_size = (DFS_sectors_per_track * DFS_sector_size)
 
-DISK1_first_track = 30      ; 50 tracks on first disc
+DISK1_first_track = 24      ; 56 tracks on first disc (to track 79)
 
-exe_size = 3*EXE_SIZE + INTRO_SIZE + OUTRO_SIZE + NULA_SIZE + MUSIC_SIZE + README_SIZE + LOADER_SIZE
+exe_size = EXE_SIZE_LOW + EXE_SIZE_CPC + EXE_SIZE_NULA + INTRO_SIZE + OUTRO_SIZE + EXE_SIZE_MUSIC + README_SIZE + LOADER_SIZE
 PRINT "EXE size = ",~exe_size
 ; We know that Catalog + !Boot = &300
 ; Need to make a dummy file so 00 is at sector 20=track 2

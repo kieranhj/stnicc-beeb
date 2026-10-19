@@ -16,6 +16,9 @@ _STOP_AT_FRAME = -1
 ; Debug defines
 _DOUBLE_BUFFER = TRUE
 _PLOT_WIREFRAME = FALSE
+; Stream test: parse frames but draw nothing, so decoding outruns the disc
+; (tools/harness/run.mjs --parse-only)
+_TEST_PARSE_ONLY =? FALSE
 
 ; Rendering defines
 _HALF_VERTICAL_RES = (_QUALITY < 2)
@@ -23,11 +26,26 @@ _DOUBLE_PLOT_Y = (_QUALITY = 1)
 _WIDESCREEN = (_QUALITY = 2) AND FALSE
 _SKIP_ODD_FRAMES = FALSE
 
+; Optimised renderer, LOW only for now (see src/plot_poly_fast.asm)
+_FAST_POLY = (_QUALITY = 0) AND NOT(_NULA) AND NOT(_PLOT_WIREFRAME)
+
+; CPC: the NULA build's MODE 2 (64 x 100, each row on both its scanlines) with
+; the BBC's standard eight colours, no NuLA: each polygon colour is a 2x2 block
+; of two pens, a top line byte and a bottom line byte (data/cpc_palette.bin, from
+; tools/cpc_palette.py and tools/cpc_colour_map.py). Built with
+; -D _QUALITY=1 -D _NULA=-1 -D _CPC=-1.
+_CPC =? FALSE
+
+; The fast edge stage (src/plot_poly_fast.asm) for LOW, and for NULA and CPC
+; with their own span plotters; MEDIUM and HIGH keep the original.
+_FAST_EDGES = _FAST_POLY OR (_NULA AND NOT(_PLOT_WIREFRAME))
+
 PRINT "------"
 PRINT "STNICC-BEEB"
 PRINT "------"
 PRINT "_QUALITY =",_QUALITY
 PRINT "_NULA =",_NULA
+PRINT "_CPC =",_CPC
 PRINT "_DEBUG =",_DEBUG
 PRINT "_TESTS =",_TESTS
 PRINT "_SHOW_STREAMING_INFO =",_SHOW_STREAMING_INFO
@@ -79,6 +97,19 @@ DFS_track_size = (DFS_sectors_per_track * DFS_sector_size)
 \ ******************************************************************
 \ *	MACROS
 \ ******************************************************************
+
+\\ Copy size (1-255) bytes from `from` to `to`
+MACRO COPY_SMALL from, to, size
+{
+	ldx #0
+	.loop
+	lda from, X
+	sta to, X
+	inx
+	cpx #size
+	bne loop
+}
+ENDMACRO
 
 MACRO SWRAM_SELECT bank
 LDA #bank: sta &f4: sta &fe30
@@ -144,13 +175,23 @@ STREAMING_tracks_per_disk = 79
 STREAMING_sectors_to_load = 10
 
 DISK1_drive_no = 0
-DISK1_first_track = 30
-DISK1_last_track = DISK1_first_track + 50
+DISK1_first_track = 24      ; the stream runs to the end of the disc
+DISK1_last_track = 80
 
-DISK2_first_track = 1
-DISK2_last_track = DISK2_first_track + STREAMING_tracks_per_disk
+\\ Side 2 runs backwards, from track 79 down to 1, so the head need not seek
+\\ back across the disc when the stream moves on to it (bin/split.py)
+DISK2_first_track = 79
+DISK2_last_track = DISK2_first_track - STREAMING_tracks_per_disk
+OPCODE_DEC_zp = &C6             ; load_next_track's track step on side 2
 
 STREAM_buffer_size = 3 * DFS_track_size
+
+; Pages of stream that must be loaded before a frame may start (see irq_handler).
+; The largest frame of the re-encoded stream is 1548 bytes (frame 5; 1495 past the
+; initial fill), and N pages from the frame's start page guarantee (N-1)*256+1
+; bytes, so 8 (1793 bytes). Every player: the re-encoded stream is denser, and
+; NULA without the lock outran a slower disc than jsbeeb's early on.
+STREAM_pages_ahead = 8
 
 ; STNICCC scene1.bin constants
 MAX_VERTS_PER_POLY = 7
@@ -158,6 +199,10 @@ MAX_VERTS_PER_POLY = 7
 FLAG_CLEAR_SCREEN = 1
 FLAG_CONTAINS_PALETTE = 2
 FLAG_INDEXED_DATA = 4
+FLAG_CLEAR_MASK = 8         ; a clearing frame: 13 bytes follow the flags, a bit per row to clear
+CLEAR_MASK_BYTES = 13
+
+POLY_TRIM = 8               ; descriptor: a trim byte follows (rows LOW may skip: top << 4 | bottom)
 
 POLY_DESC_END_OF_STREAM = &FD
 POLY_DESC_SKIP_TO_64K = &FE
@@ -187,6 +232,11 @@ GUARD zp_top
 ;.span_end           skip 1
 .span_width         skip 1
 .span_colour        skip 1
+if _CPC
+.span_colour2       skip 1      ; the bottom line's byte
+.cpc_count          skip 1
+.cpc_colour_delta   skip 16     ; each colour's (cpc_palette_update)
+endif
 .shortptr			skip 2
 
 ; vars for drawline
@@ -269,6 +319,9 @@ ENDIF
 .music_enabled		skip 1
 .music_lock			skip 1
 
+.poly_trim			skip 1		; this polygon's trim byte, or 0 (_FAST_POLY)
+.stream_frame_HI	skip 1		; page of the frame being decoded: its vertices are read from there
+
 .zp_end
 
 \ ******************************************************************
@@ -278,6 +331,14 @@ ENDIF
 ORG &300
 GUARD &800
 .reloc_to_start
+if _FAST_POLY
+.lmask                  ; byte mask of pixels (x AND 3) to 3, by pixel x
+skip &80
+.rmask                  ; byte mask of pixels 0 to (x AND 3), by pixel x
+skip &80
+.fast_code_area         ; &400-&6FF: code relocated from reloc_fast_code
+skip &300
+else
 .screen_row_LO
 skip &100
 .screen1_row_HI
@@ -286,6 +347,7 @@ skip &100
 skip &100
 .y_to_row
 skip &100
+endif
 PAGE_ALIGN  ; lazy
 if not(_NULA)
 .poly_palette
@@ -295,6 +357,18 @@ skip &40
 endif
 .screen_col_LO
 skip &80
+if _CPC
+.cpc_colour_top         ; each polygon colour's top-line byte
+skip 16
+.cpc_colour_bottom      ; and its bottom-line byte
+skip 16
+endif
+if _FAST_EDGES AND NOT(_FAST_POLY)
+ASSERT P% <= &7A0
+ORG &7A0
+.up_left_area           ; up_shallow_left (plot_poly_fast_up2.asm), copied in with the tables
+skip &60
+endif
 .reloc_to_end
 
 ORG &A00
@@ -341,11 +415,36 @@ GUARD screen2_addr
 	ldx #HI(reloc_to_end - reloc_to_start + &ff)
 	jsr copy_pages
 
-if not(_NULA)
+if not(_NULA) OR _CPC
 	lda #HI(palette_stream_start)
 	ldy #HI(palette_stream_buffer)
 	ldx #HI(palette_stream_end - palette_stream_start + &ff)
 	jsr copy_pages
+endif
+
+if _FAST_EDGES
+	\\ Code that runs in spare pages; after the palette stream, which copies
+	\\ whole pages up to &CFF
+	lda #HI(reloc_page9_from)
+	ldy #&09
+	ldx #1
+	jsr copy_pages
+endif
+
+if _FAST_EDGES AND NOT(_FAST_POLY)
+	\\ More of the edge stage, and the stream helpers, run from spare low RAM
+	COPY_SMALL reloc_lowC_from, reloc_lowC_start, reloc_lowC_end - reloc_lowC_start
+	COPY_SMALL reloc_lowE_from, reloc_lowE_start, reloc_lowE_end - reloc_lowE_start
+	COPY_SMALL reloc_lowF_from, reloc_lowF_start, reloc_lowF_end - reloc_lowF_start
+endif
+
+if _FAST_POLY
+	ldx #reloc_pageC_end - reloc_pageC_start - 1
+	.copy_pageC
+	lda reloc_pageC_from, X
+	sta reloc_pageC_start, X
+	dex
+	bpl copy_pageC
 endif
 
     \\ Set stream pointer
@@ -353,6 +452,8 @@ endif
     sta STREAM_ptr_LO
     lda #HI(STREAM_buffer_start-1)
     sta STREAM_ptr_HI
+    lda #HI(STREAM_buffer_start)
+    sta stream_frame_HI
 
 	\\ Load our entire stream buffer from first track
 	LDA #DISK1_first_track
@@ -429,6 +530,7 @@ if _NULA
 	adc #$11
 	bcc reset_palette_loop
 
+if NOT(_CPC)  ; without a NuLA, &FE22 and &FE23 are the ULA's &FE20 and &FE21
 ; disable NuLA auxiliary palette
 	lda #$10
 	sta $fe22
@@ -437,6 +539,7 @@ if _NULA
     lda #$00
 	sta $fe23
 	sta $fe23
+endif
 else
 	jsr set_palette
 endif
@@ -501,18 +604,27 @@ endif
 	cmp #POLY_DESC_END_OF_STREAM
     beq track_load_error
 
-	\\ Which page are we reading crunched data from?
+	\\ The track at load_to can be refilled once the reader has left it: when
+	\\ the page the frame being decoded starts on is a track or more past
+	\\ load_to round the ring. (The frame start, not the stream pointer: the
+	\\ frame's vertices are read from there while the pointer runs on through
+	\\ its polygons.) Inside that track the ring is full, unless the decoder is
+	\\ locked waiting for data (a block skip caught the loader up), when the
+	\\ track is stale and must be loaded.
+	\\ (The original measures the distance in plain address order, which stops
+	\\ loading when the reader is just below load_to: with the decoder's
+	\\ look-ahead lock that would wait for ever.)
+	lda stream_frame_HI
 	sec
-	lda STREAM_ptr_HI
-
-	\\ Is it more than a "track" away?
-	SBC load_to_HI
-	BCS sectors_to_load_1
-	EOR #255
-	ADC #1
+	sbc load_to_HI
+	bcs sectors_to_load_1
+	adc #HI(STREAM_buffer_size)
 	.sectors_to_load_1
-	CMP #STREAMING_sectors_to_load
-	BCC not_ready_to_load
+	cmp #STREAMING_sectors_to_load
+	bcs ready_to_load
+	lda buffer_lock
+	beq not_ready_to_load
+	.ready_to_load
 
 	\\ If so, load a track's worth of data into our buffer
 	JSR load_next_track
@@ -534,6 +646,18 @@ endif
 	jsr hide_screen
 
 	inc decode_lock				; stop decoder from running
+IF _FAST_POLY
+	\\ Leave page 3 as the original LOW did: its screen_row_LO table, n AND 7.
+	\\ The span masks there instead upset the MOS font pointers (&367-&36E),
+	\\ which the final clock and the outro read characters through (OSWORD 10).
+	ldx #0
+	.restore_page3
+	txa
+	and #7
+	sta &300, X
+	inx
+	bne restore_page3
+ENDIF
 	jsr show_final_screen
 
 	\\ Turn off all interrupts
@@ -650,105 +774,11 @@ ENDIF
 }
 ENDIF
 
-\ ******************************************************************
-\ *	Streaming tracks from disk
-\ ******************************************************************
 
-.load_next_track
-{
-	\\ Track &FF indicates no more reading
-	LDA track_no
-	BMI TRACK_LOAD_return
 
-	\\ Store track no in params block
-	STA osword_params_track
-
-	LDA sector_no
-	STA osword_params_sector
-
-	\\ Update load address in params block
-	LDA load_to_HI
-	STA osword_params_address+1
-	
-	\\ Make DFS read multi-sector call
-	LDX #LO(osword_params)
-	LDY #HI(osword_params)
-	LDA #&7F
-	JSR osword
-
-	\\ Error value returned at end of params block
-	LDA osword_params_return
-	STA error_flag
-
-	\\ Next track
-	CLC
-	LDA sector_no
-	.sectors_to_load_2
-	ADC #STREAMING_sectors_to_load
-	CMP #DFS_sectors_per_track
-	BCC same_track
-	SBC #DFS_sectors_per_track
-	INC track_no
-	.same_track
-	STA sector_no
-
-	\\ Which disk?
-	LDA osword_params_drive
-	BEQ TRACK_LOAD_disk_1							; assumes we start on drive 0
-
-	\\ Disk N
-	LDA track_no
-	CMP #DISK2_last_track
-	BNE TRACK_LOAD_no_swap_disk
-    JMP TRACK_LOAD_disk_N
-
-	\\ Disk 1
-	.TRACK_LOAD_disk_1
-	LDA track_no
-	CMP #DISK1_last_track
-	BNE TRACK_LOAD_no_swap_disk
-
-	\\ Reached end of disk 1 so swap drives
-	.TRACK_LOAD_disk_N
-    LDX osword_params_drive
-	LDA drive_order, X
-	STA osword_params_drive
-
-	BNE TRACK_LOAD_continue
-
-	\\ End of last disk
-	\\ Reached end of disk N
-	LDA #&FF
-	STA track_no
-	BNE TRACK_LOAD_return
-
-	.TRACK_LOAD_continue
-
-	\\ Reset track to start of disk 2
-	LDA #DISK2_first_track
-	STA track_no
-
-	.TRACK_LOAD_no_swap_disk
-
-	\\ Increment our load ptr
-	CLC
-	LDA load_to_HI
-	.sectors_to_load_3
-	ADC #STREAMING_sectors_to_load
-
-	\\ Have we fallen off the end of the buffer?
-	CMP #HI(STREAM_buffer_end)
-	BNE TRACK_LOAD_no_wrap
-
-	\\ If so then reset to start
-	LDA #HI(STREAM_buffer_start)
-
-	.TRACK_LOAD_no_wrap
-	STA load_to_HI
-
-	.TRACK_LOAD_return
-	RTS
-}
+IF NOT(_FAST_EDGES AND NOT(_FAST_POLY))
+INCLUDE "src/load_next_track.asm"
+ENDIF
 
 .irq_handler
 {
@@ -771,11 +801,13 @@ ENDIF
     INC vsync_counter+1
     .no_carry
 
+	\\ (vsync_done is a JMP within reach: the stream check pushes
+	\\ return_to_os out of branch range)
     lda music_enabled
-    beq return_to_os
+    beq vsync_done
 
 	lda music_lock
-	bne return_to_os
+	bne vsync_done
 
 	inc music_lock
 	lda &f4:pha
@@ -787,6 +819,7 @@ ENDIF
 	pla:sta &f4:sta &fe30
 	dec music_lock
 
+	.vsync_done
 	JMP return_to_os
 
 	.not_vsync
@@ -848,42 +881,8 @@ ENDIF
 		lda #&ff:sta buffer_lock
 
 		.stream_ok
-		IF _PLOT_WIREFRAME OR _SKIP_ODD_FRAMES
-		{
-			lda track_no
-			bmi enough_data_for_next_frame
-			
-			lda STREAM_ptr_HI
-			cmp load_to_HI
-			bcs stream_ptr_gt_load_to
-
-			\\ Stream Ptr < Load To
-			sec
-			lda load_to_HI
-			sbc STREAM_ptr_HI
-			cmp #4
-			bcs enough_data_for_next_frame
-
-			\\ Otherwise lock our buffer
-			lda #&ff:sta buffer_lock
-			bne enough_data_for_next_frame
-
-			.stream_ptr_gt_load_to
-			\\ Stream Ptr > Load To
-			clc
-			lda load_to_HI
-			adc #HI(STREAM_buffer_size)
-			sec
-			sbc STREAM_ptr_HI
-			cmp #4
-			bcs enough_data_for_next_frame
-
-			\\ Otherwise lock our buffer
-			lda #&ff:sta buffer_lock
-
-			.enough_data_for_next_frame
-		}
-		ENDIF
+		\\ Lock the decoder unless enough of the stream is loaded
+		jsr stream_check_ahead
 
 if _NULA AND NOT(_DOUBLE_PLOT_Y)
 
@@ -977,6 +976,16 @@ endif
     lda #LO(screen1_addr/8):sta &fe01
 
 	\\ Draw screen 2
+if _FAST_POLY
+		lda #LO(fps_unrolled_screen2_LO)
+		sta fps_row_table_LO+1
+		lda #HI(fps_unrolled_screen2_LO)
+		sta fps_row_table_LO+2
+		lda #LO(fps_unrolled_screen2_HI)
+		sta fps_row_table_HI+1
+		lda #HI(fps_unrolled_screen2_HI)
+		sta fps_row_table_HI+2
+else
 	lda #HI(screen2_row_HI)
 	sta plot_long_span_set_screen+2
 	sta plot_short_span_set_screen+2
@@ -989,6 +998,7 @@ endif
 		sta plot_span_set_row_table_HI+1
 		lda #HI(span_row_table_screen2_HI)
 		sta plot_span_set_row_table_HI+2
+endif
 
 	\\ Continue
 	bne continue
@@ -1001,10 +1011,20 @@ endif
     lda #LO(screen2_addr/8):sta &fe01
 
 	\\ Draw screen 1
+if _FAST_POLY
+		lda #LO(fps_unrolled_screen1_LO)
+		sta fps_row_table_LO+1
+		lda #HI(fps_unrolled_screen1_LO)
+		sta fps_row_table_LO+2
+		lda #LO(fps_unrolled_screen1_HI)
+		sta fps_row_table_HI+1
+		lda #HI(fps_unrolled_screen1_HI)
+		sta fps_row_table_HI+2
+else
 	lda #HI(screen1_row_HI)
 	sta plot_long_span_set_screen+2
 	sta plot_short_span_set_screen+2
-		
+
 		lda #LO(span_row_table_screen1_LO)
 		sta plot_span_set_row_table_LO+1
 		lda #HI(span_row_table_screen1_LO)
@@ -1013,6 +1033,7 @@ endif
 		sta plot_span_set_row_table_HI+1
 		lda #HI(span_row_table_screen1_HI)
 		sta plot_span_set_row_table_HI+2
+endif
 
 	\\ Continue
 	.continue
@@ -1027,7 +1048,7 @@ endif
 
 .fx_start
 
-if not(_NULA)
+if not(_NULA) OR _CPC
 MACRO GET_PAL_BYTE
 {
     inc pal_ptr_LO
@@ -1136,7 +1157,9 @@ EQUB 2,&FF,0		; only two discs now!
 .next_part_cmd
 EQUS "/OUTRO", 13
 
+if not(_FAST_POLY)
 include "src/plot_data.asm"
+endif
 
 PAGE_ALIGN_FOR_SIZE 33*4
 .long_span_tables
@@ -1172,6 +1195,19 @@ INCLUDE "src/debug.asm"
 INCLUDE "src/tests.asm"
 INCLUDE "src/clock.asm"
 
+\\ NULA and CPC: load_next_track and the masked clear sit here, after the plotters,
+\\ so that their size does not push the page-aligned short-span routines onto a
+\\ later page
+IF _FAST_EDGES AND NOT(_FAST_POLY)
+INCLUDE "src/load_next_track.asm"
+INCLUDE "src/screen_cls_masked.asm"
+ENDIF
+
+INCLUDE "src/cpc_palette_update.asm"
+if NOT(_FAST_EDGES) OR _FAST_POLY   ; NULA and CPC run it from &F64
+INCLUDE "src/stream_helpers.asm"
+endif
+
 .screen_clear_full
 {
 	lda #0
@@ -1196,6 +1232,31 @@ INCLUDE "src/clock.asm"
 
 PAGE_ALIGN
 .reloc_from_start
+if _FAST_POLY
+.reloc_lmask
+FOR n,0,127,1
+p=n AND 3
+IF p=0:EQUB &FF:ELIF p=1:EQUB &77:ELIF p=2:EQUB &33:ELSE:EQUB &11:ENDIF  ; pixels p..3
+NEXT
+.reloc_rmask
+FOR n,0,127,1
+p=n AND 3
+IF p=0:EQUB &88:ELIF p=1:EQUB &CC:ELIF p=2:EQUB &EE:ELSE:EQUB &FF:ENDIF  ; pixels 0..p
+NEXT
+
+\\ The span plotter, assembled to run at &400 and stored here
+reloc_P4 = P%
+CLEAR &400, &700
+ORG &400
+GUARD &700
+.fast_code_start
+include "src/plot_spans_fast.asm"
+.fast_code_end
+COPYBLOCK fast_code_start, fast_code_end, reloc_P4
+CLEAR fast_code_start, fast_code_end
+ORG reloc_P4 + &300
+PRINT "Code at &400:", ~fast_code_end-fast_code_start, "bytes"
+else
 .reloc_screen_row_LO
 FOR n,0,255,1
 row=n DIV 8:sl=n MOD 8
@@ -1226,6 +1287,7 @@ row=n DIV 8
 EQUB row
 NEXT
 CHECK_SAME_PAGE_AS reloc_y_to_row
+endif
 
 \ ******************************************************************
 \ *	PALETTE DATA - MUST BE PAGE ALIGNED DUE TO SMC
@@ -1245,14 +1307,117 @@ col=n DIV 4
 endif
 EQUB LO(col*8)
 NEXT
+if _CPC
+FOR n,1,32:EQUB 0:NEXT  ; cpc_colour_top, cpc_colour_bottom: black until the first palette
+endif
 CHECK_SAME_PAGE_AS reloc_screen_col_LO
 
+if _FAST_EDGES AND NOT(_FAST_POLY)
+\\ up_shallow_left, assembled to run at &7A0 and stored where the page copy of
+\\ the tables puts it there
+reloc_P7 = reloc_from_start + &7A0 - reloc_to_start
+ASSERT P% <= reloc_P7
+SKIPTO reloc_P7
+CLEAR &7A0, &800
+ORG &7A0
+GUARD &800
+.reloc_page7_start
+include "src/plot_poly_fast_up2.asm"
+.reloc_page7_end
+COPYBLOCK reloc_page7_start, reloc_page7_end, reloc_P7
+CLEAR reloc_page7_start, reloc_page7_end
+ORG reloc_P7 + reloc_page7_end - reloc_page7_start
+endif
+
 .reloc_from_end
+
+if _FAST_EDGES
+\\ Code assembled to run at &900 and (LOW) &C90 (spare at runtime: the MOS RS423
+\\ output buffer, and the user-defined characters after palette_stream_buffer)
+\\ but stored here, under the streaming buffer; main copies it into place.
+PAGE_ALIGN
+.reloc_page9_from
+reloc_P = P%
+ORG &900
+GUARD &A00
+.reloc_page9_start
+include "src/plot_poly_fast_up.asm"
+.reloc_page9_end
+COPYBLOCK reloc_page9_start, reloc_page9_end, reloc_P
+CLEAR reloc_page9_start, reloc_page9_end
+ORG reloc_P + reloc_page9_end - reloc_page9_start
+PRINT "Relocated code: &900 block", ~reloc_page9_end-reloc_page9_start, "bytes"
+endif
+
+if _FAST_EDGES AND NOT(_FAST_POLY)
+\\ NULA and CPC: the rest of the edge stage and the stream helpers, in the span
+\\ buffers' unused rows (vertex y is 0-99) and after the palette stream (CPC's
+\\ is at most &230 bytes, to &C2F; NULA has none)
+.reloc_lowC_from
+reloc_PCL = P%
+CLEAR &C30, &D00
+ORG &C30
+GUARD &D00
+.reloc_lowC_start
+include "src/plot_poly_fast_steep.asm"
+include "src/plot_poly_fast_left.asm"
+.reloc_lowC_end
+COPYBLOCK reloc_lowC_start, reloc_lowC_end, reloc_PCL
+CLEAR reloc_lowC_start, reloc_lowC_end
+ORG reloc_PCL + reloc_lowC_end - reloc_lowC_start
+
+.reloc_lowE_from
+reloc_PE = P%
+CLEAR &E64, &F00
+ORG &E64
+GUARD &F00
+.reloc_lowE_start
+include "src/plot_poly_fast_setup.asm"
+.reloc_lowE_end
+COPYBLOCK reloc_lowE_start, reloc_lowE_end, reloc_PE
+CLEAR reloc_lowE_start, reloc_lowE_end
+ORG reloc_PE + reloc_lowE_end - reloc_lowE_start
+
+.reloc_lowF_from
+reloc_PF = P%
+CLEAR &F64, &1000
+ORG &F64
+GUARD &1000
+.reloc_lowF_start
+include "src/plot_poly_fast_right.asm"
+include "src/stream_helpers.asm"
+.reloc_lowF_end
+COPYBLOCK reloc_lowF_start, reloc_lowF_end, reloc_PF
+CLEAR reloc_lowF_start, reloc_lowF_end
+ORG reloc_PF + reloc_lowF_end - reloc_lowF_start
+PRINT "Relocated code: &C30", ~reloc_lowC_end-reloc_lowC_start, "&E64", ~reloc_lowE_end-reloc_lowE_start, "&F64", ~reloc_lowF_end-reloc_lowF_start, "bytes"
+endif
+
+if _FAST_POLY
+.reloc_pageC_from
+reloc_PC = P%
+CLEAR &C90, &D00
+ORG &C90
+GUARD &D00
+.reloc_pageC_start
+include "src/plot_poly_fast_up2.asm"
+.reloc_pageC_end
+COPYBLOCK reloc_pageC_start, reloc_pageC_end, reloc_PC
+CLEAR reloc_pageC_start, reloc_pageC_end
+ORG reloc_PC + reloc_pageC_end - reloc_pageC_start
+PRINT "Relocated code: &C90 block", ~reloc_pageC_end-reloc_pageC_start, "bytes"
+endif
 
 if not(_NULA)
 PAGE_ALIGN
 GUARD P%+&300
 include "src/palette_stream.asm"
+elif _CPC
+PAGE_ALIGN
+GUARD P%+&230               ; to &C2F: the edge stage runs from &C30
+.palette_stream_start
+INCBIN "data/cpc_palette.bin"
+.palette_stream_end
 endif
 
 \ ******************************************************************
@@ -1265,13 +1430,26 @@ endif
 \ *	Save the code
 \ ******************************************************************
 
-IF _NULA
+\\ The disc layout (stnicc-build.asm) depends on each executable's size in
+\\ sectors: see src/exe_sizes.h.asm
+include "src/exe_sizes.h.asm"
+exe_sectors_size = (end - start + &FF) AND &FF00
+PRINT "Executable size =", ~end - start, "(", ~exe_sectors_size, "in sectors )"
+
+IF _CPC
+ASSERT exe_sectors_size = EXE_SIZE_CPC
+SAVE "build/CPC", start, end, main
+ELIF _NULA
+ASSERT exe_sectors_size = EXE_SIZE_NULA
 SAVE "build/NULA", start, end, main
 ELIF _QUALITY == 2
+ASSERT exe_sectors_size = EXE_SIZE_HIGH
 SAVE "build/HIGH", start, end, main
 ELIF _QUALITY == 1
+ASSERT exe_sectors_size = EXE_SIZE_MEDIUM
 SAVE "build/MEDIUM", start, end, main
 ELIF _QUALITY == 0
+ASSERT exe_sectors_size = EXE_SIZE_LOW
 SAVE "build/LOW", start, end, main
 ENDIF
 
@@ -1305,7 +1483,7 @@ PRINT "FX size = ", ~fx_end-fx_start
 PRINT "DATA size =",~data_end-data_start
 PRINT "ADDITIONAL size =",~additional_end-additional_start
 PRINT "RELOC size =",~reloc_from_end-reloc_from_start
-if not(_NULA)
+if not(_NULA) OR _CPC
 PRINT "PALETTE STREAM size =",~palette_stream_end-palette_stream_start
 endif
 PRINT "BSS size =",~bss_end-bss_start

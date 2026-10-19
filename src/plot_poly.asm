@@ -3,7 +3,11 @@
 \ *	SPAN BUFFER POLYGON FILL ROUTINES
 \ ******************************************************************
 
+IF _CPC
+_SHORT_SPAN_MAX_BYTES=3     ; so each set of short-span routines still fits its page
+ELSE
 _SHORT_SPAN_MAX_BYTES=4
+ENDIF
 
 if _NULA
 
@@ -36,6 +40,8 @@ endif
 ; having to recalculate each time etc.
 
 ; This fn is called 3 million times across the entire sequence so every cycle counts!
+IF NOT(_FAST_POLY)  ; plot_spans_fast.asm replaces the span plotters
+
 .plot_long_span
 {
     ; X=span_start
@@ -65,7 +71,18 @@ and #%01010101
 eor (writeptr),y
 sta (writeptr),y
 
-if _DOUBLE_PLOT_Y:iny:sta (writeptr),y:dey:endif
+if _CPC
+\\ the bottom line has its own byte, and its neighbour pixel is not the top's
+iny
+lda (writeptr),y
+eor span_colour2
+and #%01010101
+eor (writeptr),y
+sta (writeptr),y
+dey
+elif _DOUBLE_PLOT_Y
+iny:sta (writeptr),y:dey
+endif
 
 dec span_width
 
@@ -162,8 +179,13 @@ endif
     .branch_to_done_double_plot
     bne done_double_plot                    ; 6c
 
+    IF _CPC
+    iny:lda span_colour2                    ; bottom line: its own byte
+    jmp jump_to_unrolled_span_row
+    ELSE
     iny:bne do_unrolled_span                ; 5c
     CHECK_SAME_PAGE_AS do_unrolled_span
+    ENDIF
 
     .done_double_plot
     CHECK_SAME_PAGE_AS branch_to_done_double_plot
@@ -188,6 +210,15 @@ and #%10101010
 eor (writeptr),y
 sta (writeptr),y
 
+if _CPC
+iny
+lda (writeptr),y
+eor span_colour2
+and #%10101010
+eor (writeptr),y
+sta (writeptr),y
+endif
+
 else
 
     \\ Last byte?
@@ -209,7 +240,7 @@ else
 
 endif
 
-    IF _DOUBLE_PLOT_Y
+    IF _DOUBLE_PLOT_Y AND NOT(_CPC)
     iny:sta (writeptr), Y                   ; 8c
     ENDIF
     .skip_last_byte
@@ -222,8 +253,45 @@ endif
 \ *	POLYGON PLOT FUNCTIONS
 \ ******************************************************************
 
-.plot_poly_span
+
 {
+IF _FAST_EDGES
+    \\ NULA and CPC: plot_poly_fast.asm made the spans and jumps here
+    .^plot_poly_rows
+    \\ Leave out the rows the stream's trim says end the frame overdrawn (the
+    \\ encoder's --trim-mode both makes them safe on the 64-wide raster too)
+    lda poly_trim
+    beq untrimmed
+    lsr a:lsr a:lsr a:lsr a
+    clc
+    adc span_buffer_min_y
+    sta span_buffer_min_y
+    lda poly_trim
+    and #&0f
+    eor #&ff
+    sec
+    adc span_buffer_max_y       ; max_y - bottom, C=0 if below 0
+    bcc nothing
+    sta span_buffer_max_y
+    cmp span_buffer_min_y
+    bcs untrimmed
+    .nothing
+    jmp return_here_from_plot_poly
+    .untrimmed
+IF _CPC
+    \\ A dithered colour's bottom line byte swaps its pixels on odd rows (span_loop
+    \\ EORs cpc_delta_eor's operand in after each row), so start it on the first
+    \\ row's parity
+    lda span_buffer_min_y
+    lsr a
+    bcc even_row
+    lda span_colour2
+    eor cpc_delta_eor+1
+    sta span_colour2
+    .even_row
+ENDIF
+ELSE
+.^plot_poly_span
     ; X=poly_num_verts
 
     \\ Duplicate first vertex to end
@@ -261,6 +329,7 @@ endif
     dex                         ; 2c
     bpl line_loop               ; 3c
     CHECK_SAME_PAGE_AS line_loop
+ENDIF
 
     \\ Palette lookup set during frame_parse
 
@@ -336,11 +405,20 @@ endif
     .skip_span
     ldy poly_y                  ; 3c
 
+IF _CPC
+    lda span_colour2            ; 3c
+    .^cpc_delta_eor
+    eor #0                      ; 2c    the polygon's (parse_frame): the next row's bottom line byte
+    sta span_colour2            ; 3c
+ENDIF
+
+IF NOT(_FAST_EDGES)             ; the fast edge stage resets only vertex rows
     \\ Reset this line of the span buffer since we're already here
     lda #255                    ; 2c
     sta span_buffer_start, Y    ; 5c
     lda #0                      ; 2c
     sta span_buffer_end, Y      ; 5c
+ENDIF
 
     iny                         ; 2c
     .span_loop_max_y
@@ -351,6 +429,7 @@ endif
     .skip_span_loop
     jmp return_here_from_plot_poly
 }
+
 
 .plot_short_span
 {
@@ -475,6 +554,8 @@ ENDIF
 endif
 }
 
+ENDIF ; NOT(_FAST_POLY)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 if _NULA
@@ -491,7 +572,14 @@ and #%01010101
 eor (shortptr),y
 sta (shortptr),y
 
-if _DOUBLE_PLOT_Y
+if _CPC
+iny
+lda (shortptr),y
+eor span_colour2
+and #%01010101
+eor (shortptr),y
+sta (shortptr),y
+elif _DOUBLE_PLOT_Y
 iny
 sta (shortptr),y
 endif
@@ -511,6 +599,19 @@ endif
 
 if npixels DIV 2>0
 
+if _CPC
+
+FOR x,0,npixels DIV 2-1
+ldy #yoffset+x*8
+lda span_colour
+sta (shortptr),y
+iny
+lda span_colour2
+sta (shortptr),y
+NEXT
+
+else
+
 lda span_colour
 
 FOR x,0,npixels DIV 2-1
@@ -526,6 +627,8 @@ NEXT
 
 endif
 
+endif
+
 if (npixels MOD 2)<>0
 
 ldy #yoffset+(npixels div 2)*8
@@ -535,7 +638,14 @@ and #%10101010
 eor (shortptr),y
 sta (shortptr),y
 
-if _DOUBLE_PLOT_Y
+if _CPC
+iny
+lda (shortptr),y
+eor span_colour2
+and #%10101010
+eor (shortptr),y
+sta (shortptr),y
+elif _DOUBLE_PLOT_Y
 iny
 sta (shortptr),y
 endif
@@ -554,8 +664,10 @@ equb (nula_short_span_odd_2>>shift) and 255
 equb (nula_short_span_odd_3>>shift) and 255
 equb (nula_short_span_odd_4>>shift) and 255
 equb (nula_short_span_odd_5>>shift) and 255
+if _SHORT_SPAN_MAX_PIXELS > 5
 equb (nula_short_span_odd_6>>shift) and 255
 equb (nula_short_span_odd_7>>shift) and 255
+endif
 ENDMACRO
 
 MACRO NULA_SHORT_SPAN_EVEN_TABLE shift
@@ -565,8 +677,10 @@ equb (nula_short_span_even_2>>shift) and 255
 equb (nula_short_span_even_3>>shift) and 255
 equb (nula_short_span_even_4>>shift) and 255
 equb (nula_short_span_even_5>>shift) and 255
+if _SHORT_SPAN_MAX_PIXELS > 5
 equb (nula_short_span_even_6>>shift) and 255
 equb (nula_short_span_even_7>>shift) and 255
+endif
 ENDMACRO
 
 ; .nula_short_span_odd_table_HI:NULA_SHORT_SPAN_ODD_TABLE 8
@@ -579,8 +693,10 @@ PAGE_ALIGN
 .nula_short_span_even_3:NULA_SHORT_SPAN FALSE,3
 .nula_short_span_even_4:NULA_SHORT_SPAN FALSE,4
 .nula_short_span_even_5:NULA_SHORT_SPAN FALSE,5
+if _SHORT_SPAN_MAX_PIXELS > 5
 .nula_short_span_even_6:NULA_SHORT_SPAN FALSE,6
 .nula_short_span_even_7:NULA_SHORT_SPAN FALSE,7
+endif
 .nula_short_span_even_table_LO:NULA_SHORT_SPAN_EVEN_TABLE 0
 CHECK_SAME_PAGE_AS nula_short_span_even_1
 
@@ -590,8 +706,10 @@ PAGE_ALIGN
 .nula_short_span_odd_3:NULA_SHORT_SPAN TRUE,3
 .nula_short_span_odd_4:NULA_SHORT_SPAN TRUE,4
 .nula_short_span_odd_5:NULA_SHORT_SPAN TRUE,5
+if _SHORT_SPAN_MAX_PIXELS > 5
 .nula_short_span_odd_6:NULA_SHORT_SPAN TRUE,6
 .nula_short_span_odd_7:NULA_SHORT_SPAN TRUE,7
+endif
 .nula_short_span_odd_table_LO:NULA_SHORT_SPAN_ODD_TABLE 0
 CHECK_SAME_PAGE_AS nula_short_span_odd_1
 
@@ -611,12 +729,20 @@ endif
     lda #0
     sta span_buffer_end, Y
     iny
+IF _FAST_EDGES AND NOT(_FAST_POLY)
+    cpy #100                    ; the rows beyond hold relocated code
+ELSE
     cpy #SCREEN_HEIGHT_PIXELS
+ENDIF
     bne loop
     CHECK_SAME_PAGE_AS loop
 
     rts
 }
+
+IF _FAST_EDGES
+INCLUDE "src/plot_poly_fast.asm"
+ELSE
 
 ; ALIGN TO AVOID CROSSING PAGE BOUNDARY
 skip &4
@@ -864,6 +990,8 @@ ENDMACRO
     jmp return_here_from_drawline
 }
 
+ENDIF ; _FAST_POLY
+
 \ ******************************************************************
 \ *	UPDATE PALETTE
 \ ******************************************************************
@@ -947,6 +1075,7 @@ ENDMACRO
 
 UNROLLED_ROW_SIZE = 33 * 3
 
+IF NOT(_FAST_POLY)  ; the fast span plotter indexes its own tables by y
 PAGE_ALIGN_FOR_SIZE 25
 .span_row_table_screen1_LO
 FOR row,0,24,1    ;SCREEN_HEIGHT_PIXELS-1,1
@@ -978,6 +1107,7 @@ FOR row,0,24,1    ;SCREEN_HEIGHT_PIXELS-1,1
 EQUB HI(span_screen2_row0_unrolled + row * UNROLLED_ROW_SIZE)
 NEXT
 CHECK_SAME_PAGE_AS span_row_table_screen2_HI
+ENDIF
 
 .span_screen1_row0_unrolled
 UNROLL_SPAN_ROW 1, 0

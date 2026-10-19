@@ -4,7 +4,9 @@ import sys
 
 TRACK_SIZE = 10 * 256
 SPLIT_SIZE = 79 * TRACK_SIZE
-FIRST_SIZE = 50 * TRACK_SIZE
+# disc 1 holds tracks DISK1_first_track..79 (stnicc-beeb.asm, stnicc-build.asm)
+DISK1_FIRST_TRACK = 24
+FIRST_SIZE = (80 - DISK1_FIRST_TRACK) * TRACK_SIZE
 
 if __name__ == '__main__':
 
@@ -27,8 +29,15 @@ if __name__ == '__main__':
     nf.write(data[0:first_chunk])
     nf.close()
 
+    # Disc 2 is read backwards, from track 79 down to track 1, so that the head
+    # does not seek back across the disc at the side switch: pad its chunk to
+    # all 79 tracks and store them last first (src/part-2.asm puts the file
+    # at track 1, so file track i is disc track i + 1).
+    chunk = data[first_chunk:first_chunk + 1*SPLIT_SIZE]
+    chunk += b'\x55' * (SPLIT_SIZE - len(chunk))
+    tracks = [chunk[i:i + TRACK_SIZE] for i in range(0, SPLIT_SIZE, TRACK_SIZE)]
     nf = open('scene1_disk.01.bin', 'wb')
-    nf.write(data[first_chunk:first_chunk + 1*SPLIT_SIZE])
+    nf.write(b''.join(reversed(tracks)))
     nf.close()
 
     nf = open('scene1_disk.02.bin', 'wb')

@@ -21,7 +21,7 @@ endif
 
 SHELLCMD:=$(PYTHON) bin/shellcmd.py
 
-VGMPACKER:=$(PYTHON) ../vgm-packer/vgmpacker.py
+VGIPACKER:=$(PYTHON) ../vgm-packer/vgipacker.py --v3
 
 BUILD:=./build
 
@@ -29,13 +29,14 @@ BUILD:=./build
 ##########################################################################
 
 .PHONY:build
-build: $(BUILD)/logo_mode1.exo $(BUILD)/intro_theme.vgc $(BUILD)/main_theme.vgc $(BUILD)/outro_theme.vgc
+build: $(BUILD)/logo_mode1.exo $(BUILD)/intro_theme.vgi $(BUILD)/main_theme.vgi $(BUILD)/outro_theme.vgi
 	$(SHELLCMD) mkdir $(BUILD)
 
 #	$(BEEBASM) -D _QUALITY=2 -D _NULA=0 -i stnicc-beeb.asm -v > $(BUILD)/high.txt
 #	$(BEEBASM) -D _QUALITY=1 -D _NULA=0 -i stnicc-beeb.asm -v > $(BUILD)/medium.txt
 	$(BEEBASM) -D _QUALITY=0 -D _NULA=0 -i stnicc-beeb.asm -v > $(BUILD)/low.txt
 	$(BEEBASM) -D _QUALITY=1 -D _NULA=-1 -i stnicc-beeb.asm -v > $(BUILD)/nula.txt
+	$(BEEBASM) -D _QUALITY=1 -D _NULA=-1 -D _CPC=-1 -i stnicc-beeb.asm -v > $(BUILD)/cpc.txt
 
 	$(BEEBASM) -i src/intro.asm -v > $(BUILD)/intro.txt
 	$(BEEBASM) -i src/outro.asm -v > $(BUILD)/outro.txt
@@ -46,17 +47,17 @@ build: $(BUILD)/logo_mode1.exo $(BUILD)/intro_theme.vgc $(BUILD)/main_theme.vgc 
 
 	$(PYTHON) bin/dsd_create.py -o $(BUILD)/stnicc-A.dsd $(BUILD)/part-1.ssd $(BUILD)/part-2.ssd
 
-$(BUILD)/intro_theme.vgc : data/intro_test.vgm
+$(BUILD)/intro_theme.vgi : data/intro_test.vgm
 	$(SHELLCMD) mkdir $(BUILD)
-	$(VGMPACKER) -o "$@" "$<"
+	$(VGIPACKER) -o "$@" "$<"
 
-$(BUILD)/main_theme.vgc : data/main_test.vgm
+$(BUILD)/main_theme.vgi : data/main_test.vgm
 	$(SHELLCMD) mkdir $(BUILD)
-	$(VGMPACKER) -o "$@" "$<"
+	$(VGIPACKER) -o "$@" "$<"
 
-$(BUILD)/outro_theme.vgc : data/outro_test.vgm
+$(BUILD)/outro_theme.vgi : data/outro_test.vgm
 	$(SHELLCMD) mkdir $(BUILD)
-	$(VGMPACKER) -o "$@" "$<"
+	$(VGIPACKER) -o "$@" "$<"
 
 $(BUILD)/logo_mode1.exo : ./data/BeeBShifters.png
 	$(SHELLCMD) mkdir $(BUILD)
@@ -68,8 +69,9 @@ $(BUILD)/logo_mode1.exo : ./data/BeeBShifters.png
 
 .PHONY:data
 data:
-	cd data && $(PYTHON) ../bin/encoder.py scene1.bin -o scene1.half.7680.bin -a 7680 -f 2 -b > out.txt
+	cd data && $(PYTHON) ../bin/encoder.py scene1.bin -o scene1.half.7680.bin -a 7680 -f 2 -b --optimise --capacity 345600 --trim-mode both --mask-mode both > out.txt
 	cd data && $(PYTHON) ../bin/split.py scene1.half.7680.bin
+	cd data && $(PYTHON) ../tools/cpc_palette.py scene1.half.7680.bin cpc_palette.bin
 
 ##########################################################################
 ##########################################################################

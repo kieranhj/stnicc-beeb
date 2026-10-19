@@ -50,8 +50,13 @@ ENDMACRO
 ORG &80
 GUARD &A0
 
+\\ The VGI player (lib/vgiplayer.asm, from vgm-player-bbc): v3 files, unrolled
+\\ decoder. Mean ~985 cycles a frame against the VGC player's ~1,790.
+VGI_V3 = TRUE
+VGI_UNROLL = TRUE
+
 .zp_start
-INCLUDE "lib/vgcplayer.h.asm"
+INCLUDE "lib/vgiplayer.h.asm"
 .zp_end
 
 \ ******************************************************************
@@ -106,7 +111,7 @@ GUARD &C000
 {
 sei								; in case it's playing...
 lda #$0f
-jsr fiddle_vgm_register_headers
+jsr set_volume_bits
 jsr sn_reset
 cli
 rts
@@ -115,36 +120,41 @@ rts
 .loud
 {
 lda #$00
-jsr fiddle_vgm_register_headers
-rts
+jmp set_volume_bits
 }
 
-.fiddle_vgm_register_headers
+\\ A = &0F (every volume the player writes becomes 15, silent) or 0 (as played):
+\\ the low nibble of the player's four volume ORs
+MACRO SET_VOLUME_BITS ora_at
+    lda ora_at+1
+    and #$f0
+    ora set_volume_bits_value
+    sta ora_at+1
+ENDMACRO
+
+.set_volume_bits
 {
-sta ora_bits+1
-ldx #4
-.loop
-lda vgm_register_headers,x
-and #$f0
-.ora_bits:ora #$00
-sta vgm_register_headers,x
-inx
-cpx #8
-bne loop
+sta set_volume_bits_value
+SET_VOLUME_BITS vgi_vol0_ora
+SET_VOLUME_BITS vgi_vol1_ora
+SET_VOLUME_BITS vgi_vol2_ora
+SET_VOLUME_BITS vgi_vol3_ora
 rts
 }
+.set_volume_bits_value
+equb 0
 
-INCLUDE "lib/vgcplayer.asm"
+INCLUDE "lib/vgiplayer.asm"
 .main_end
 
 .data_start
 PAGE_ALIGN
 .vgc_data_intro_theme
-INCBIN "build/intro_theme.vgc"
+INCBIN "build/intro_theme.vgi"
 .vgc_data_main_theme
-INCBIN "build/main_theme.vgc"
+INCBIN "build/main_theme.vgi"
 .vgc_data_outro_theme
-INCBIN "build/outro_theme.vgc"
+INCBIN "build/outro_theme.vgi"
 .data_end
 .end
 
@@ -176,6 +186,10 @@ PAGE_ALIGN
 \ ******************************************************************
 
 SAVE "build/MUSIC", start, end, start
+
+\\ The disc 1 layout (stnicc-build.asm) relies on MUSIC filling its slot
+INCLUDE "src/exe_sizes.h.asm"
+ASSERT ((end - start + 255) AND &FF00) = EXE_SIZE_MUSIC
 
 \ ******************************************************************
 \ *	Memory Info

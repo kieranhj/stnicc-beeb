@@ -142,11 +142,13 @@ STREAMING_tracks_per_disk = 79
 STREAMING_sectors_to_load = 10
 
 DISK1_drive_no = 0
-DISK1_first_track = 30
-DISK1_last_track = DISK1_first_track + 50
+DISK1_first_track = 24      ; as stnicc-beeb.asm: the stream runs to the end of the disc
+DISK1_last_track = 80
 
-DISK2_first_track = 1
-DISK2_last_track = DISK2_first_track + STREAMING_tracks_per_disk
+\\ Side 2 is read backwards, from track 79 down to 1 (bin/split.py)
+DISK2_first_track = 79
+DISK2_last_track = DISK2_first_track - STREAMING_tracks_per_disk
+OPCODE_DEC_zp = &C6             ; load_next_track's track step on side 2
 
 STREAM_buffer_size = 3 * DFS_track_size
 
@@ -156,6 +158,9 @@ MAX_VERTS_PER_POLY = 7
 FLAG_CLEAR_SCREEN = 1
 FLAG_CONTAINS_PALETTE = 2
 FLAG_INDEXED_DATA = 4
+FLAG_CLEAR_MASK = 8             ; 13 bytes of rows to clear follow the flags
+CLEAR_MASK_BYTES = 13
+POLY_TRIM = 8                   ; in a descriptor: a trim byte follows it
 
 POLY_DESC_END_OF_STREAM = &FD
 POLY_DESC_SKIP_TO_64K = &FE
@@ -218,6 +223,7 @@ ENDIF
 .frame_flags        skip 1
 .frame_bitmask      skip 2
 .indexed_num_verts  skip 1
+.stream_frame_HI    skip 1      ; page the frame being decoded starts on
 ;.poly_descriptor    skip 1
 .eof_flag			skip 1
 
@@ -343,6 +349,8 @@ GUARD screen3_addr
     sta STREAM_ptr_LO
     lda #HI(STREAM_buffer_start-1)
     sta STREAM_ptr_HI
+    lda #HI(STREAM_buffer_start)
+    sta stream_frame_HI
 
 	\\ Load our entire stream buffer from first track
 	LDA #DISK1_first_track
@@ -478,9 +486,10 @@ ENDIF
 	cmp #POLY_DESC_END_OF_STREAM
     beq track_load_error
 
-	\\ Which page are we reading crunched data from?
+	\\ Which page are we reading crunched data from? (The page the frame being
+	\\ decoded starts on: its vertices are read from there.)
 	sec
-	lda STREAM_ptr_HI
+	lda stream_frame_HI
 
 	\\ Is it more than a "track" away?
 	SBC load_to_HI
@@ -676,7 +685,8 @@ ENDIF
 	CMP #DFS_sectors_per_track
 	BCC same_track
 	SBC #DFS_sectors_per_track
-	INC track_no
+	.track_step
+	INC track_no                ; DEC on side 2
 	.same_track
 	STA sector_no
 
@@ -712,9 +722,11 @@ ENDIF
 
 	.TRACK_LOAD_continue
 
-	\\ Reset track to start of disk 2
+	\\ Reset track to start of disk 2, which is read backwards
 	LDA #DISK2_first_track
 	STA track_no
+	LDA #OPCODE_DEC_zp
+	STA track_step
 
 	.TRACK_LOAD_no_swap_disk
 
@@ -1125,7 +1137,22 @@ ENDMACRO
     ldy #0
     GET_BYTE
     sta frame_flags
+    lda STREAM_ptr_HI           ; the loader leaves this frame's pages alone
+    sta stream_frame_HI
 
+    \\ Step over a clear mask: the outro draws wireframe
+    lda frame_flags
+    and #FLAG_CLEAR_MASK
+    beq no_clear_mask
+    clc
+    lda STREAM_ptr_LO
+    adc #CLEAR_MASK_BYTES
+    sta STREAM_ptr_LO
+    bcc no_clear_mask
+    inc STREAM_ptr_HI
+    .no_clear_mask
+
+    lda frame_flags
     and #FLAG_CLEAR_SCREEN
 IF _PLOT_WIREFRAME = FALSE
     beq no_clear_screen
@@ -1203,8 +1230,15 @@ ENDIF
     cmp #POLY_DESC_END_OF_STREAM
     bcs parse_end_of_frame
 
-    and #&f
+    and #7
     sta poly_num_verts
+
+    \\ Step over a trim byte: the outro draws whole polygons
+    txa
+    and #POLY_TRIM
+    beq no_trim
+    GET_BYTE
+    .no_trim
 
 	\\ We don't care about the colour of the poly
 

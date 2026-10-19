@@ -13,7 +13,7 @@ MACRO GET_BYTE
 }
 ENDMACRO
 
-if _NULA
+if _NULA AND NOT(_CPC)
 .mode2_pixels
 equb %00000000
 equb %00000011
@@ -33,6 +33,20 @@ equb %11111100
 equb %11111111
 endif
 
+IF _FAST_EDGES
+\\ A = vertex y: reset its span buffer row and track the polygon's min/max y
+\\ (the first step of plot_poly_span in plot_poly_fast.asm). Uses Y.
+MACRO FAST_POLY_VERTEX_ROW
+{
+    tay
+    lda #255:sta span_buffer_start, Y
+    lda #0:sta span_buffer_end, Y
+    cpy span_buffer_min_y:bcs not_min:sty span_buffer_min_y:.not_min
+    cpy span_buffer_max_y:bcc not_max:sty span_buffer_max_y:.not_max
+}
+ENDMACRO
+ENDIF
+
 .parse_frame
 {
     inc frame_no
@@ -43,14 +57,43 @@ endif
     ldy #0
     GET_BYTE
     sta frame_flags
+    lda STREAM_ptr_HI           ; the loader leaves this frame's pages alone
+    sta stream_frame_HI
+    lda frame_flags
 
     and #FLAG_CLEAR_SCREEN
-IF _PLOT_WIREFRAME = FALSE
+IF _TEST_PARSE_ONLY
+    jmp no_clear_screen
+ELIF _PLOT_WIREFRAME = FALSE
     beq no_clear_screen
+ENDIF
+
+IF _FAST_EDGES AND NOT(_TEST_PARSE_ONLY)
+    \\ Clear only the rows the frame's polygons leave uncovered, if it says
+    lda frame_flags
+    and #FLAG_CLEAR_MASK
+    beq full_clear
+    jsr screen_cls_masked       ; reads the mask
+    jmp cleared
+    .full_clear
 ENDIF
 
     jsr screen_cls
     .no_clear_screen
+
+IF NOT(_FAST_EDGES) OR _TEST_PARSE_ONLY
+    \\ Step over a clear mask: MEDIUM and HIGH clear the whole screen
+    lda frame_flags
+    and #FLAG_CLEAR_MASK
+    beq cleared
+    clc
+    lda STREAM_ptr_LO
+    adc #CLEAR_MASK_BYTES
+    sta STREAM_ptr_LO
+    bcc cleared
+    inc STREAM_ptr_HI
+ENDIF
+    .cleared
 
     lda frame_flags
     and #FLAG_CONTAINS_PALETTE
@@ -68,18 +111,22 @@ ENDIF
 
 	GET_BYTE
 
-if _NULA
+if _NULA AND NOT(_CPC)
    sta $fe23
 endif
 
 	GET_BYTE
 
-if _NULA
+if _NULA AND NOT(_CPC)
    sta $fe23
 endif
 
     dex
     bne parse_palette_loop
+
+if _CPC
+    jsr cpc_palette_update
+endif
 
 if NOT(_NULA)
     GET_PAL_BYTE
@@ -144,10 +191,22 @@ endif
     GET_BYTE
     tax ; poly_descriptor
     cmp #POLY_DESC_END_OF_STREAM
-    bcs parse_end_of_frame
+    bcc not_end_of_frame
+    rts                         ; end of frame (parse_end_of_frame is out of reach)
+    .not_end_of_frame
 
-    and #&f
+    and #7
     sta poly_num_verts
+
+    \\ A trim byte follows if the descriptor says so: rows LOW can leave out
+    txa
+    and #POLY_TRIM
+    beq no_trim                 ; A = 0
+    GET_BYTE
+    .no_trim
+IF _FAST_EDGES
+    sta poly_trim
+ENDIF
 
     \\ Could be a table: lda poly_descriptor_to_palette_offset, X
     \\ To save 4c per poly at the expense of 1 page.
@@ -157,8 +216,17 @@ if _NULA
 
     lsr a:lsr a:lsr a:lsr a
 	tax
+if _CPC
+	lda cpc_colour_top,x
+	sta span_colour
+	lda cpc_colour_bottom,x
+	sta span_colour2
+	lda cpc_colour_delta,x
+	sta cpc_delta_eor+1         ; span_loop's EOR for a dithered colour
+else
 	lda mode2_pixels,x
 	sta span_colour
+endif
 
 else
 	
@@ -182,6 +250,9 @@ endif
     \\ Read the vertices directly from the stream data
     .read_verts_x
     lda &ffff, Y
+IF _NULA AND _FAST_EDGES
+    lsr a                       ; NULA and CPC's 64 columns
+ENDIF
     sta poly_verts_x, X
     .read_verts_y
     lda &ffff, Y
@@ -189,6 +260,9 @@ endif
     asl a
     ENDIF
     sta poly_verts_y, X
+IF _FAST_EDGES
+    FAST_POLY_VERTEX_ROW
+ENDIF
 
     \\ Next step would be to inline the poly loop here.
 
@@ -214,12 +288,19 @@ ENDIF
 
     \\ This can be changed to read the poly data directly.
     GET_BYTE
+IF _NULA AND _FAST_EDGES
+    lsr a
+ENDIF
     sta poly_verts_x, X
     GET_BYTE
     IF NOT(_HALF_VERTICAL_RES)
     asl a
     ENDIF
     sta poly_verts_y, X
+IF _FAST_EDGES
+    FAST_POLY_VERTEX_ROW
+    ldy #0                      ; for GET_BYTE
+ENDIF
 
     \\ Next step would be to inline the poly loop here.
 
