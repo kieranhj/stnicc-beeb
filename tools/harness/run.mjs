@@ -190,8 +190,26 @@ let prevPc = -1;
 let prevCycles = 0;
 let finished = false;
 
+// --timeline: every cycle from the first frame's decode to the end, by what the
+// machine was doing; the decoder's idle time split by what it waits for.
+const timeline = args.includes("--timeline") ? {} : null;
+let timelineOn = false;
+function timelineCategory(pc) {
+    if (pc >= 0x8000 && pc < 0xc000 && mem(0xf4) === mem(0x7f)) return "music player (SWRAM)";
+    if (pc >= 0x0d00 && pc < 0x0e00) return "disc NMI handler";
+    if (rendering) return excluded(pc) ? "interrupt overhead during render" : "render";
+    if (pc >= syms.irq_handler && pc < syms.swap_frame_buffers) return "IRQ handler";
+    if (mem(syms.screen_lock)) return "idle: frame done, waiting for vsync to swap";
+    if (mem(syms.buffer_lock)) return "idle: waiting for stream data";
+    return "idle: waiting for the Timer 1 tick to start a frame";
+}
+
 const hook = cpu.debugInstruction.add((pc) => {
     const now = s.elapsedCycles;
+    if (timelineOn && prevPc >= 0) {
+        const c = timelineCategory(prevPc);
+        timeline[c] = (timeline[c] ?? 0) + (now - prevCycles);
+    }
     if (rendering && prevPc >= 0 && !excluded(prevPc)) {
         let d = now - prevCycles;
         if (pc === irqVec || pc === nmiVec) d -= 7;
@@ -202,6 +220,7 @@ const hook = cpu.debugInstruction.add((pc) => {
     prevCycles = now;
 
     if (pc === syms.parse_frame) {
+        if (timeline) timelineOn = true;
         rendering = true;
         renderCycles = 0;
         polyCount = 0;
@@ -287,6 +306,12 @@ if (refPath && existsSync(refPath)) {
 }
 if (outPath) writeFileSync(outPath, JSON.stringify(result, null, 1));
 if (spans) writeFileSync(spansPath, JSON.stringify(spans));
+if (timeline) {
+    const total = Object.values(timeline).reduce((a, b) => a + b, 0);
+    console.log(`timeline: ${total} cycles (${(total / 39936).toFixed(0)} fields) from the first frame's decode to the last swap`);
+    for (const [c, v] of Object.entries(timeline).sort((a, b) => b[1] - a[1]))
+        console.log(`  ${c.padEnd(52)} ${String(v).padStart(11)} ${(v / 39936).toFixed(0).padStart(6)} fields ${((100 * v) / total).toFixed(1).padStart(5)}%`);
+}
 if (profile) {
     // Per-instruction render cycles, then summed under the nearest preceding label in the listing.
     const lst = readFileSync(path.join(src, "build", `${variant}.txt`), "utf8").split("\n");
