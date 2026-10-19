@@ -1,7 +1,11 @@
 # Plan: a recooked column stream for CPC (and NULA)
 
-Status: explored in Python on 2026-10-19 and parked while other work comes first.
-Nothing is built on the 6502 yet. The prototype scripts are in `tools/colstream/`.
+Status (2026-10-19, branch `column-stream`): built and working. `bin/colstream.py` writes
+the stream, `stnicc-cols.asm` plays it from its own disc, `build/beeb-niccc-cpc.dsd`. All 900
+frames match the CPC model byte for byte (also with `--slow-disc 700`): **129.4M render
+cycles and 4,243 fields, against 249.0M and 7,424 for the polygon CPC player.** See
+"What was built" at the end; the plan below is as written before it.
+
 
 ## The idea
 
@@ -140,3 +144,28 @@ Run from the repo root.
 - `colpred.py pics.pkl`: how well the left column predicts each column.
 - `lowcode.py tools/colstream`: LOW's 128-wide picture through the same coder.
 - `derive.py`: how close the 64-wide picture is to LOW's picture subsampled.
+
+## What was built
+
+- **Byte columns, not pixel columns.** Coding each byte column directly (its runs' values
+  are pixel pairs, left colour << 4 | right, colour 0 standing for the background) saves
+  merging two pixel columns per byte at run time. The stream is 305,235 bytes, which fits
+  a disc of its own from track 20 (`src/cols_disc.h.asm`). Codes as in the prototype; a
+  new run's length is a 2-bit code (1-3 rows) or a byte.
+- **Dithered colours need three store passes.** A colour that is three of one pen and one
+  of the other swaps its bottom line's pixels on odd rows, so a long run of it is stored
+  as every row's top line, then the even rows' bottoms, then the odd rows' (two passes for
+  a chequer). 78% of runs are dithered.
+- **The fill.** Runs of up to `SHORT_RUN` (4) rows are stored through a pointer; longer
+  ones through unrolled `sta abs,X` code, entered at the first row and stopped by an RTS
+  put over the store after the last. Each run is stored as soon as it is decoded.
+- **Measured (per frame, about 144K cycles):** unrolled stores 31K, entering and leaving
+  passes 30K, short runs 16K, decoding about 35K, per-run set-up (`store_run`) 15K.
+- **Further ideas, each worth a few K a frame:** per-screen slot tables in place of
+  `ora code_or`; a row-ordered store sequence (top, bottom, top, bottom, reloading the
+  bytes from zero page) for medium runs, one pass at 14.5 cycles a row; cheaper short
+  runs. A byte-per-run format decodes faster but comes to 378K, more than a disc holds.
+- **Disc and front end.** `stnicc-cols-build.asm` and `src/part-2-cols.asm` build the disc
+  (make.bat); the intro is built with `-D _CPC_ONLY` (N and C do nothing) and
+  `src/loader-cols.bas` sets &7E for /CPC. `run.mjs --variant cols` plays it; check with
+  `tools/cpc_check.py` as for the CPC player.
