@@ -475,7 +475,7 @@ if (profile) {
     for (const [l, c] of Object.entries(byLabel).sort((a, b) => b[1] - a[1]))
         out.push(`${l} ${c} ${((100 * c) / totalRender).toFixed(2)}`);
     out.push("", "pc cycles %");
-    for (const [pc, c] of byPc.sort((a, b) => b[1] - a[1]).slice(0, 300))
+    for (const [pc, c] of byPc.sort((a, b) => b[1] - a[1]).slice(0, Number(opt("--profile-pcs", "300"))))
         out.push(`${pc.toString(16)} ${c} ${((100 * c) / totalRender).toFixed(2)} ${labelAt[pc] ?? ""}`);
     writeFileSync(profilePath, out.join("\n"));
 }

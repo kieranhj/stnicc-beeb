@@ -145,6 +145,7 @@ GUARD zp_top
 .last               skip 1      ; end row of the run before (the next run's first row)
 run_s = last                    ; the run being stored's first row
 .col_x              skip 1      ; byte column * 8
+.walkers_set        skip 1      ; set_walkers has run for this column
 .colour             skip 1      ; rebuild_colour's
 
 \\ a new run's neighbours (read_value): a walker each through the column to the
@@ -747,6 +748,7 @@ ENDMACRO
 	sta site_rend2+1
 	sta site_rend3+1
 	sta site_rend4+1
+	sta site_rend5+1
 	sta ref_slope_lo
 	tya
 	clc
@@ -757,6 +759,7 @@ ENDMACRO
 	sta site_rend2+2
 	sta site_rend3+2
 	sta site_rend4+2
+	sta site_rend5+2
 	adc #HI(RING_SLOPE - RING_END)
 	sta ref_slope_hi
 	rts
@@ -768,9 +771,11 @@ ENDMACRO
 	lda ref_slope_lo
 	sta site_rslope1+1
 	sta site_rslope2+1
+	sta site_rslope3+1
 	lda ref_slope_hi
 	sta site_rslope1+2
 	sta site_rslope2+2
+	sta site_rslope3+2
 	rts
 }
 .slopes_off
@@ -778,9 +783,11 @@ ENDMACRO
 	lda #LO(ZERO_SLOPES)
 	sta site_rslope1+1
 	sta site_rslope2+1
+	sta site_rslope3+1
 	lda #HI(ZERO_SLOPES)
 	sta site_rslope1+2
 	sta site_rslope2+2
+	sta site_rslope3+2
 	rts
 }
 .ref_slope_lo EQUB 0
@@ -811,55 +818,25 @@ ENDMACRO
 	sta site_cval+1
 	sta site_cend+1
 	sta site_cslope+1
+	sta site_kcval+1
+	sta site_kcend+1
+	sta site_kcslope+1
 	lda next_hi
 	sta col_start_hi, X
 	clc
 	adc #HI(RING_VAL)
 	sta site_cval+2
+	sta site_kcval+2
 	adc #HI(RING_END - RING_VAL)
 	sta site_cend+2
+	sta site_kcend+2
 	adc #HI(RING_SLOPE - RING_END)
 	sta site_cslope+2
+	sta site_kcslope+2
 
-	\\ The walkers: the column to the left (or background), this column and the
-	\\ one to its right in the frame before (or background)
-	ldx col_no
-	beq lc_background
-	txa
-	clc
-	adc cur_off
-	tax
-	lda col_start_lo - 1, X
-	ldy col_start_hi - 1, X
-	jmp lc_set
-	.lc_background
-	lda #LO(BG_POS)
-	ldy #HI(BG_POS)
-	.lc_set
-	SET_WALKER lc_val, lc_end, lc_w
-
-	lda col_no
-	clc
-	adc prev_off
-	tax
-	lda col_start_lo, X
-	ldy col_start_hi, X
-	SET_WALKER pc_val, pc_end, pc_w
-
-	lda col_no
-	cmp #31
-	beq pr_background
-	clc
-	adc prev_off
-	tax
-	lda col_start_lo + 1, X
-	ldy col_start_hi + 1, X
-	jmp pr_set
-	.pr_background
-	lda #LO(BG_POS)
-	ldy #HI(BG_POS)
-	.pr_set
-	SET_WALKER pr_val, pr_end, pr_w
+	\\ The walkers are set up by a new run's value (set_walkers)
+	lda #0
+	sta walkers_set
 
 	\\ The mode: 0 time, 10 left, 11 tslope
 	GET_BIT
@@ -926,6 +903,51 @@ ENDMACRO
 	stx last
 	stx run_p                   ; nothing above the first run
 	jmp next_op
+}
+
+\\ The walkers, at the start of the column to the left (or background), and of
+\\ this column and the one to its right in the frame before (or background)
+.set_walkers
+{
+	inc walkers_set
+	ldx col_no
+	beq lc_background
+	txa
+	clc
+	adc cur_off
+	tax
+	lda col_start_lo - 1, X
+	ldy col_start_hi - 1, X
+	jmp lc_set
+	.lc_background
+	lda #LO(BG_POS)
+	ldy #HI(BG_POS)
+	.lc_set
+	SET_WALKER lc_val, lc_end, lc_w
+
+	lda col_no
+	clc
+	adc prev_off
+	tax
+	lda col_start_lo, X
+	ldy col_start_hi, X
+	SET_WALKER pc_val, pc_end, pc_w
+
+	lda col_no
+	cmp #31
+	beq pr_background
+	clc
+	adc prev_off
+	tax
+	lda col_start_lo + 1, X
+	ldy col_start_hi + 1, X
+	jmp pr_set
+	.pr_background
+	lda #LO(BG_POS)
+	ldy #HI(BG_POS)
+	.pr_set
+	SET_WALKER pr_val, pr_end, pr_w
+	rts
 }
 
 \\ time and tslope: ops from A (low), Y (high); this column's kind is time and
@@ -1054,32 +1076,8 @@ ENDMACRO
 	jmp op_r
 }
 
-\\ K: the reference's next run carries on, its end the predicted end plus a delta
-.op_k0
-	lda #0
-.k_delta
-	clc
-.site_rend1
-	adc &FFFF, X
-	clc
-.site_rslope1
-	adc &FFFF, X
-	cmp #ROWS
-	bcc k_end
-	lda #ROWS
-.k_end
-	sta tmp_e
-	sec
-.site_rend2
-	sbc &FFFF, X
-	sta sl
-.site_rval
-	lda &FFFF, X
-	sta run_p
-	inx
-	lda tmp_e
-
-\\ Keep the run (A = end row, sl = slope, run_p = value) and store it
+\\ Keep a new or recoloured run (A = end row, sl = slope, run_p = value), and
+\\ store it
 .store_common
 .site_cend
 	sta &FFFF, Y
@@ -1091,8 +1089,184 @@ ENDMACRO
 .site_cval
 	sta &FFFF, Y
 	iny
-	jsr store_run               ; C = 1 when the column is done
+	jmp fill
+
+\\ K: the reference's next run carries on, its end the predicted end plus a
+\\ delta, and is stored
+.op_kl
+	jsr get_byte
+	jmp k_end
+.op_k0
+.site_rend1
+	lda &FFFF, X
+	clc
+.site_rslope1
+	adc &FFFF, X
+	cmp #ROWS
+	bcc k_end
+	lda #ROWS
+	bcs k_end                   ; always
+.op_kplus
+	lda #1
+	bne k_delta
+.op_kminus
+	lda #&FF
+	bne k_delta
+.op_kj
+	jsr read_jump
+.k_delta
+	clc
+.site_rend2
+	adc &FFFF, X
+	clc
+.site_rslope2
+	adc &FFFF, X
+	cmp #ROWS
+	bcc k_end
+	lda #ROWS
+.k_end
+.site_kcend
+	sta &FFFF, Y
+	sta run_e
+	sec
+.site_rend3
+	sbc &FFFF, X
+.site_kcslope
+	sta &FFFF, Y
+.site_rval
+	lda &FFFF, X
+.site_kcval
+	sta &FFFF, Y
+	sta run_p
+	inx
+	iny
+
+\\ A pass through one of the column code's runs of stores: from row run_s's
+\\ store to the one before row run_e's, with A = the pass's byte
+MACRO FILL_PASS lo, hi, bytes
+	ldy run_e
+	lda lo, Y
+	sta vB
+	lda hi, Y
+	sta vB+1
+	ldy run_s
+	lda lo, Y
+	sta pass+1
+	lda hi, Y
+	sta pass+2
+	ldy #0
+	lda #OPCODE_RTS
+	sta (vB), Y
+	ldy run_p
+	lda bytes, Y
+	.pass
+	jsr &ffff
+	ldy #0
+	lda #OPCODE_STA_ABSX
+	sta (vB), Y
+ENDMACRO
+
+\\ A long run's passes, Y = its value: two for a chequer, three when its bottom line
+\\ alternates (the even rows, then the odd)
+MACRO LONG_PASSES top_hi, bottom_hi, even_hi, odd_hi
+	lda pair_bottom_even, Y
+	cmp pair_bottom_odd, Y
+	beq chequer
+	jmp dithered
+	.chequer
+	FILL_PASS seq_top_lo, top_hi, pair_top
+	FILL_PASS seq_bottom_lo, bottom_hi, pair_bottom_even
+	jmp done
+	.dithered
+	FILL_PASS seq_top_lo, top_hi, pair_top
+	FILL_PASS seq_even_lo, even_hi, pair_bottom_even
+	FILL_PASS seq_odd_lo, odd_hi, pair_bottom_odd
+	jmp done
+ENDMACRO
+
+\\ Store the run just kept, from row last to run_e - 1, value run_p, in the
+\\ draw buffer, and move last on to run_e; then the next op, or the next column
+\\ once a run reaches the last row. X and Y kept.
+.fill
+{
+	stx save_x
+	sty save_y
+	lda run_e
+	sec
+	sbc run_s                   ; run_s is last
+	ldx col_x
+	ldy run_p
+	cmp #SHORT_RUN+1
+	bcs long
+
+	\\ A short run: store it row by row through dptr, X = its value
+	sta run_n
+	ldy run_s
+	txa                         ; byte column * 8
+	ora row_offset, Y           ; 2 * (row AND 3)
+	sta dptr
+	lda row_page, Y             ; row DIV 4
+	clc
+	adc draw_buffer_HI
+	sta dptr+1
+	ldx run_p
+	tya
+	lsr a
+	bcs odd_row
+	.even_row
+	ldy #0
+	lda pair_top, X
+	sta (dptr), Y
+	iny
+	lda pair_bottom_even, X
+	sta (dptr), Y
+	dec run_n
+	beq short_done
+	lda dptr                    ; the odd row below: the same character row
+	clc
+	adc #2
+	sta dptr
+	.odd_row
+	ldy #0
+	lda pair_top, X
+	sta (dptr), Y
+	iny
+	lda pair_bottom_odd, X
+	sta (dptr), Y
+	dec run_n
+	beq short_done
+	lda dptr
+	clc
+	adc #2
+	sta dptr
+	and #7
+	bne even_row
+	lda dptr                    ; on to the next character row
+	sec
+	sbc #8
+	sta dptr
+	inc dptr+1
+	bne even_row                ; always
+	.short_done
+	jmp done
+
+	.long
+	lda code_or
+	beq long1
+	jmp long2
+	.long1
+	LONG_PASSES seq_top_hi1, seq_bottom_hi1, seq_even_hi1, seq_odd_hi1
+	.long2
+	LONG_PASSES seq_top_hi2, seq_bottom_hi2, seq_even_hi2, seq_odd_hi2
+
+	.done
+	ldx save_x
+	ldy save_y
+	lda run_e
+	sta last
+	cmp #ROWS
 	bcs column_done
+}
 .next_op
 	jmp &FFFF                   ; the mode's op codes
 .column_done
@@ -1105,18 +1279,6 @@ ENDMACRO
 	.no_carry
 	rts
 
-.op_kplus
-	lda #1
-	bne k_delta
-.op_kminus
-	lda #&FF
-	bne k_delta
-.op_kj
-	jsr read_jump
-	jmp k_delta
-.op_kl
-	jsr get_byte
-	jmp k_end
 
 \\ D: drop the reference's next run
 .op_d
@@ -1196,10 +1358,10 @@ ENDMACRO
 	jmp r_end
 	.r_delta
 	clc
-	.^site_rend3
+	.^site_rend4
 	adc &FFFF, X
 	clc
-	.^site_rslope2
+	.^site_rslope3
 	adc &FFFF, X
 	cmp #ROWS
 	bcc r_end
@@ -1207,7 +1369,7 @@ ENDMACRO
 	.r_end
 	sta tmp_e
 	sec
-	.^site_rend4
+	.^site_rend5
 	sbc &FFFF, X
 	sta sl
 	inx
@@ -1250,7 +1412,8 @@ ENDMACRO
 	rts
 }
 
-\\ The next run of a walker's column that covers row last: its value in out
+\\ Walk a walker on to the run of its column that covers row last: its value in
+\\ A and out (walking again to the same row costs one look)
 MACRO WALK val, end, w, out
 	ldy w
 	lda last
@@ -1265,17 +1428,40 @@ MACRO WALK val, end, w, out
 	sta out
 ENDMACRO
 
+.walk_lc
+	WALK lc_val, lc_end, lc_w, n_lc
+	rts
+.walk_pc
+	WALK pc_val, pc_end, pc_w, n_pc
+	rts
+.walk_pr
+	WALK pr_val, pr_end, pr_w, n_pr
+	rts
+
 \\ A new run's value: its left pixel, then its right, each ranked among its
-\\ neighbours' pixels (bin/colstream2.py's left_list and right_list). X and Y kept.
+\\ neighbours' pixels (bin/colstream2.py's left_list and right_list). Each first
+\\ candidate (LC.r for the left pixel, PR.l for the right) needs one neighbour;
+\\ the rest of a list is built only when it is wanted. X and Y kept.
 .read_value
 {
 	stx vsave_x
 	sty vsave_y
-	WALK lc_val, lc_end, lc_w, n_lc
-	WALK pc_val, pc_end, pc_w, n_pc
-	WALK pr_val, pr_end, pr_w, n_pr
+	lda walkers_set
+	bne walkers_ready
+	jsr set_walkers
+	.walkers_ready
+	jsr walk_lc
+	GET_BIT
+	bcs left_list
+	lda n_lc
+	and #15
+	sta new_l
+	jmp right
 
 	\\ left: LC.r PC.l A.l A.r PR.l PC.r LC.l (A = run_p, the run above)
+	.left_list
+	jsr walk_pc
+	jsr walk_pr
 	lda n_lc
 	and #15
 	sta cand
@@ -1297,28 +1483,39 @@ ENDMACRO
 	lda n_lc
 	lsr a:lsr a:lsr a:lsr a
 	sta cand+6
-	jsr read_pixel
+	jsr pixel_ranked
 	sta new_l
 
 	\\ right: PR.l A.r PC.r L A.l LC.r PC.l
-	lda cand+2                  ; A.l
-	pha
-	lda cand+1                  ; PC.l
-	sta cand+6
-	lda cand+4                  ; PR.l
+	.right
+	jsr walk_pr
+	lsr a:lsr a:lsr a:lsr a
 	sta cand
-	lda cand+5                  ; PC.r
-	sta cand+2
-	lda cand+3                  ; A.r
+	GET_BIT
+	bcs right_list
+	lda cand
+	jmp combine
+	.right_list
+	jsr walk_pc
+	lda run_p
+	and #15
 	sta cand+1
+	lda n_pc
+	and #15
+	sta cand+2
 	lda new_l
 	sta cand+3
-	pla
+	lda run_p
+	lsr a:lsr a:lsr a:lsr a
 	sta cand+4
 	lda n_lc
 	and #15
 	sta cand+5
-	jsr read_pixel
+	lda n_pc
+	lsr a:lsr a:lsr a:lsr a
+	sta cand+6
+	jsr pixel_ranked
+	.combine
 	sta tmp
 	lda new_l
 	asl a:asl a:asl a:asl a
@@ -1328,15 +1525,10 @@ ENDMACRO
 	rts
 }
 
-\\ A pixel from its candidates: the first (0), the second different one (10),
-\\ the third (110), or 111 and 4 bits
-.read_pixel
+\\ A pixel whose first bit was 1: the second different candidate (0), the
+\\ third (10), or 11 and the pixel in 4 bits
+.pixel_ranked
 {
-	GET_BIT
-	bcs not0
-	lda cand
-	rts
-	.not0
 	GET_BIT
 	bcs not1
 	ldx #1
@@ -1373,133 +1565,6 @@ ENDMACRO
 	.miss
 	lda #4
 	jmp read_bits
-}
-
-\\ A pass through one of the column code's runs of stores: from row run_s's
-\\ store to the one before row run_e's, with A = the pass's byte
-MACRO FILL_PASS lo, hi, bytes
-	ldy run_e
-	lda lo, Y
-	sta vB
-	lda hi, Y
-	sta vB+1
-	ldy run_s
-	lda lo, Y
-	sta pass+1
-	lda hi, Y
-	sta pass+2
-	ldy #0
-	lda #OPCODE_RTS
-	sta (vB), Y
-	ldy run_p
-	lda bytes, Y
-	.pass
-	jsr &ffff
-	ldy #0
-	lda #OPCODE_STA_ABSX
-	sta (vB), Y
-ENDMACRO
-
-\\ A long run's passes, Y = its value: two for a chequer, three when its bottom line
-\\ alternates (the even rows, then the odd)
-MACRO LONG_PASSES top_hi, bottom_hi, even_hi, odd_hi
-	lda pair_bottom_even, Y
-	cmp pair_bottom_odd, Y
-	beq chequer
-	jmp dithered
-	.chequer
-	FILL_PASS seq_top_lo, top_hi, pair_top
-	FILL_PASS seq_bottom_lo, bottom_hi, pair_bottom_even
-	jmp done
-	.dithered
-	FILL_PASS seq_top_lo, top_hi, pair_top
-	FILL_PASS seq_even_lo, even_hi, pair_bottom_even
-	FILL_PASS seq_odd_lo, odd_hi, pair_bottom_odd
-	jmp done
-ENDMACRO
-
-\\ Store the run just decoded, from row last to run_e - 1, value run_p, in the
-\\ draw buffer, and move last on to run_e. Returns C = 1 once the column is
-\\ done; X and Y kept.
-.store_run
-{
-	stx save_x
-	sty save_y
-	lda run_e
-	sec
-	sbc run_s                   ; run_s is last
-	ldx col_x
-	ldy run_p
-	cmp #SHORT_RUN+1
-	bcs long
-
-	\\ A short run: store it row by row through dptr, X = its value
-	sta run_n
-	ldy run_s
-	txa                         ; byte column * 8
-	ora row_offset, Y           ; 2 * (row AND 3)
-	sta dptr
-	lda row_page, Y             ; row DIV 4
-	clc
-	adc draw_buffer_HI
-	sta dptr+1
-	ldx run_p
-	tya
-	lsr a
-	bcs odd_row
-	.even_row
-	ldy #0
-	lda pair_top, X
-	sta (dptr), Y
-	iny
-	lda pair_bottom_even, X
-	sta (dptr), Y
-	dec run_n
-	beq short_done
-	lda dptr                    ; the odd row below: the same character row
-	clc
-	adc #2
-	sta dptr
-	.odd_row
-	ldy #0
-	lda pair_top, X
-	sta (dptr), Y
-	iny
-	lda pair_bottom_odd, X
-	sta (dptr), Y
-	dec run_n
-	beq short_done
-	lda dptr
-	clc
-	adc #2
-	sta dptr
-	and #7
-	bne even_row
-	lda dptr                    ; on to the next character row
-	sec
-	sbc #8
-	sta dptr
-	inc dptr+1
-	bne even_row                ; always
-	.short_done
-	jmp done
-
-	.long
-	lda code_or
-	beq long1
-	jmp long2
-	.long1
-	LONG_PASSES seq_top_hi1, seq_bottom_hi1, seq_even_hi1, seq_odd_hi1
-	.long2
-	LONG_PASSES seq_top_hi2, seq_bottom_hi2, seq_even_hi2, seq_odd_hi2
-
-	.done
-	ldx save_x
-	ldy save_y
-	lda run_e
-	sta last
-	cmp #ROWS
-	rts
 }
 
 \\ Each pixel pair's three bytes from the colours' (colour 0 is the background):
