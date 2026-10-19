@@ -68,7 +68,7 @@ ELIF _PLOT_WIREFRAME = FALSE
     beq no_clear_screen
 ENDIF
 
-IF _FAST_POLY AND NOT(_TEST_PARSE_ONLY)
+IF _FAST_EDGES AND NOT(_TEST_PARSE_ONLY)
     \\ Clear only the rows the frame's polygons leave uncovered, if it says
     lda frame_flags
     and #FLAG_CLEAR_MASK
@@ -81,8 +81,8 @@ ENDIF
     jsr screen_cls
     .no_clear_screen
 
-IF NOT(_FAST_POLY) OR _TEST_PARSE_ONLY
-    \\ Step over a clear mask: only LOW uses it
+IF NOT(_FAST_EDGES) OR _TEST_PARSE_ONLY
+    \\ Step over a clear mask: MEDIUM and HIGH clear the whole screen
     lda frame_flags
     and #FLAG_CLEAR_MASK
     beq cleared

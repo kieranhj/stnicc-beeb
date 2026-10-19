@@ -1207,10 +1207,12 @@ INCLUDE "src/debug.asm"
 INCLUDE "src/tests.asm"
 INCLUDE "src/clock.asm"
 
-\\ NULA and CPC: load_next_track sits here, after the plotters, so that its size
-\\ does not push the page-aligned short-span routines onto a later page
+\\ NULA and CPC: load_next_track and the masked clear sit here, after the plotters,
+\\ so that their size does not push the page-aligned short-span routines onto a
+\\ later page
 IF _FAST_EDGES AND NOT(_FAST_POLY)
 INCLUDE "src/load_next_track.asm"
+INCLUDE "src/screen_cls_masked.asm"
 ENDIF
 
 INCLUDE "src/cpc_palette_update.asm"

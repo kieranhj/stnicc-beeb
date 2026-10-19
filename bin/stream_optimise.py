@@ -7,8 +7,10 @@
 #   overdrawn need not be plotted. Up to 15 each way, in one byte. For LOW only
 #   (trim_mode "low"), or rows hidden on LOW's and the 64-wide raster both, so
 #   that NULA and CPC can use them too ("both").
-# - Clear mask (LOW): a clearing frame only needs to clear the rows that its
-#   polygons leave a pixel of uncovered. 13 bytes, one bit per row.
+# - Clear mask: a clearing frame only needs to clear the rows that its polygons
+#   leave a pixel of uncovered. 13 bytes, one bit per row. The rows LOW leaves
+#   uncovered (mask_mode "low"), or those LOW or the 64-wide raster does, so that
+#   NULA and CPC can use the mask too ("both").
 #
 # Trims and masks cost disc bytes, so they are chosen greedily by estimated
 # cycles saved per byte until the stream no longer fits (see encoder.py).
@@ -22,6 +24,9 @@ CYCLES_PER_SPAN_ROW_64 = 220    # NULA and CPC (both scanlines, 2020 plotter)
 CYCLES_FULL_CLEAR = 16900       # screen_cls
 CYCLES_MASKED_CLEAR = 250       # mask walk
 CYCLES_PER_CLEARED_ROW = 185    # one row through the unrolled span code
+CYCLES_FULL_CLEAR_64 = 33300    # NULA and CPC's screen_cls (all 200 scanlines)
+CYCLES_MASKED_CLEAR_64 = 700    # their mask walk
+CYCLES_PER_CLEARED_ROW_64 = 390 # a row's two scanlines through the unrolled span code
 
 TRIM_MAX = 15
 
@@ -46,10 +51,11 @@ def trim_for(owners, raster, i):
     return top, min(len(ys) - top, TRIM_MAX)
 
 
-def analyse(frames, trim_mode="low"):
+def analyse(frames, trim_mode="low", mask_mode="low"):
     """Culls every frame (in place) and returns the trim and clear-mask candidates:
     (value in cycles, cost in bytes, apply function). trim_mode: trims for LOW only
-    ("low"), or safe in both LOW's and the 64-wide raster ("both")."""
+    ("low"), or safe in both LOW's and the 64-wide raster ("both"). mask_mode: clear
+    masks for LOW only ("low"), or for the 64-wide raster's players too ("both")."""
     candidates = []
     culled = 0
     for frame_no, f in frames:
@@ -79,7 +85,12 @@ def analyse(frames, trim_mode="low"):
 
         if f._flags & FLAG_CLEAR_SCREEN:
             rows = [y for y in range(100) if any(o < 0 for o in owner[y])]
+            if mask_mode == "both":
+                wide = owners["nula"][1]
+                rows = [y for y in range(100) if any(o < 0 for o in owner[y]) or any(o < 0 for o in wide[y])]
             value = CYCLES_FULL_CLEAR - CYCLES_MASKED_CLEAR - CYCLES_PER_CLEARED_ROW * len(rows)
+            if mask_mode == "both":
+                value += CYCLES_FULL_CLEAR_64 - CYCLES_MASKED_CLEAR_64 - CYCLES_PER_CLEARED_ROW_64 * len(rows)
             if value > 0:
                 candidates.append((value, 13, mask_setter(f, mask_bytes(rows))))
     return candidates, culled
@@ -116,7 +127,7 @@ def pictures(polys, raster, trims=None):
     return pic
 
 
-def verify(data, reference, trim_mode="low"):
+def verify(data, reference, trim_mode="low", mask_mode="low"):
     """Check the written stream against the frames before optimisation (a list of
     (flags, [(colour, verts), ...])): every player's picture of every frame is
     unchanged, and every row a clear mask leaves out is fully drawn over."""
@@ -132,7 +143,7 @@ def verify(data, reference, trim_mode="low"):
             want = pictures(ref_polys, r)
             got = pictures(polys, r, trims if r == "low" else wide if r == "nula" else None)
             assert got == want, f"frame {n}: {r} picture differs"
-            if r == "low" and f.clear_mask:
+            if f.clear_mask and (r == "low" or (r == "nula" and mask_mode == "both")):
                 for y in range(100):
                     if not f.clear_mask[y]:
                         assert None not in got[y], f"frame {n}: row {y} left uncleared but not covered"

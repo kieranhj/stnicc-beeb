@@ -522,6 +522,8 @@ if __name__ == '__main__':
     parser.add_argument("--capacity", type=int, default=0, metavar="<n>", help="Bytes of disc the stream may fill, for --optimise")
     parser.add_argument("--trim-mode", default="low", choices=["low", "both"],
                         help="Row trims for LOW only (low), or safe on LOW's and the 64-wide raster too, for NULA and CPC (both)")
+    parser.add_argument("--mask-mode", default="low", choices=["low", "both"],
+                        help="Clear masks of the rows LOW leaves uncovered (low), or of the rows LOW or the 64-wide raster does, so that NULA and CPC can use them too (both)")
     args = parser.parse_args()
 
     src = args.input
@@ -557,7 +559,7 @@ if __name__ == '__main__':
         assert args.beeb and args.capacity > 0, "--optimise needs -b and --capacity"
 
         reference = [(f._flags, stream_optimise.beeb_polys(f)) for _, f in frames]
-        candidates, culled = stream_optimise.analyse(frames, args.trim_mode)
+        candidates, culled = stream_optimise.analyse(frames, args.trim_mode, args.mask_mode)
         candidates.sort(key=lambda c: c[0] / c[1], reverse=True)
 
         def written_with(k):
@@ -589,7 +591,7 @@ if __name__ == '__main__':
     actual = my_sequence.write_frames(data, frames, args.beeb)
 
     if args.optimise:
-        n = stream_optimise.verify(data, reference, args.trim_mode)
+        n = stream_optimise.verify(data, reference, args.trim_mode, args.mask_mode)
         print("Verified: {0} frames, every player's picture unchanged".format(n))
 
     print("Actual written bytes: {0} vs {1}".format(actual, len(data)))

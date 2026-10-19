@@ -69,7 +69,7 @@ $(BUILD)/logo_mode1.exo : ./data/BeeBShifters.png
 
 .PHONY:data
 data:
-	cd data && $(PYTHON) ../bin/encoder.py scene1.bin -o scene1.half.7680.bin -a 7680 -f 2 -b --optimise --capacity 345600 --trim-mode both > out.txt
+	cd data && $(PYTHON) ../bin/encoder.py scene1.bin -o scene1.half.7680.bin -a 7680 -f 2 -b --optimise --capacity 345600 --trim-mode both --mask-mode both > out.txt
 	cd data && $(PYTHON) ../bin/split.py scene1.half.7680.bin
 	cd data && $(PYTHON) ../tools/cpc_palette.py scene1.half.7680.bin cpc_palette.bin
 
