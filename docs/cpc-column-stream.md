@@ -4,7 +4,9 @@ Status (2026-10-19, branch `column-stream`): built and working. `bin/colstream.p
 the stream, `stnicc-cols.asm` plays it from its own disc, `build/beeb-niccc-cpc.dsd`. All 900
 frames match the CPC model byte for byte (also with `--slow-disc 700`): **117.8M render
 cycles and 3,931 fields, against 249.0M and 7,424 for the polygon CPC player.** See
-"What was built" at the end; the plan below is as written before it.
+"What was built" at the end; the plan below is as written before it. All 1800 frames
+(branch `column-stream-1800`): 287.7M and 8,830 fields from a 312K stream; see "All 1800
+frames: what was built".
 
 
 ## The idea
@@ -172,7 +174,63 @@ Run from the repo root.
   `src/loader-cols.bas` sets &7E for /CPC. `run.mjs --variant cols` plays it; check with
   `tools/cpc_check.py` as for the CPC player.
 
-## Next: all 1800 frames (planned 2026-10-19, not started)
+## All 1800 frames: what was built (branch `column-stream-1800`)
+
+`bin/colstream2.py` writes the stream, `stnicc-cols2.asm` plays it from its own disc,
+`build/beeb-niccc-cpc1800.dsd` (`stnicc-cols2-build.asm`, `src/part-2-cols2.asm`, stream from
+track `COLS2_FIRST_TRACK` = 20 in `src/cols2_disc.h.asm`), and `run.mjs --variant cols2` runs it.
+All 1800 frames match the CPC model of the full-rate stream byte for byte
+(`tools/cpc_check.py dir data/scene1.full.7680.bin`), also with `--slow-disc 700`.
+
+| Player | Frames | Stream | Render cycles | Fields |
+|---|---|---|---|---|
+| Polygon CPC player | 900 | 344K | 249.0M | 7,424 |
+| 900-frame column player | 900 | 305K | 117.8M | 3,931 |
+| **1800-frame column player** | **1800** | **312K** | **287.7M** | **8,830** |
+
+That is 160K cycles and 4.9 fields a frame, against 131K and 4.4 for the 900-frame player.
+The stream fits with 43K to spare from track 20 (the plan's 355K estimate was pessimistic).
+
+- **The code** is as planned, with these choices (the header of `bin/colstream2.py` is the
+  reference): modes time `0`, left `10`, tslope `110`, copy `111`; per-mode Huffman-sized op
+  codes; a jump of 2-15 in sign + 2-4 bits, else an end row byte; new runs' lengths 1, 2-3,
+  4-7, 8-15 or a byte. The encoder aligns each column with its reference by dynamic
+  programming over the exact code lengths, not `difflib`.
+- **New runs' pixels** are ranked among their neighbours' pixels with repeats left out
+  (first, second, third, or a miss and 4 bits): about 4 bits a value against 8 (estimated
+  from the candidates' hit rates).
+- **Copy and keep.** A column unchanged from the frame before costs 4 bits; a fifth bit says
+  it is also unchanged from the frame before that, with no palette change since, so the draw
+  buffer already shows it and the player stores nothing (2,811 columns).
+- **Slopes** are kept only of their kind: a run's slope is spatial if its column was coded in
+  left mode, else temporal, and a mode uses a reference's slopes only if they are its kind
+  (about 4K better than using them regardless).
+- **Frames:** 3 header bits (palette change, then next / next block / end), then the CPC
+  palette change in bytes (so the executable carries no palette table). A frame that ends
+  exactly at a block's end must say "next block" so the player wraps its ring; the 900-frame
+  encoder has the same gap but its stream never hits it.
+- **RAM.** The last frame's runs are kept in a ring of 640 runs (most ever live: 561),
+  three arrays three pages apart at &400, &700 and &A00, so a run's bytes share a low byte;
+  their 128-byte tails hold the background column, zero slopes, the per-column tables and
+  the colours. Pair tables at &E00, &F00 and (unaligned) after the executable. Main RAM is
+  full: code to &1FE6, column code at &2000 and &2400, tables and the short-run routines to
+  &2EBA, `pair_bottom_odd` to &2FBA.
+- **The decoder** patches its reference and current-column sites per column, reads bits
+  through a sentinel control byte, and walks three neighbour columns only when a new value
+  needs them (`read_value`).
+- **The fill** is the 900-frame player's, inlined, with short runs (up to 4 rows) stored by
+  16 unrolled routines chosen by the first row's place in its cell and the length.
+
+Measured steps (render cycles): first working build 312.3M; lazy neighbour lists, a direct
+K path and the fill inlined 295.2M; copy and keep modes 291.6M; unrolled short runs 287.7M.
+Per frame (profile, `--profile f --profile-pcs 65536`): fill about 85K (unrolled stores 30K,
+short runs 7K, per-run and long-pass overhead 48K), decoding about 75K (new values about
+20K, the K path 10K, bits and op codes about 25K, per-column set-up about 12K).
+
+Ideas not done: read 1-4 bit fields unrolled (about 2K a frame, needs RAM); cheaper
+per-column walker set-up; the 900-frame player's ideas for long runs (row-ordered stores).
+
+## The plan for 1800 frames (2026-10-19, before it was built)
 
 The stream keeps every other frame of the original (`encoder.py -f 2`). Playing all 1800
 looks feasible on one disc, but only with a richer code. Modelled in Python
