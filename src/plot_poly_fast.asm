@@ -86,6 +86,8 @@ ENDIF
     \\ which branch back to it; NULA and CPC have their own, at plot_poly_rows)
 IF _FAST_POLY
     jmp fast_plot_spans
+ELIF _M2_SPANS
+    jmp m2_plot_spans
 ELSE
     jmp plot_poly_rows
 ENDIF

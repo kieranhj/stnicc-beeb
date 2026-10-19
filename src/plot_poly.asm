@@ -40,7 +40,7 @@ endif
 ; having to recalculate each time etc.
 
 ; This fn is called 3 million times across the entire sequence so every cycle counts!
-IF NOT(_FAST_POLY)  ; plot_spans_fast.asm replaces the span plotters
+IF NOT(_FAST_POLY) AND NOT(_M2_SPANS)  ; plot_spans_fast.asm / plot_spans_m2.asm replace the span plotters
 
 .plot_long_span
 {
@@ -515,11 +515,11 @@ ENDIF
 endif
 }
 
-ENDIF ; NOT(_FAST_POLY)
+ENDIF ; NOT(_FAST_POLY) AND NOT(_M2_SPANS)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-if _NULA
+if _NULA AND NOT(_M2_SPANS)
 
 MACRO NULA_SHORT_SPAN odd,n
 
@@ -1036,7 +1036,7 @@ ENDMACRO
 
 UNROLLED_ROW_SIZE = 33 * 3
 
-IF NOT(_FAST_POLY)  ; the fast span plotter indexes its own tables by y
+IF NOT(_FAST_POLY) AND NOT(_M2_SPANS)  ; the fast span plotters index their own tables by y
 PAGE_ALIGN_FOR_SIZE 25
 .span_row_table_screen1_LO
 FOR row,0,24,1    ;SCREEN_HEIGHT_PIXELS-1,1

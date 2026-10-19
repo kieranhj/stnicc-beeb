@@ -224,6 +224,7 @@ if _CPC
 else
 	lda mode2_pixels,x
 	sta span_colour
+	sta span_colour2            ; both scanlines alike
 endif
 
 else

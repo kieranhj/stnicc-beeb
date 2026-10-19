@@ -40,6 +40,10 @@ _CPC =? FALSE
 ; with their own span plotters; MEDIUM and HIGH keep the original.
 _FAST_EDGES = _FAST_POLY OR (_NULA AND NOT(_PLOT_WIREFRAME))
 
+; NULA and CPC plot spans with src/plot_spans_m2.asm, in place of the original
+; long and short span routines
+_M2_SPANS = _NULA AND _FAST_EDGES
+
 PRINT "------"
 PRINT "STNICC-BEEB"
 PRINT "------"
@@ -232,8 +236,10 @@ GUARD zp_top
 ;.span_end           skip 1
 .span_width         skip 1
 .span_colour        skip 1
+if _NULA
+.span_colour2       skip 1      ; the bottom line's byte (NULA: the same as the top's)
+endif
 if _CPC
-.span_colour2       skip 1      ; the bottom line's byte
 .cpc_count          skip 1
 .cpc_index          skip 1
 endif
@@ -338,6 +344,9 @@ skip &80
 skip &80
 .fast_code_area         ; &400-&6FF: code relocated from reloc_fast_code
 skip &300
+elif _M2_SPANS
+.m2_code_area           ; &300-&6FF: src/plot_spans_m2.asm, relocated from the image
+skip &400
 else
 .screen_row_LO
 skip &100
@@ -988,7 +997,7 @@ endif
     lda #LO(screen1_addr/8):sta &fe01
 
 	\\ Draw screen 2
-if _FAST_POLY
+if _FAST_POLY OR _M2_SPANS
 		lda #LO(fps_unrolled_screen2_LO)
 		sta fps_row_table_LO+1
 		lda #HI(fps_unrolled_screen2_LO)
@@ -1023,7 +1032,7 @@ endif
     lda #LO(screen2_addr/8):sta &fe01
 
 	\\ Draw screen 1
-if _FAST_POLY
+if _FAST_POLY OR _M2_SPANS
 		lda #LO(fps_unrolled_screen1_LO)
 		sta fps_row_table_LO+1
 		lda #HI(fps_unrolled_screen1_LO)
@@ -1169,7 +1178,9 @@ EQUB 2,&FF,0		; only two discs now!
 .next_part_cmd
 EQUS "/OUTRO", 13
 
-if not(_FAST_POLY)
+if _M2_SPANS
+include "src/plot_spans_m2_tables.asm"   ; its plotter runs at &300 (see the relocated tables)
+elif not(_FAST_POLY)
 include "src/plot_data.asm"
 endif
 
@@ -1266,6 +1277,19 @@ COPYBLOCK fast_code_start, fast_code_end, reloc_P4
 CLEAR fast_code_start, fast_code_end
 ORG reloc_P4 + &300
 PRINT "Code at &400:", ~fast_code_end-fast_code_start, "bytes"
+elif _M2_SPANS
+\\ The MODE 2 span plotter, assembled to run at &300 and stored here
+reloc_P3 = P%
+CLEAR &300, &700
+ORG &300
+GUARD &700
+.m2_code_start
+include "src/plot_spans_m2.asm"
+.m2_code_end
+COPYBLOCK m2_code_start, m2_code_end, reloc_P3
+CLEAR m2_code_start, m2_code_end
+ORG reloc_P3 + &400
+PRINT "Code at &300:", ~m2_code_end-m2_code_start, "bytes"
 else
 .reloc_screen_row_LO
 FOR n,0,255,1
