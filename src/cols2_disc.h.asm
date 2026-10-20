@@ -13,4 +13,4 @@ COLS2_FIRST_TRACK = 20
 EXE_SIZE_COLS2 = &1E00
 
 \\ Sector-rounded size of its outro, build/OUTROC2 (asserted by src/outro.asm)
-OUTRO_SIZE_COLS2 = &1A00
+OUTRO_SIZE_COLS2 = &1B00

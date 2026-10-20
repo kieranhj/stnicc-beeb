@@ -36,24 +36,21 @@
 	.i1
 	GET_BIT
 	bcs i11
-	lda #1
-	jsr read_bits
+	READ_BITS 1
 	clc
 	adc #2
 	bne i_length
 	.i11
 	GET_BIT
 	bcs i111
-	lda #2
-	jsr read_bits
+	READ_BITS 2
 	clc
 	adc #4
 	bne i_length
 	.i111
 	GET_BIT
 	bcs i_byte
-	lda #3
-	jsr read_bits
+	READ_BITS 3
 	clc
 	adc #8
 	bne i_length
@@ -121,23 +118,20 @@
 	php
 	GET_BIT
 	bcs j1
-	lda #1
-	jsr read_bits
+	READ_BITS 1
 	clc
 	adc #2
 	jmp sign
 	.j1
 	GET_BIT
 	bcs j11
-	lda #2
-	jsr read_bits
+	READ_BITS 2
 	clc
 	adc #4
 	jmp sign
 	.j11
 	GET_BIT                     ; 0
-	lda #3
-	jsr read_bits
+	READ_BITS 3
 	clc
 	adc #8
 	.sign
@@ -300,6 +294,11 @@ ENDMACRO
 	beq s3
 	rts
 	.miss
+IF COLS_INLINE_BITS
+	READ_BITS 4
+	rts
+ELSE
 	lda #4
 	jmp read_bits
+ENDIF
 }

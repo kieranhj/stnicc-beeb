@@ -110,6 +110,24 @@ get_byte_address = get_byte_read + 1
 	sta ctl
 	rts
 
+\\ n bits of the stream in A, high first: through read_bits, or inline if the
+\\ includer has the room (COLS_INLINE_BITS, TRUE in the outro)
+COLS_INLINE_BITS =? FALSE
+MACRO READ_BITS n
+IF COLS_INLINE_BITS
+	lda #0
+	sta tmp
+	FOR i, 1, n
+	GET_BIT
+	rol tmp
+	NEXT
+	lda tmp
+ELSE
+	lda #n
+	jsr read_bits
+ENDIF
+ENDMACRO
+
 \\ A bits (1-4) of the stream in A, high first
 .read_bits
 {

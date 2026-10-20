@@ -40,6 +40,7 @@ MACRO COLUMN_END
 ENDMACRO
 
 COLS_KEEP = FALSE               ; the window is cleared each frame: draw every column
+COLS_INLINE_BITS = TRUE
 
 INCLUDE "src/cols2_decode.asm"
 
