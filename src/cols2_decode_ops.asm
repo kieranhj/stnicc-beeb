@@ -6,6 +6,7 @@
 .next_op
 	jmp &FFFF                   ; the mode's op codes
 .column_done
+	COLUMN_END
 	tya                         ; the next column goes after this one's runs
 	clc
 	adc next_lo

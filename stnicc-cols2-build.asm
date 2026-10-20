@@ -13,7 +13,6 @@ EXEC_ADDRESS = &FF1100
 
 \ Sector-rounded sizes, for the padding (make.bat checks where 00 lands)
 INTROC_SIZE = &1C00
-OUTRO_SIZE = &1900               ; build/OUTROC2: the column stream as its edges
 LOADER_COLS_SIZE = &B00
 
 include "src/exe_sizes.h.asm"     ; EXE_SIZE_MUSIC
@@ -31,7 +30,7 @@ DFS_sectors_per_track = 10
 DFS_track_size = (DFS_sectors_per_track * DFS_sector_size)
 
 \ The catalogue and !BOOT take &300
-exe_size = INTROC_SIZE + OUTRO_SIZE + EXE_SIZE_MUSIC + EXE_SIZE_COLS2 + LOADER_COLS_SIZE
+exe_size = INTROC_SIZE + OUTRO_SIZE_COLS2 + EXE_SIZE_MUSIC + EXE_SIZE_COLS2 + LOADER_COLS_SIZE
 dummy_size = (COLS2_FIRST_TRACK * DFS_track_size) - exe_size - &300
 PRINT "files =", ~exe_size, " padding =", ~dummy_size
 ASSERT dummy_size > 0 AND dummy_size <= 64*1024

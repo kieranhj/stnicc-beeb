@@ -17,14 +17,14 @@
 \\ block or the stream). That one is decoded as soon as the frame before is
 \\ drawn (decode_ahead), while its swap waits for vsync.
 \\
-\\ Each run the decoder keeps draws its own edges (run_sink), down its rows a
-\\ segment at a time: a segment ends where the column to the left's run does
-\\ (a walker through that column, ew). In each segment a row's bits are the
-\\ left pixel's first bit if the column to the left's right pixel differs from
-\\ it, and the right pixel's first bit if the run's two pixels differ; the run's
-\\ first row also has the bits of the pixels that differ from the run above.
-\\ (In column 0 the column to the left is background, and its left pixel's
-\\ first bit is the box's left edge, set already.)
+\\ Each column's edges are drawn once it is decoded (edge_column), down its rows
+\\ a segment at a time: a segment ends where its run or the column to the left's
+\\ run does. In a segment a row's bits are the left pixel's first bit if the
+\\ column to the left's right pixel differs from it, and the right pixel's first
+\\ bit if the run's two pixels differ; a run's first row also has the bits of
+\\ the pixels that differ from the run above. (In column 0 the column to the
+\\ left is background, and its left pixel's first bit is the box's left edge,
+\\ set already.)
 
 \\ The palette changes are stepped over
 MACRO PALETTE_CHANGE
@@ -35,155 +35,20 @@ MACRO COLUMN_START
 	jsr edge_column_start
 ENDMACRO
 
+MACRO COLUMN_END
+	jsr edge_column
+ENDMACRO
+
 COLS_KEEP = FALSE               ; the window is cleared each frame: draw every column
 
 INCLUDE "src/cols2_decode.asm"
 
-\\ The run sink (src/cols2_decode.asm): the edges of the run just kept, from row
-\\ last to run_e - 1, value run_p. X and Y kept.
+\\ The run sink (src/cols2_decode.asm): the edges wait for the whole column
 .run_sink
-{
-	bit drawing
-	bmi draw
-	lda run_e                   ; a frame not shown: just the next op or column
-	sta last
-	cmp #ROWS
-	bcc not_done
-	jmp column_done
-	.not_done
-	jmp next_op
-
-	.draw
-	stx save_x
-	sty save_y
-
-	\\ Across its first row: the pixels that differ from the run above (none at the top)
-	lda #0
-	ldy last
-	beq across_done
-	lda run_p
-	eor above
-	cmp #&10
-	bcc right_only
-	and #&0F
-	beq left_only
-	lda hlr
-	bne across_done
-	.left_only
-	lda hl
-	bne across_done
-	.right_only
-	lda hr
-	.across_done
-	sta hm
-	lda run_p
-	sta above
-
-	\\ Between its two pixels, if they differ
-	lsr a:lsr a:lsr a:lsr a
-	sta lpix
-	eor run_p
-	and #&0F
-	beq no_inner
-	lda vr
-	.no_inner
-	sta inner
-
-	\\ Down its rows, a segment at a time
-	lda last
-	sta y0
-	ldy ew
-	.walk                       ; the column to the left's run at row y0
-	cmp (lc_end), Y
-	bcc segment
-	iny
-	bne walk
-	.segment
-	lda (lc_end), Y             ; the segment ends where either run does
-	cmp run_e
-	bcc y1_ok
-	lda run_e
-	.y1_ok
-	sta y1
-	lda (lc_val), Y             ; the left pixel against the right pixel there
-	and #&0F
-	eor lpix
-	beq same
-	lda vl
-	.same
-	ora inner
-	sta vm
-	ora hm
-	beq next_segment
-
-	\\ Rows y0 to y1 - 1, through the character cell: Y = the line in it
-	sty ew
-	ldx y0
-	lda cellrow_lo, X
-	clc
-	adc ecol
-	sta ep
-	lda cellrow_hi, X
-	adc draw_buffer_HI
-	sta ep+1
-	txa
-	and #7
-	tay
-	lda y1
-	sec
-	sbc y0
-	tax
-	lda vm                      ; the first row, with the bits across
-	ora hm
-	ora (ep), Y
-	sta (ep), Y
-	lda #0
-	sta hm
-	lda vm
-	beq rows_done
-	dex
-	beq rows_done
-	.row
-	iny
-	cpy #8
-	beq next_cell
-	.in_cell
-	lda (ep), Y
-	ora vm
-	sta (ep), Y
-	dex
-	bne row
-	beq rows_done               ; always
-	.next_cell
-	lda ep                      ; on to the next character row
-	clc
-	adc #LO(MODE4_ROW_BYTES)
-	sta ep
-	lda ep+1
-	adc #HI(MODE4_ROW_BYTES)
-	sta ep+1
-	ldy #0
-	beq in_cell                 ; always
-	.rows_done
-	ldy ew
-
-	.next_segment
-	lda y1
-	cmp run_e
-	bcs done
-	sta y0
-	iny
-	bne segment                 ; always
-
-	.done
-	sty ew
-	ldx save_x
-	ldy save_y
 	lda run_e
 	sta last
 	cmp #ROWS
 	bcs column_done
-}
 
 INCLUDE "src/cols2_decode_ops.asm"
 
@@ -203,17 +68,45 @@ INCLUDE "src/cols2_decode_ops.asm"
 	rts
 }
 
-\\ Each column: the walker through the column to the left (set_walkers points
-\\ lc_val and lc_end there), its place in the window and its pixels' bits
+\\ Each column, if drawn: where its runs and the column to the left's are in the
+\\ ring (edge_column's sites), its place in the window and its pixels' bits
 .edge_column_start
 {
 	bit drawing
 	bmi draw
 	rts
 	.draw
-	jsr set_walkers
-	lda #0
-	sta ew
+	lda next_lo                 ; this column's runs
+	sta site_cv+1
+	sta site_ce+1
+	lda next_hi
+	clc
+	adc #HI(RING_VAL)
+	sta site_cv+2
+	adc #HI(RING_END - RING_VAL)
+	sta site_ce+2
+	ldx col_no                  ; the column to the left's (or background)
+	beq left_background
+	txa
+	clc
+	adc cur_off
+	tax
+	lda col_start_lo - 1, X
+	ldy col_start_hi - 1, X
+	jmp left_set
+	.left_background
+	lda #LO(BG_POS)
+	ldy #HI(BG_POS)
+	.left_set
+	sta site_lv+1
+	sta site_le+1
+	tya
+	clc
+	adc #HI(RING_VAL)
+	sta site_lv+2
+	adc #HI(RING_END - RING_VAL)
+	sta site_le+2
+
 	lda col_x                   ; byte column * 8: its character cell is (column DIV 2) * 8
 	lsr a
 	and #&F8
@@ -243,6 +136,154 @@ INCLUDE "src/cols2_decode_ops.asm"
 	sta vl
 	lda #%00000010
 	sta vr
+	rts
+}
+
+\\ A column's edges, once it is decoded, if drawn, down to row ROWS: X = the
+\\ column to the left's run, cj = this column's next run. Y kept.
+.edge_column
+{
+	bit drawing
+	bmi draw
+	rts
+	.draw
+	sty save_y
+	ldx #0
+	stx cj
+	stx y0
+
+	\\ This column's run cj, from row y0: its end and pixels, and across its
+	\\ first row the pixels that differ from the run above
+	.run
+	ldy cj
+	inc cj
+	.^site_ce
+	lda &FFFF, Y
+	sta cend
+	.^site_cv
+	lda &FFFF, Y
+	sta tmpv
+	lsr a:lsr a:lsr a:lsr a
+	sta cl                      ; its left pixel
+	eor tmpv
+	and #&0F
+	beq no_inner
+	lda vr                      ; its two pixels differ
+	.no_inner
+	sta inner
+	lda y0
+	beq across_done             ; (the top run)
+	lda tmpv
+	eor prevv
+	cmp #&10
+	bcc right_only
+	and #&0F
+	beq left_only
+	lda hlr
+	bne across
+	.left_only
+	lda hl
+	bne across
+	.right_only
+	lda hr
+	.across
+	sta vm
+	ldy y0
+	lda cellrow_lo, Y
+	clc
+	adc ecol
+	sta ep
+	lda cellrow_hi, Y
+	adc draw_buffer_HI
+	sta ep+1
+	tya
+	and #7
+	tay
+	lda (ep), Y
+	ora vm
+	sta (ep), Y
+	.across_done
+	lda tmpv
+	sta prevv
+
+	\\ A segment, from row y0 to where the left run or this run ends: its bits
+	.segment
+	.^site_lv
+	lda &FFFF, X                ; the column to the left's right pixel against this left pixel
+	and #&0F
+	eor cl
+	beq same
+	lda vl
+	.same
+	ora inner
+	sta vm
+	.^site_le
+	lda &FFFF, X
+	cmp cend
+	bcs with_run
+	ldy vm                      ; the left run ends first, at A
+	beq left_next
+	jsr draw_rows
+	.left_next
+	sta y0
+	inx
+	bne segment                 ; always
+	.with_run                   ; it ends with this run (and the left run too, if level)
+	bne left_goes_on
+	inx
+	.left_goes_on
+	lda cend
+	ldy vm
+	beq run_next
+	jsr draw_rows
+	.run_next
+	sta y0
+	cmp #ROWS
+	bcs column_end
+	jmp run
+	.column_end
+	ldy save_y
+	rts
+}
+
+\\ OR vm into the column's byte on rows y0 to A - 1. X kept; A = its end.
+.draw_rows
+{
+	sta y1
+	sec
+	sbc y0
+	sta n
+	ldy y0
+	lda cellrow_lo, Y
+	clc
+	adc ecol
+	sta ep
+	lda cellrow_hi, Y
+	adc draw_buffer_HI
+	sta ep+1
+	tya
+	and #7
+	tay
+	.row
+	lda (ep), Y
+	ora vm
+	sta (ep), Y
+	dec n
+	beq done
+	iny
+	cpy #8
+	bne row
+	lda ep                      ; on to the next character row
+	clc
+	adc #LO(MODE4_ROW_BYTES)
+	sta ep
+	lda ep+1
+	adc #HI(MODE4_ROW_BYTES)
+	sta ep+1
+	ldy #0
+	beq row                     ; always
+	.done
+	lda y1
 	rts
 }
 

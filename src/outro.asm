@@ -213,23 +213,24 @@ IF _COLS
 INCLUDE "src/cols2_decode_zp.asm"
 
 ; the edge view (src/outro_edges.asm)
-.save_x             skip 1      ; the decoder's X and Y, while a run's edges are drawn
-.save_y             skip 1
-.above              skip 1      ; the value of the run above
-.lpix               skip 1      ; the run's left pixel
-.hm                 skip 1      ; the bits across the run's first row
+.save_y             skip 1      ; the decoder's Y, while a column's edges are drawn
+.tmpv               skip 1      ; a run's value
+.prevv              skip 1      ; and the value of the run above
+.cl                 skip 1      ; its left pixel
 .inner              skip 1      ; the bit between its pixels, or 0
+.cend               skip 1      ; the run's end
+.cj                 skip 1      ; this column's next run
 .vm                 skip 1      ; a segment's bits down its rows
-.ep                 skip 2      ; a character cell in the window
+.ep                 skip 2      ; a row's character cell in the window
 .y0                 skip 1      ; a segment: rows y0 to y1 - 1
 .y1                 skip 1
+.n                  skip 1      ; its rows left to draw
 .ecol               skip 1      ; the column's character cell * 8
 .hl                 skip 1      ; its left pixel's two bits
 .hr                 skip 1      ; and its right pixel's
 .hlr                skip 1      ; and both
 .vl                 skip 1      ; the left pixel's first bit
 .vr                 skip 1      ; and the right pixel's
-.ew                 skip 1      ; the walker through the column to the left
 .drawing            skip 1      ; bit 7 set: draw this frame's edges
 .unseen_done        skip 1      ; bit 7 set: the next pair's first frame is decoded
 .frame_no           skip 2
@@ -2122,8 +2123,11 @@ endif
 \ ******************************************************************
 
 IF _COLS
+ASSERT ((end - start + &FF) AND &FF00) = OUTRO_SIZE_COLS2      ; src/cols2_disc.h.asm
 SAVE "build/OUTROC2", start, end, main
 ELIF _NO_STREAM
+include "src/cols_disc.h.asm"
+ASSERT ((end - start + &FF) AND &FF00) = OUTRO_SIZE_NO_STREAM  ; src/cols_disc.h.asm
 SAVE "build/OUTRON", start, end, main
 ELSE
 SAVE "build/OUTRO", start, end, main

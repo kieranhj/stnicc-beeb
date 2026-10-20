@@ -10,6 +10,8 @@
 \\ - PALETTE_CHANGE, a macro run on a frame with a palette change (it must
 \\   read the change: a count, then three bytes for each colour, by get_byte);
 \\ - COLUMN_START, a macro run as each column starts (X and Y free);
+\\ - COLUMN_END, a macro run as each column ends (Y = its number of runs, to
+\\   keep; X free);
 \\ - COLS_KEEP: TRUE to leave columns the draw buffer already shows (copy mode's
 \\   second bit) alone, through keep_column; FALSE to redraw them;
 \\ - the run sink, straight after this file, as run_sink: each run kept is in

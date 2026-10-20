@@ -53,7 +53,7 @@ const beebasm = path.resolve(repo, process.env.BEEBASM ?? "../beebasm/beebasm.ex
 // release, with --disc of the release image, for a baseline).
 const variant = opt("--variant", "low");
 const VARIANTS = {
-    low: { defines: ["_QUALITY=0", "_NULA=0"], exe: "LOW" },
+    low: { defines: ["_QUALITY=0", "_NULA=0"], exe: "LOW", outro: { defines: [], exe: "OUTRO" } },
     nula: { defines: ["_QUALITY=1", "_NULA=-1"], exe: "NULA" },
     cpc: { defines: ["_QUALITY=1", "_NULA=-1", "_CPC=-1"], exe: "CPC" }, // the intro's choice without a NuLA
     // the CPC version from the column stream, on its own disc (stnicc-cols.asm)
@@ -496,6 +496,11 @@ if (outroDump) {
     for (let i = osyms.irq_handler - 0x1100; i < bin.length - 2 && ret < 0; i++)
         if (bin[i] === 0x20 && bin[i + 1] === (osyms.parse_frame & 0xff) && bin[i + 2] === osyms.parse_frame >> 8) ret = 0x1100 + i + 3;
     if (ret < 0) throw new Error("--outro-dump: jsr parse_frame not found in the outro's irq_handler");
+    // the credits' end: process_text's eos sets text_ptr back to credits_text (lda #lo : sta text_ptr)
+    let eosPc = -1;
+    for (let i = 0; i < bin.length - 3 && eosPc < 0; i++)
+        if (bin[i] === 0xa9 && bin[i + 1] === (osyms.credits_text & 0xff) && bin[i + 2] === 0x85 && bin[i + 3] === osyms.text_ptr) eosPc = 0x1100 + i;
+    let eosAt = 0;
     mkdirSync(outroDump, { recursive: true });
     let n = 0;
     let first = 0;
@@ -509,6 +514,8 @@ if (outroDump) {
     let oPrev = -1;
     let oPrevCycles = 0;
     let oRender = 0;
+    const oTime = {};
+    let oStarted = false;
     const oh = cpu.debugInstruction.add((pc) => {
         const now = s.elapsedCycles;
         if (inFrame && oPrev >= 0 && ((oPrev >= osyms.fx_start && oPrev < osyms.get_char_def) || (oPrev >= 0x5a40 && oPrev < 0x5c00))) {
@@ -517,8 +524,17 @@ if (outroDump) {
             oRender += d;
             if (oprof) oprof[oPrev] += d;
         }
+        if (oStarted && oPrev >= 0) {
+            const d = now - oPrevCycles;
+            const c = inFrame && ((oPrev >= osyms.fx_start && oPrev < osyms.get_char_def) || (oPrev >= 0x5a40 && oPrev < 0x5c00)) ? "decode and draw"
+                : oPrev >= 0x8000 && mem(0xf4) === mem(0x7f) ? "music (SWRAM)" : oPrev >= 0x8000 ? "MOS / DFS" : oPrev >= 0x0d00 && oPrev < 0x0e00 ? "disc NMI"
+                : oPrev >= osyms.get_char_def && oPrev < osyms.fx_end ? "credits" : oPrev >= osyms.main && oPrev < osyms.irq_handler ? "main loop" : "other";
+            oTime[c] = (oTime[c] ?? 0) + d;
+        }
         oPrev = pc;
         oPrevCycles = now;
+        if (pc === ret && n === 0) oStarted = true;
+        if (pc === eosPc && !eosAt && oStarted) eosAt = now;
         if ((pc === osyms.parse_frame || pc === 0x5a40) && mem(0x1100) === bin[0] && mem(0x1101) === bin[1]) inFrame = true;
         // the outro is the code at &1100 now: its frame's return, in its IRQ handler
         if (pc !== ret || mem(0x1100) !== bin[0] || mem(0x1101) !== bin[1]) return;
@@ -543,6 +559,10 @@ if (outroDump) {
     console.log(`outro: ${n} frames dumped in ${outroDump}${done ? "" : " (did not reach the end)"}; ` +
         `${((lastCycle - first) / 2e6).toFixed(1)} s from the first to the last (${((lastCycle - first) / 39936).toFixed(0)} fields); ` +
         `${(oRender / 1e6).toFixed(1)}M cycles in parse_frame (${(oRender / Math.max(n, 1) / 1000).toFixed(0)}K a frame)`);
+    console.log(`  the credits reach their end ${eosAt ? ((eosAt - first) / 2e6).toFixed(1) + " s after the first frame" : "after the stream"}`);
+    const oTotal = Object.values(oTime).reduce((a, b) => a + b, 0);
+    for (const [c, v] of Object.entries(oTime).sort((a, b) => b[1] - a[1]))
+        console.log(`  ${c.padEnd(20)} ${(v / 39936 / Math.max(n - 1, 1)).toFixed(2)} fields a frame (${((100 * v) / oTotal).toFixed(1)}%)`);
     if (oprof) {
         const out = ["pc cycles"];
         for (let pc = 0; pc < 65536; pc++) if (oprof[pc]) out.push(`${pc.toString(16).padStart(4, "0")} ${oprof[pc]}`);
