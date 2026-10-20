@@ -1101,6 +1101,7 @@ ENDIF
 
 		\\ Parse and draw the next frame
 IF _COLS
+		.next_pair
 		bit unseen_done             ; (decode_ahead did it, unless short of data)
 		bmi unseen_ok
 		jsr decode_unseen
@@ -1182,6 +1183,9 @@ IF _COLS
 		sta draw_buffer_HI
 		CLI
 		jsr decode_ahead
+		bcc no_more
+		jmp next_pair               ; straight on to the next pair
+		.no_more
 ENDIF
 
 		\\ Disable interrupts again!

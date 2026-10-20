@@ -289,7 +289,8 @@ INCLUDE "src/cols2_decode_ops.asm"
 
 \\ After a frame is drawn, while its swap waits for vsync: decode the next pair's
 \\ first frame, unless the stream has ended or is short of data (the check before
-\\ sets buffer_lock unless STREAM_FRAME_PAGES are loaded: enough for a pair)
+\\ sets buffer_lock unless STREAM_FRAME_PAGES are loaded: enough for a pair).
+\\ Returns C = 1 to draw the next frame at once.
 .decode_ahead
 {
 	lda #0
@@ -301,7 +302,26 @@ INCLUDE "src/cols2_decode_ops.asm"
 	bne done
 	jsr decode_unseen
 	dec unseen_done
+
+	\\ C = 1: go straight on to the next pair, without waiting for the next
+	\\ tick, as the swap has happened and the loader has no track to start (as
+	\\ the main loop judges it)
+	lda screen_lock
+	ora buffer_lock
+	bne done
+	sec
+	lda stream_frame_HI
+	sbc load_to_HI
+	bcs track_distance
+	eor #255
+	adc #1
+	.track_distance
+	cmp #STREAMING_sectors_to_load
+	bcs done
+	sec
+	rts
 	.done
+	clc
 	rts
 }
 
