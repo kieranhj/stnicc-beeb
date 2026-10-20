@@ -6,3 +6,8 @@ MUSIC_JUMP_VGM_UPDATE = &8009
 MUSIC_JUMP_SN_RESET = &800C
 MUSIC_JUMP_SILENT = $800f
 MUSIC_JUMP_LOUD = $8012
+
+; The music bank's RAM after the player's decode buffers, free for others
+; (the 1800-frame column disc's outro keeps its credits there); asserted by
+; src/music.asm
+MUSIC_FREE_START = &BA00

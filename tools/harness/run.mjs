@@ -499,7 +499,9 @@ if (outroDump) {
     // the credits' end: process_text's eos sets text_ptr back to credits_text (lda #lo : sta text_ptr)
     let eosPc = -1;
     for (let i = 0; i < bin.length - 3 && eosPc < 0; i++)
-        if (bin[i] === 0xa9 && bin[i + 1] === (osyms.credits_text & 0xff) && bin[i + 2] === 0x85 && bin[i + 3] === osyms.text_ptr) eosPc = 0x1100 + i;
+        if (osyms.credits_start !== undefined
+            ? bin[i] === 0xa5 && bin[i + 1] === osyms.credits_start && bin[i + 2] === 0x85 && bin[i + 3] === osyms.text_ptr
+            : bin[i] === 0xa9 && bin[i + 1] === (osyms.credits_text & 0xff) && bin[i + 2] === 0x85 && bin[i + 3] === osyms.text_ptr) eosPc = 0x1100 + i;
     let eosAt = 0;
     mkdirSync(outroDump, { recursive: true });
     let n = 0;

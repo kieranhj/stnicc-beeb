@@ -190,6 +190,8 @@ SAVE "build/MUSIC", start, end, start
 \\ The disc 1 layout (stnicc-build.asm) relies on MUSIC filling its slot
 INCLUDE "src/exe_sizes.h.asm"
 ASSERT ((end - start + 255) AND &FF00) = EXE_SIZE_MUSIC
+INCLUDE "src/music.h.asm"
+ASSERT vgm_buffer_end <= MUSIC_FREE_START     ; src/music.h.asm
 
 \ ******************************************************************
 \ *	Memory Info

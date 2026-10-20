@@ -157,6 +157,10 @@ include "src/cols2_ring.h.asm"
 ; the 17 rows it shows (17 * 320 bytes from screen3_addr)
 WINDOW_CODE = &5A40
 WINDOW_CODE_END = &5C00
+; with sideways RAM, the music bank stays paged in and its spare RAM holds the
+; credits; without, the outro has the credits only
+SWRAM_START = MUSIC_FREE_START
+SWRAM_END = &C000
 ELSE
 DISK1_first_track = 24      ; as stnicc-beeb.asm: the stream runs to the end of the disc
 ENDIF
@@ -314,8 +318,12 @@ ENDIF
 .music_enabled		skip 1
 .music_lock			skip 1
 
-IF _NO_STREAM
+IF _NO_STREAM OR _COLS
 .credits_done		skip 1		; the credits have been typed once
+ENDIF
+IF _COLS
+.no_swram			skip 1		; bit 7 set: no sideways RAM, so the credits only
+.credits_start		skip 2		; where the credits are
 ENDIF
 
 .zp_end
@@ -389,7 +397,11 @@ ENDIF
 	ldx #nula_message_end-nula_message_begin-1
 .nula_message_loop
 	lda nula_message_begin,x
+IF _COLS
+	sta just_3bit_colour_begin - SWRAM_START + reloc_swram,x
+ELSE
 	sta just_3bit_colour_begin,x
+ENDIF
 	dex
 	bpl nula_message_loop
 .nula_done
@@ -424,6 +436,45 @@ IF _COLS
 	inx
 	cpx #LO(window_code_end - window_code_start)
 	bne window_copy2
+
+	\\ The credits (and more) into the music bank's spare RAM, kept paged in; or,
+	\\ with no sideways RAM, the credits only, read where they are
+	lda MUSIC_SLOT_ZP
+	bpl swram
+	sta no_swram
+	lda #LO(credits_text - SWRAM_START + reloc_swram)
+	sta credits_start
+	lda #HI(credits_text - SWRAM_START + reloc_swram)
+	sta credits_start+1
+	jmp swram_done
+	.swram
+	sta &f4
+	sta &fe30
+	lda #LO(reloc_swram)
+	sta swram_copy+1
+	lda #HI(reloc_swram)
+	sta swram_copy+2
+	lda #LO(SWRAM_START)
+	sta swram_write+1
+	lda #HI(SWRAM_START)
+	sta swram_write+2
+	ldx #HI(swram_end - swram_start + &FF)
+	ldy #0
+	.swram_copy
+	lda &FFFF, Y
+	.swram_write
+	sta &FFFF, Y
+	iny
+	bne swram_copy
+	inc swram_copy+2
+	inc swram_write+2
+	dex
+	bne swram_copy
+	lda #LO(credits_text)
+	sta credits_start
+	lda #HI(credits_text)
+	sta credits_start+1
+	.swram_done
 ENDIF
 
 	IF 0
@@ -432,6 +483,10 @@ ENDIF
 	ENDIF
 
 IF _NO_STREAM = FALSE
+IF _COLS
+    bit no_swram
+    bmi no_stream
+ENDIF
     \\ Set stream pointer
     lda #LO(STREAM_buffer_start-1)
     sta STREAM_ptr_LO
@@ -461,6 +516,9 @@ IF _NO_STREAM = FALSE
 
         .read_error
 	}
+IF _COLS
+    .no_stream
+ENDIF
 ENDIF
 
     \\ Init system
@@ -481,7 +539,11 @@ ENDIF
 
 	ldx #0:ldy #0:jsr set_cursor_XY
 	lda #CURSOR_SPEED:sta cursor_timer
+IF _COLS
+	ldx credits_start:ldy credits_start+1
+ELSE
 	ldx #LO(credits_text):ldy #HI(credits_text)
+ENDIF
 	stx text_ptr:sty text_ptr+1
 
 	\\ Init music
@@ -563,6 +625,14 @@ IF _NO_STREAM
     lda credits_done            ; on once the credits have been typed
     beq loop
 ELSE
+IF _COLS
+    bit no_swram
+    bpl streaming
+    lda credits_done            ; no sideways RAM: on once the credits have been typed
+    beq loop
+    jmp track_load_error
+    .streaming
+ENDIF
     \\ Debug
     IF _DEBUG
     {
@@ -945,9 +1015,25 @@ ENDIF
 		TXA:PHA:TYA:PHA
 
 		\\ Do the slow bit!
+IF _COLS
+		\\ The credits are in the music bank: page it in, as a disc read may
+		\\ have paged in the DFS ROM
+		lda &f4
+		pha
+		lda MUSIC_SLOT_ZP
+		bmi bank_ok
+		sta &f4
+		sta &fe30
+		.bank_ok
+ENDIF
 		CLI
 		jsr process_text
 		SEI
+IF _COLS
+		pla
+		sta &f4
+		sta &fe30
+ENDIF
 
 		\\ Restore registers
 		PLA:TAY:PLA:TAX
@@ -982,6 +1068,12 @@ ENDIF
 IF _NO_STREAM
 	jmp return_to_os            ; credits only
 ELSE
+IF _COLS
+	bit no_swram
+	bpl plot_ok
+	jmp return_to_os            ; no sideways RAM: credits only
+	.plot_ok
+ENDIF
 
 	\\ If we're already busy just exit function
 	LDA decode_lock
@@ -1759,13 +1851,20 @@ ENDMACRO
 	rts
 
 	.eos
-IF _NO_STREAM
+IF _NO_STREAM OR _COLS
 	inc credits_done
 ENDIF
+IF _COLS
+	lda credits_start
+	sta text_ptr
+	lda credits_start+1
+	sta text_ptr+1
+ELSE
 	lda #LO(credits_text)
 	sta text_ptr
 	lda #HI(credits_text)
 	sta text_ptr+1
+ENDIF
 	rts
 
 	.vdu_code
@@ -2020,13 +2119,6 @@ EQUS "/INTRO", 13
 EQUS "12-bit NuLA colour"
 .nula_message_end
 
-IF _COLS
-; the credits stay in main RAM (low RAM holds the run ring)
-.credits_text
-INCLUDE "src/outro_credits.asm"
-.credits_end
-ENDIF
-
 .data_end
 
 \ ******************************************************************
@@ -2095,6 +2187,21 @@ CLEAR window_code_start, window_code_end
 ORG reloc_window_code + window_code_end - window_code_start
 PRINT "Window clear at", ~WINDOW_CODE, ":", window_code_end - window_code_start, "bytes"
 ASSERT window_code_end - window_code_start > 256
+
+; (the sideways RAM block)
+reloc_swram = P%
+CLEAR SWRAM_START, SWRAM_END
+ORG SWRAM_START
+GUARD SWRAM_END
+.swram_start
+.credits_text
+INCLUDE "src/outro_credits.asm"
+.credits_end
+.swram_end
+COPYBLOCK swram_start, swram_end, reloc_swram
+CLEAR swram_start, swram_end
+ORG reloc_swram + swram_end - swram_start
+PRINT "Sideways RAM block at", ~SWRAM_START, ":", swram_end - swram_start, "bytes, to", ~SWRAM_END
 
 ELSE
 .reloc_credits_text
