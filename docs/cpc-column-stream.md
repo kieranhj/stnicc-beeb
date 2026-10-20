@@ -5,8 +5,8 @@ the stream, `stnicc-cols.asm` plays it from its own disc, `build/beeb-niccc-cpc.
 frames match the CPC model byte for byte (also with `--slow-disc 700`): **117.8M render
 cycles and 3,931 fields, against 249.0M and 7,424 for the polygon CPC player.** See
 "What was built" at the end; the plan below is as written before it. All 1800 frames
-(branch `column-stream-1800`): 287.7M and 8,830 fields from a 312K stream; see "All 1800
-frames: what was built".
+(branch `column-stream-1800`): 287.7M and 8,830 fields from a 317K stream, and an outro
+that plays the stream as its edges; see "All 1800 frames: what was built".
 
 
 ## The idea
@@ -186,10 +186,11 @@ All 1800 frames match the CPC model of the full-rate stream byte for byte
 |---|---|---|---|---|
 | Polygon CPC player | 900 | 344K | 249.0M | 7,424 |
 | 900-frame column player | 900 | 305K | 117.8M | 3,931 |
-| **1800-frame column player** | **1800** | **312K** | **287.7M** | **8,830** |
+| **1800-frame column player** | **1800** | **317K** | **287.7M** | **8,830** |
 
 That is 160K cycles and 4.9 fields a frame, against 131K and 4.4 for the 900-frame player.
-The stream fits with 43K to spare from track 20 (the plan's 355K estimate was pessimistic).
+The stream (317,232 bytes) fits with 38K to spare from track 20 (the plan's 355K estimate
+was pessimistic).
 
 - **The code** is as planned, with these choices (the header of `bin/colstream2.py` is the
   reference): modes time `0`, left `10`, tslope `110`, copy `111`; per-mode Huffman-sized op
@@ -208,7 +209,8 @@ The stream fits with 43K to spare from track 20 (the plan's 355K estimate was pe
 - **Frames:** 3 header bits (palette change, then next / next block / end), then the CPC
   palette change in bytes (so the executable carries no palette table). A frame that ends
   exactly at a block's end must say "next block" so the player wraps its ring; the 900-frame
-  encoder has the same gap but its stream never hits it.
+  encoder has the same gap but its stream never hits it. Frames 2n and 2n + 1 are always in
+  one block, for the outro (about 5K more padding).
 - **RAM.** The last frame's runs are kept in a ring of 640 runs (most ever live: 561),
   three arrays three pages apart at &400, &700 and &A00, so a run's bytes share a low byte;
   their 128-byte tails hold the background column, zero slopes, the per-column tables and
@@ -227,8 +229,44 @@ Per frame (profile, `--profile f --profile-pcs 65536`): fill about 85K (unrolled
 short runs 7K, per-run and long-pass overhead 48K), decoding about 75K (new values about
 20K, the K path 10K, bits and op codes about 25K, per-column set-up about 12K).
 
-Ideas not done: read 1-4 bit fields unrolled (about 2K a frame, needs RAM); cheaper
-per-column walker set-up; the 900-frame player's ideas for long runs (row-ordered stores).
+Ideas not done: read 1-4 bit fields unrolled (about 2K a frame, needs RAM; the outro does);
+cheaper per-column walker set-up; the 900-frame player's ideas for long runs (row-ordered
+stores).
+
+### The outro
+
+The column discs' outros are `src/outro.asm` built two more ways (the main disc's is byte for
+byte as before):
+
+- **The 1800-frame disc** (`-D _COLS=-1`, `build/OUTROC2`) plays the column stream with the
+  player's decoder (`src/cols2_decode.asm` and `src/cols2_decode_ops.asm`, either side of the
+  includer's run sink; `src/cols2_ring.h.asm`, `src/cols2_decode_zp.asm`) and draws each
+  frame's edges in the wireframe's window (`src/outro_edges.asm`): a pixel where the colour
+  changes from the pixel above or to the left, each picture pixel two screen pixels wide, and
+  a box. It shows every other frame (the first of each pair is decoded but not drawn, as soon
+  as the frame before is drawn), 900 frames in **136.4 s**. Its credits end at 124.8 s, so
+  they start again for the last part of the scene (accepted). Check it with
+  `run.mjs --no-inject --variant cols2 --outro-dump dir` then `tools/outro_check.py dir`
+  (dump n is frame 2n + 1); all 900 match the model byte for byte.
+- **Its RAM:** the run ring at &400-&CFF as in the player; the screen and row tables at &E00;
+  the window clear (`src/outro_window.asm`) at &5A40, below the rows the text screen shows;
+  with sideways RAM the music bank stays paged in and the credits are copied to &BA00
+  (`MUSIC_FREE_START`, after the music player's decode buffers), paged in again for the
+  credits since a disc read pages in the DFS ROM. Without sideways RAM the outro has the
+  credits only.
+- **The 900-frame disc** (`-D _NO_STREAM=-1`, `build/OUTRON`) has the credits only and ends
+  after one pass of them (about 130 s).
+- The outros' sector sizes are in `src/cols2_disc.h.asm` and `src/cols_disc.h.asm`, asserted by
+  `src/outro.asm`: one sector more than the disc build assumed pushed stream file 00 off the
+  disc.
+- Its time, as `--outro-dump` splits it: decoding and drawing about 6.4 fields a pair (about
+  254K cycles: edges 93K, window clear 10K, two frames' decoding the rest), disc interrupts
+  0.46, music 0.21, credits 0.11. Steps: every frame 213.6 s; every other frame 151.4 s;
+  edges a sweep per run 148 s; decoding the next pair's first frame while the swap waits
+  144.0 s; edges a column at a time 142.2 s; straight on to the next pair when the swap has
+  happened 137.8 s; bit fields inline 136.4 s. Several rewrites of the edge pass measured
+  nearly the same (about 90K a drawn frame): the cost is in the per-run and per-segment
+  bookkeeping, not the rows.
 
 ## The plan for 1800 frames (2026-10-19, before it was built)
 

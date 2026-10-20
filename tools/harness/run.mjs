@@ -133,7 +133,9 @@ let lockOn = null;
 // ---------------------------------------------------------------- machine
 
 const { MachineSession } = await import(pathToFileURL(path.join(jsbeeb, "src/machine-session.js")).href);
-const s = new MachineSession("B-DFS1.2");
+// jsbeeb 2.10 fits a VideoNuLA only when asked (older versions always had one and ignore
+// the option): the NuLA runs need it, the others keep the plain video ULA
+const s = new MachineSession("B-DFS1.2", { hasVideoNula: variant === "nula" || args.includes("--with-nula") });
 await s.initialise();
 await s.boot();
 const cpu = s._machine.processor;
