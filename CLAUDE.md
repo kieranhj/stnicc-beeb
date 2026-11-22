@@ -23,7 +23,7 @@ node tools/harness/run.mjs --ref tools/harness/baseline.json   # ~85 s: PASS/FAI
 
 ## Build
 
-Windows (the main dev environment). Most tools are vendored in `bin/`, but `bin/beebasm.exe` is an old Cygwin build that no longer runs. `make.bat` uses `%BEEBASM%`, which defaults to `..\beebasm\beebasm.exe` (beebasm 1.11, which reproduces the 2020 release build byte for byte). Run `make.bat` as `.\make.bat` from PowerShell, because `cmd //c` from Git Bash does not find it.
+Windows (the main dev environment). Most tools are vendored in `bin/`, but `bin/beebasm.exe` is an old Cygwin build that no longer runs. `make.bat` uses `%BEEBASM%`, which defaults to `..\..\third-party\beebasm\beebasm.exe` (beebasm 1.11, which reproduces the 2020 release build byte for byte). Run `make.bat` as `.\make.bat` from PowerShell, because `cmd //c` from Git Bash does not find it.
 
 ```
 make-assets.bat   # logo (png2bbc + exomizer) and music (.vgm -> .vgi v3 with vgipacker.py); needs ../vgm-packer checked out alongside this repo
@@ -40,7 +40,7 @@ make clean
 make b2_test      # reset + run the .dsd in a b2 emulator via its HTTP API (localhost:48075)
 ```
 
-One variant on its own: `..\beebasm\beebasm.exe -D _QUALITY=0 -D _NULA=0 -i stnicc-beeb.asm -v > build\low.txt`. The `-v` listing is where `PRINT` output, sizes and page-alignment/boundary warnings appear.
+One variant on its own: `..\..\third-party\beebasm\beebasm.exe -D _QUALITY=0 -D _NULA=0 -i stnicc-beeb.asm -v > build\low.txt`. The `-v` listing is where `PRINT` output, sizes and page-alignment/boundary warnings appear.
 
 ## Build pipeline / architecture
 
