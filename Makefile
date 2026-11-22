@@ -4,7 +4,8 @@
 
 ifeq ($(OS),Windows_NT)
 
-BEEBASM?=bin\beebasm.exe
+# bin\beebasm.exe is an old Cygwin build that no longer runs; use beebasm 1.11 from D:\beeb\third-party.
+BEEBASM?=..\..\third-party\beebasm\beebasm.exe
 PYTHON?=python
 EXOMIZER?=bin\exomizer.exe
 

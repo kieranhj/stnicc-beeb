@@ -22,14 +22,16 @@ column-stream player).
 - `make.bat` (the maintained Windows build), `make-assets.bat`, `Makefile` (Tom's GNU make build), `run.bat`
 
 ## Build and run
-- `make`: **blocked** - the Makefile's helper `bin/shellcmd.py` (and other bin/*.py) are
-  **Python 2**; it fails at `python bin/shellcmd.py mkdir ./build`. It also defaults to the dead
-  Cygwin `bin\beebasm.exe` and only builds LOW/NULA/CPC into `build/stnicc-A.dsd`.
+- `make`: works (Tom's Makefile; builds LOW/NULA/CPC into `build/stnicc-A.dsd`). Its Python 2 helpers
+  (`bin/shellcmd.py`, `png2bbc.py`, `bbc.py`, `png.py`, `adf_create.py`) were ported to Python 3 on
+  2026-11-22, and its Windows `BEEBASM` default is now `..\..\third-party\beebasm\beebasm.exe` (the
+  Cygwin `bin\beebasm.exe` no longer runs). `build/logo_mode1.exo`, `build/part-1.ssd` and the tracked
+  `compile.txt` come out identical. Its `part-2.ssd` uses title STNICCC-2 (make.bat: BEEB-NICCC-2).
+  `bin/parse.py` (not used by any build) is still Python 2.
 - The real build (CLAUDE.md): `.\make.bat` (all variants + discs -> `build\beeb-niccc.dsd`,
-  `beeb-niccc-cpc.dsd`, `beeb-niccc-cpc1800.dsd`). It uses `%BEEBASM%`, default
-  `..\beebasm\beebasm.exe` - **that sibling no longer exists** after the move. Until make.bat is
-  changed: `$env:BEEBASM='D:\beeb\third-party\beebasm\beebasm.exe'; .\make.bat` (beebasm 1.11,
-  reproduces the 2020 release). Not run on 2026-11-22 (it rewrites the tracked compile.txt).
+  `beeb-niccc-cpc.dsd`, `beeb-niccc-cpc1800.dsd`). It uses `%BEEBASM%`, now defaulting to
+  `..\..\third-party\beebasm\beebasm.exe` (beebasm 1.11); run on 2026-11-22, all three .dsd files
+  byte-identical to the previous build and `compile.txt` unchanged.
 - `make-assets.bat` needs `..\vgm-packer` (D:\beeb\mine\vgm-packer exists).
 - `run.bat` copies the .dsd into `..\jsbeeb-kieranhj\discs` and opens runme2.url (local jsbeeb server).
 - LOW check: `node tools/harness/run.mjs --ref tools/harness/baseline.json` (~85 s, jsbeeb headless).

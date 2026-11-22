@@ -1,5 +1,5 @@
 #!/usr/bin/python
-import sys,os,argparse,shutil,datetime
+import sys,os,argparse,shutil,datetime,hashlib
 
 ##########################################################################
 ##########################################################################
@@ -76,7 +76,7 @@ def strftime_cmd(options):
         fmt=fmt.replace(options.directive_prefix,'%')
 
     pv('strftime format used: ``%s\'\'\n'%fmt)
-    print datetime.datetime.now().strftime(fmt)
+    print(datetime.datetime.now().strftime(fmt))
 
 ##########################################################################
 ##########################################################################
@@ -84,13 +84,13 @@ def strftime_cmd(options):
 def sha1_cmd(options):
     m=hashlib.sha1()
     with open(options.path,'rb') as f: m.update(f.read())
-    print '%s  %s'%(m.hexdigest(),options.path)
+    print('%s  %s'%(m.hexdigest(),options.path))
 
 ##########################################################################
 ##########################################################################
 
 def blank_line_cmd(options):
-    print
+    print()
     
 ##########################################################################
 ##########################################################################
