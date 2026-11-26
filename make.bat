@@ -1,6 +1,6 @@
 @echo off
-rem bin\beebasm.exe is an old Cygwin build that no longer runs; default to the native beebasm 1.11 in D:\beeb\third-party.
-if "%BEEBASM%"=="" set BEEBASM=..\..\third-party\beebasm\beebasm.exe
+rem bin\beebasm.exe is an old Cygwin build that no longer runs; default to the native beebasm 1.11 in D:\tools\beeb\Bin.
+if "%BEEBASM%"=="" set BEEBASM=..\..\Bin\beebasm.exe
 mkdir build
 echo Building HiGH...
 %BEEBASM% -D _QUALITY=2 -D _NULA=0  -i stnicc-beeb.asm -v > build\high.txt
