@@ -19,7 +19,7 @@ column-stream player).
 - `src/` intro, outro, music, disc parts; `lib/`; `data/` the streams; `ref/`
 - `bin/` Python encoders/converters and vendored exes (beebasm.exe is an old Cygwin build that no longer runs)
 - `tools/` harness (`tools/harness/run.mjs`), polymodel.py, stream stats; `docs/`
-- `make.bat` (the maintained Windows build), `make-assets.bat`, `Makefile` (Tom's GNU make build), `run.bat`
+- `make.bat` (the maintained Windows build), `make-assets.bat`, `Makefile` (Tom's GNU make build)
 
 ## Build and run
 - `make`: works (Tom's Makefile; builds LOW/NULA/CPC into `build/stnicc-A.dsd`). Its Python 2 helpers
@@ -33,7 +33,7 @@ column-stream player).
   `..\..\third-party\beebasm\beebasm.exe` (beebasm 1.11); run on 2026-11-22, all three .dsd files
   byte-identical to the previous build and `compile.txt` unchanged.
 - `make-assets.bat` needs `..\vgm-packer` (D:\beeb\mine\vgm-packer exists).
-- `run.bat` copies the .dsd into `..\jsbeeb-kieranhj\discs` and opens runme2.url (local jsbeeb server).
+- Run: jsbeeb-kieranhj, the local jsbeeb clone it used, was deleted on 2026-11-27 (the fork is on GitHub), and `run.bat` with it; open the disc at https://bbc.xania.org or in b2.
 - LOW check: `node tools/harness/run.mjs --ref tools/harness/baseline.json` (~85 s, jsbeeb headless).
 
 ## Local changes

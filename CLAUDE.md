@@ -28,7 +28,6 @@ Windows (the main dev environment). Most tools are vendored in `bin/`, but `bin/
 ```
 make-assets.bat   # logo (png2bbc + exomizer) and music (.vgm -> .vgi v3 with vgipacker.py); needs ../vgm-packer checked out alongside this repo
 make.bat          # assembles all variants + discs -> build\beeb-niccc.dsd (via bin\bbcim -interss)
-run.bat           # copies the .dsd into ../jsbeeb-kieranhj/discs and opens runme2.url
 ```
 
 GNU make (`bin\gmake.exe` on Windows, or `make` elsewhere) does assets and code in one step, but writes `build/stnicc-A.dsd` via `bin/dsd_create.py`, and its `build` target only assembles the LOW and NULA variants:
